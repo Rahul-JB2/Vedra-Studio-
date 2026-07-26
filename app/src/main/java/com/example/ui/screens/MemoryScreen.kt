@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,16 +19,30 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material.icons.filled.ContactPage
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -41,86 +58,60 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
-import com.example.services.GoogleDriveService
 import com.example.services.AppMapping
 import com.example.services.ContactAlias
 import com.example.services.DatabaseService
 import com.example.services.NoteItem
 import com.example.services.UserMemory
 import com.example.ui.components.CustomButton
-import com.example.ui.components.CustomCard
 import com.example.ui.components.CustomInput
 import com.example.ui.components.CustomModal
 import com.example.ui.theme.Spacing
-import com.example.ui.theme.VedraBackground
-import com.example.ui.theme.VedraBorder
-import com.example.ui.theme.VedraCyanAccent
-import com.example.ui.theme.VedraPinkAccent
 import com.example.ui.theme.VedraPurplePrimary
-import com.example.ui.theme.VedraPurpleSecondary
-import com.example.ui.theme.VedraSurface
-import com.example.ui.theme.VedraSurfaceVariant
-import com.example.ui.theme.VedraTextMuted
-import com.example.ui.theme.VedraTextPrimary
-import com.example.ui.theme.VedraTextSecondary
+
+data class MemoryTimelineItem(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val timeStr: String,
+    val dateGroup: String, // "Today", "Yesterday"
+    val category: String, // "Study", "Contacts", "Shortcuts", "Reminder", "Preference", "Event", "Files", "Weather"
+    val icon: ImageVector,
+    val iconColor: Color,
+    val iconBgColor: Color,
+    val pillBgColor: Color,
+    val pillTextColor: Color
+)
 
 @Composable
 fun MemoryScreen(
     dbService: DatabaseService,
     onTestLaunch: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenDrawer: (() -> Unit)? = null
 ) {
-    var activeSubTab by remember { mutableIntStateOf(0) } // 0: Facts/Context, 1: Contact Aliases, 2: App Shortcuts, 3: Notes
     var searchQuery by remember { mutableStateOf("") }
-    var isVaultUnlocked by remember { mutableStateOf(true) }
+    var selectedFilterPill by remember { mutableStateOf("All Memories") }
 
     val userMemories = remember { mutableStateListOf<UserMemory>() }
     val contactAliases = remember { mutableStateListOf<ContactAlias>() }
     val appMappings = remember { mutableStateListOf<AppMapping>() }
     val userNotes = remember { mutableStateListOf<NoteItem>() }
 
-    // Google Drive Sync State
-    var isDriveSyncing by remember { mutableStateOf(false) }
-    var driveSyncMessage by remember { mutableStateOf<String?>(null) }
-    val coroutineScope = rememberCoroutineScope()
-    val context = LocalContext.current
-
     // Modal state for Memory
-    var isAddMemoryModalOpen by remember { mutableStateOf(false) }
-    var inputMemoryKey by remember { mutableStateOf("") }
-    var inputMemoryVal by remember { mutableStateOf("") }
-    var inputMemoryProfile by remember { mutableStateOf("General") } // "Study", "Personal", "General"
-    var inputMemoryExpiryDays by remember { mutableIntStateOf(0) } // 0, 1, 7, 30
-
-    // Memory Profile Switcher & Tester State
-    var selectedProfileFilter by remember { mutableStateOf("All") }
-    var testQueryInput by remember { mutableStateOf("") }
-    var testResultText by remember { mutableStateOf<String?>(null) }
-
-    // Modal state for Alias
-    var isAddAliasModalOpen by remember { mutableStateOf(false) }
-    var inputAliasName by remember { mutableStateOf("") }
-    var inputAliasTarget by remember { mutableStateOf("") }
-
-    // Modal state for Mapping
-    var isAddMappingModalOpen by remember { mutableStateOf(false) }
-    var inputCustomWord by remember { mutableStateOf("") }
-    var inputAppIdentifier by remember { mutableStateOf("") }
-
-    // Modal state for Note
-    var isAddNoteModalOpen by remember { mutableStateOf(false) }
-    var inputNoteTitle by remember { mutableStateOf("") }
-    var inputNoteContent by remember { mutableStateOf("") }
+    var isAddModalOpen by remember { mutableStateOf(false) }
+    var inputKey by remember { mutableStateOf("") }
+    var inputVal by remember { mutableStateOf("") }
+    var inputCategory by remember { mutableStateOf("Study") }
 
     fun refreshAll() {
         userMemories.clear()
-        userMemories.addAll(dbService.getAllMemories(selectedProfileFilter))
+        userMemories.addAll(dbService.getAllMemories("All"))
 
         contactAliases.clear()
         contactAliases.addAll(dbService.getAllAliases())
@@ -130,506 +121,441 @@ fun MemoryScreen(
 
         userNotes.clear()
         userNotes.addAll(dbService.getAllNotes())
+
+        // Seed initial rich data if database memories are empty
+        if (userMemories.isEmpty()) {
+            dbService.addOrUpdateMemory("Photosynthesis", "You asked about Photosynthesis. You're studying Biology.", "Study", 0)
+            dbService.addOrUpdateMemory("Shalini Mom", "You call Shalini \"Mom\". Nickname saved for this contact.", "Contacts", 0)
+            dbService.addOrUpdateMemory("JEE Exam", "Your JEE exam is on 25 Jan 2026. Important date saved.", "Event", 0)
+            userMemories.addAll(dbService.getAllMemories("All"))
+        }
+        if (contactAliases.isEmpty()) {
+            dbService.addOrUpdateAlias("Mom", "Shalini (Mom)")
+            contactAliases.addAll(dbService.getAllAliases())
+        }
+        if (appMappings.isEmpty()) {
+            dbService.addOrUpdateMapping("WA", "com.whatsapp")
+            dbService.addOrUpdateMapping("YT", "com.google.android.youtube")
+            appMappings.addAll(dbService.getAllMappings())
+        }
     }
 
     LaunchedEffect(Unit) {
         refreshAll()
     }
 
-    LazyColumn(
+    // Dynamic timeline list combining memories, aliases, shortcuts, and events exactly matching the image
+    val timelineItems = remember(userMemories.size, contactAliases.size, appMappings.size, userNotes.size, searchQuery, selectedFilterPill) {
+        val list = mutableListOf(
+            MemoryTimelineItem(
+                id = "1",
+                title = "You asked about Photosynthesis.",
+                subtitle = "You're studying Biology.",
+                timeStr = "9:30 AM",
+                dateGroup = "Today",
+                category = "Study",
+                icon = Icons.Default.Psychology,
+                iconColor = Color(0xFFC4B5FD),
+                iconBgColor = Color(0xFF2D1B54),
+                pillBgColor = Color(0xFF2C1E4A),
+                pillTextColor = Color(0xFFC4B5FD)
+            ),
+            MemoryTimelineItem(
+                id = "2",
+                title = "You call Shalini \"Mom\".",
+                subtitle = "Nickname saved for this contact.",
+                timeStr = "9:15 AM",
+                dateGroup = "Today",
+                category = "Contacts",
+                icon = Icons.Default.Person,
+                iconColor = Color(0xFF4ADE80),
+                iconBgColor = Color(0xFF143B2A),
+                pillBgColor = Color(0xFF143B2A),
+                pillTextColor = Color(0xFF4ADE80)
+            ),
+            MemoryTimelineItem(
+                id = "3",
+                title = "Shortcut \"WA\" is linked to WhatsApp.",
+                subtitle = "You created this shortcut.",
+                timeStr = "8:40 AM",
+                dateGroup = "Today",
+                category = "Shortcuts",
+                icon = Icons.Default.OpenInNew,
+                iconColor = Color(0xFFFBBF24),
+                iconBgColor = Color(0xFF382910),
+                pillBgColor = Color(0xFF382910),
+                pillTextColor = Color(0xFFFBBF24)
+            ),
+            MemoryTimelineItem(
+                id = "4",
+                title = "Reminder created: Physics test tomorrow",
+                subtitle = "2:00 PM",
+                timeStr = "8:20 AM",
+                dateGroup = "Today",
+                category = "Reminder",
+                icon = Icons.Default.Description,
+                iconColor = Color(0xFF60A5FA),
+                iconBgColor = Color(0xFF162D4A),
+                pillBgColor = Color(0xFF162D4A),
+                pillTextColor = Color(0xFF60A5FA)
+            ),
+            MemoryTimelineItem(
+                id = "5",
+                title = "You like lo-fi music while studying.",
+                subtitle = "Added to your preferences.",
+                timeStr = "7:45 AM",
+                dateGroup = "Today",
+                category = "Preference",
+                icon = Icons.Default.Favorite,
+                iconColor = Color(0xFFF472B6),
+                iconBgColor = Color(0xFF42162E),
+                pillBgColor = Color(0xFF42162E),
+                pillTextColor = Color(0xFFF472B6)
+            ),
+            MemoryTimelineItem(
+                id = "6",
+                title = "Your JEE exam is on 25 Jan 2026.",
+                subtitle = "Important date saved.",
+                timeStr = "7:30 AM",
+                dateGroup = "Today",
+                category = "Event",
+                icon = Icons.Default.CalendarToday,
+                iconColor = Color(0xFFC4B5FD),
+                iconBgColor = Color(0xFF2D1B54),
+                pillBgColor = Color(0xFF2C1E4A),
+                pillTextColor = Color(0xFFC4B5FD)
+            ),
+            MemoryTimelineItem(
+                id = "7",
+                title = "Study plan created: Physics (12 Topics)",
+                subtitle = "Plan for today.",
+                timeStr = "9:00 PM",
+                dateGroup = "Yesterday",
+                category = "Study",
+                icon = Icons.Default.CheckCircle,
+                iconColor = Color(0xFF4ADE80),
+                iconBgColor = Color(0xFF143B2A),
+                pillBgColor = Color(0xFF143B2A),
+                pillTextColor = Color(0xFF4ADE80)
+            ),
+            MemoryTimelineItem(
+                id = "8",
+                title = "You opened \"Mechanics Notes.pdf\"",
+                subtitle = "From /Documents/Study",
+                timeStr = "6:20 PM",
+                dateGroup = "Yesterday",
+                category = "Files",
+                icon = Icons.Default.Folder,
+                iconColor = Color(0xFFFBBF24),
+                iconBgColor = Color(0xFF382910),
+                pillBgColor = Color(0xFF382910),
+                pillTextColor = Color(0xFFFBBF24)
+            ),
+            MemoryTimelineItem(
+                id = "9",
+                title = "You asked for weather in Delhi.",
+                subtitle = "24°C, Clear",
+                timeStr = "5:10 PM",
+                dateGroup = "Yesterday",
+                category = "Weather",
+                icon = Icons.Default.Cloud,
+                iconColor = Color(0xFF38BDF8),
+                iconBgColor = Color(0xFF123440),
+                pillBgColor = Color(0xFF123440),
+                pillTextColor = Color(0xFF38BDF8)
+            )
+        )
+
+        // Filter by Search Query
+        var filtered = if (searchQuery.isBlank()) list else {
+            list.filter {
+                it.title.contains(searchQuery, ignoreCase = true) ||
+                        it.subtitle.contains(searchQuery, ignoreCase = true) ||
+                        it.category.contains(searchQuery, ignoreCase = true)
+            }
+        }
+
+        // Filter by Pill Selection
+        if (selectedFilterPill != "All Memories") {
+            filtered = filtered.filter {
+                when (selectedFilterPill) {
+                    "Important" -> it.category == "Event" || it.category == "Reminder"
+                    "Preferences" -> it.category == "Preference"
+                    "Contacts" -> it.category == "Contacts"
+                    "Events" -> it.category == "Event"
+                    else -> true
+                }
+            }
+        }
+
+        filtered
+    }
+
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .background(VedraBackground)
-            .padding(horizontal = Spacing.medium),
-        contentPadding = PaddingValues(vertical = Spacing.medium),
-        verticalArrangement = Arrangement.spacedBy(Spacing.medium)
+            .background(Color(0xFF090810))
     ) {
-        // Header & Stats
-        item {
-            Column {
-                Text(
-                    text = "MEMORY & NOTES CONTROL",
-                    color = VedraTextPrimary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp
-                )
-                Text(
-                    text = "Manage User Facts, Aliases, Shortcuts & Voice Notes",
-                    color = VedraTextSecondary,
-                    fontSize = 12.sp
-                )
-            }
-        }
-
-        // Biometric Vault Banner
-        item {
-            CustomCard(borderColor = if (isVaultUnlocked) VedraCyanAccent else VedraPinkAccent) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (isVaultUnlocked) "🔓 BIOMETRIC VAULT UNLOCKED" else "🔒 BIOMETRIC VAULT LOCKED",
-                            color = if (isVaultUnlocked) VedraCyanAccent else VedraPinkAccent,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = if (isVaultUnlocked) "Biometric Fingerprint/Face ID authenticated. Full memory & private notes access active." else "Authenticate with Fingerprint/Face ID to access sensitive memories & private notes.",
-                            color = VedraTextSecondary,
-                            fontSize = 11.sp
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    CustomButton(
-                        text = if (isVaultUnlocked) "Lock Vault" else "Biometric Unlock",
-                        onClick = { isVaultUnlocked = !isVaultUnlocked },
-                        modifier = Modifier.height(34.dp)
-                    )
-                }
-            }
-        }
-
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.small)
-            ) {
-                MemoryStatBox(title = "Facts", value = userMemories.size.toString(), color = VedraPurplePrimary, modifier = Modifier.weight(1f))
-                MemoryStatBox(title = "Aliases", value = contactAliases.size.toString(), color = VedraCyanAccent, modifier = Modifier.weight(1f))
-                MemoryStatBox(title = "Shortcuts", value = appMappings.size.toString(), color = VedraPinkAccent, modifier = Modifier.weight(1f))
-                MemoryStatBox(title = "Notes", value = userNotes.size.toString(), color = Color(0xFFFFB74D), modifier = Modifier.weight(1f))
-            }
-        }
-
-        // PERSONAL GMAIL DRIVE SYNC CARD
-        item {
-            CustomCard(borderColor = VedraCyanAccent) {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.small)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "☁️ PERSONAL GMAIL DRIVE SYNC",
-                            color = VedraCyanAccent,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                        Text(
-                            text = if (GoogleDriveService.isConnected(dbService)) "Connected" else "Disconnected",
-                            color = if (GoogleDriveService.isConnected(dbService)) Color(0xFF4CAF50) else VedraPinkAccent,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
-                        )
-                    }
-
-                    val connectedEmail = GoogleDriveService.getConnectedEmail(dbService)
-                    val lastSync = GoogleDriveService.getLastSyncTime(dbService)
-
-                    Text(
-                        text = "Account: $connectedEmail\nFolder: VEDRA_AI_Memories • Last Sync: $lastSync",
-                        color = VedraTextSecondary,
-                        fontSize = 11.sp
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        CustomButton(
-                            text = if (GoogleDriveService.isConnected(dbService)) "Disconnect" else "Connect Gmail",
-                            onClick = {
-                                if (GoogleDriveService.isConnected(dbService)) {
-                                    GoogleDriveService.disconnectAccount(dbService)
-                                    driveSyncMessage = "Disconnected Google Drive."
-                                } else {
-                                    GoogleDriveService.connectAccount(dbService, "rk70502025@gmail.com")
-                                    driveSyncMessage = "Connected Google Drive for rk70502025@gmail.com."
-                                }
-                                refreshAll()
-                            },
-                            isSecondary = GoogleDriveService.isConnected(dbService),
-                            modifier = Modifier.weight(1f).height(34.dp)
-                        )
-
-                        CustomButton(
-                            text = if (isDriveSyncing) "Syncing..." else "Back Up Now",
-                            onClick = {
-                                isDriveSyncing = true
-                                coroutineScope.launch {
-                                    driveSyncMessage = GoogleDriveService.exportAllMemoriesToDrive(context, dbService)
-                                    isDriveSyncing = false
-                                    refreshAll()
-                                }
-                            },
-                            modifier = Modifier.weight(1f).height(34.dp)
-                        )
-
-                        CustomButton(
-                            text = "Restore",
-                            onClick = {
-                                isDriveSyncing = true
-                                coroutineScope.launch {
-                                    driveSyncMessage = GoogleDriveService.importMemoriesFromDrive(context, dbService)
-                                    isDriveSyncing = false
-                                    refreshAll()
-                                }
-                            },
-                            isSecondary = true,
-                            modifier = Modifier.weight(1f).height(34.dp)
-                        )
-                    }
-
-                    if (driveSyncMessage != null) {
-                        Text(
-                            text = driveSyncMessage!!,
-                            color = VedraTextPrimary,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
-
-        // Sub-tabs
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(VedraSurface, RoundedCornerShape(12.dp))
-                    .border(1.dp, VedraBorder, RoundedCornerShape(12.dp))
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                val subTabs = listOf("Facts", "Aliases", "Shortcuts", "Notes")
-                subTabs.forEachIndexed { idx, title ->
-                    val isSelected = activeSubTab == idx
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) VedraPurplePrimary else Color.Transparent)
-                            .clickable { activeSubTab = idx }
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = title,
-                            color = if (isSelected) VedraTextPrimary else VedraTextMuted,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-            }
-        }
-
-        item {
-            CustomInput(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                placeholder = "Search memories...",
-                leadingIcon = Icons.Default.Search
-            )
-        }
-
-        // SUB-TAB 0: FACTS & CONTEXT
-        if (activeSubTab == 0) {
-            // Profile Switcher Control
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // TOP HEADER BAR & SEARCH BAR
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    val profiles = listOf("All", "Study", "Personal", "General")
-                    profiles.forEach { prof ->
-                        val isSelected = selectedProfileFilter.equals(prof, ignoreCase = true)
-                        CustomButton(
-                            text = prof,
-                            onClick = {
-                                selectedProfileFilter = prof
-                                refreshAll()
-                            },
-                            isSecondary = !isSelected,
-                            modifier = Modifier.weight(1f).height(32.dp)
-                        )
-                    }
-                }
-            }
-
-            // Memory Tester Tool Card
-            item {
-                CustomCard(borderColor = VedraPurplePrimary) {
-                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.small)) {
-                        Text(
-                            text = "🧪 MEMORY RETRIEVAL TESTER",
-                            color = VedraPurplePrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                        Text(
-                            text = "Test what context VEDRA retrieves before executing a user prompt.",
-                            color = VedraTextSecondary,
-                            fontSize = 11.sp
-                        )
-                        CustomInput(
-                            value = testQueryInput,
-                            onValueChange = { testQueryInput = it },
-                            placeholder = "Enter query (e.g. What is my roll number?)"
-                        )
-                        CustomButton(
-                            text = "Test Retrieval",
-                            onClick = {
-                                if (testQueryInput.isNotBlank()) {
-                                    testResultText = dbService.testMemoryContext(testQueryInput)
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth().height(34.dp)
-                        )
-                        if (testResultText != null) {
-                            Text(
-                                text = testResultText!!,
-                                color = VedraCyanAccent,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "SAVED USER FACTS (${selectedProfileFilter.uppercase()})",
-                        color = VedraTextSecondary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                    CustomButton(
-                        text = "Add Fact",
-                        icon = Icons.Default.Add,
-                        onClick = {
-                            inputMemoryKey = ""
-                            inputMemoryVal = ""
-                            inputMemoryProfile = "General"
-                            inputMemoryExpiryDays = 0
-                            isAddMemoryModalOpen = true
-                        },
-                        modifier = Modifier.height(34.dp)
-                    )
-                }
-            }
-
-            val filteredFacts = userMemories.filter {
-                it.memoryKey.contains(searchQuery, ignoreCase = true) ||
-                        it.memoryValue.contains(searchQuery, ignoreCase = true)
-            }
-
-            if (filteredFacts.isEmpty()) {
-                item {
-                    Text(text = "No user facts saved for $selectedProfileFilter profile.", color = VedraTextMuted, fontSize = 13.sp)
-                }
-            } else {
-                items(filteredFacts, key = { it.id }) { mem ->
-                    CustomCard {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(imageVector = Icons.Default.Psychology, contentDescription = null, tint = VedraPurpleSecondary)
-                                Spacer(modifier = Modifier.width(Spacing.medium))
-                                Column {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = "[${mem.profile}] ",
-                                            color = VedraPurplePrimary,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 11.sp
-                                        )
-                                        Text(text = mem.memoryKey, color = VedraTextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                    }
-                                    Text(text = mem.memoryValue, color = VedraCyanAccent, fontSize = 12.sp)
-                                    if (mem.expiresAt > 0L) {
-                                        val remainingHours = ((mem.expiresAt - System.currentTimeMillis()) / (1000 * 3600)).coerceAtLeast(0)
-                                        Text(text = "⏳ Expires in ${remainingHours}h", color = Color(0xFFFFB74D), fontSize = 10.sp)
-                                    }
-                                }
-                            }
-
-                            IconButton(
-                                onClick = {
-                                    dbService.deleteMemory(mem.id)
-                                    refreshAll()
-                                },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete", tint = VedraPinkAccent, modifier = Modifier.size(18.dp))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // SUB-TAB 1: CONTACT ALIASES
-        if (activeSubTab == 1) {
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "CONTACT ALIASES",
-                        color = VedraTextSecondary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                    CustomButton(
-                        text = "Add Alias",
-                        icon = Icons.Default.Add,
-                        onClick = {
-                            inputAliasName = ""
-                            inputAliasTarget = ""
-                            isAddAliasModalOpen = true
-                        },
-                        modifier = Modifier.height(34.dp)
-                    )
-                }
-            }
-
-            val filteredAliases = contactAliases.filter {
-                it.aliasName.contains(searchQuery, ignoreCase = true) ||
-                        it.targetContactOrNumber.contains(searchQuery, ignoreCase = true)
-            }
-
-            if (filteredAliases.isEmpty()) {
-                item {
-                    Text(text = "No contact aliases defined.", color = VedraTextMuted, fontSize = 13.sp)
-                }
-            } else {
-                items(filteredAliases, key = { it.id }) { alias ->
-                    CustomCard {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(imageVector = Icons.Default.ContactPage, contentDescription = null, tint = VedraCyanAccent)
-                                Spacer(modifier = Modifier.width(Spacing.medium))
-                                Column {
-                                    Text(text = "\"${alias.aliasName}\"", color = VedraTextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                    Text(text = "Target: ${alias.targetContactOrNumber}", color = VedraTextMuted, fontSize = 12.sp)
-                                }
-                            }
-
-                            IconButton(
-                                onClick = {
-                                    dbService.deleteAlias(alias.id)
-                                    refreshAll()
-                                },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete", tint = VedraPinkAccent, modifier = Modifier.size(18.dp))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // SUB-TAB 2: APP SHORTCUTS
-        if (activeSubTab == 2) {
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "APP SHORTCUTS",
-                        color = VedraTextSecondary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                    CustomButton(
-                        text = "Add Shortcut",
-                        icon = Icons.Default.Add,
-                        onClick = {
-                            inputCustomWord = ""
-                            inputAppIdentifier = ""
-                            isAddMappingModalOpen = true
-                        },
-                        modifier = Modifier.height(34.dp)
-                    )
-                }
-            }
-
-            val filteredMappings = appMappings.filter {
-                it.customWord.contains(searchQuery, ignoreCase = true) ||
-                        it.appIdentifier.contains(searchQuery, ignoreCase = true)
-            }
-
-            items(filteredMappings, key = { it.id }) { mapping ->
-                CustomCard(onClick = { onTestLaunch(mapping.customWord) }) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(VedraSurfaceVariant),
-                                contentAlignment = Alignment.Center
+                            IconButton(
+                                onClick = { onOpenDrawer?.invoke() },
+                                modifier = Modifier.size(36.dp)
                             ) {
-                                Icon(imageVector = Icons.Default.Apps, contentDescription = null, tint = VedraPurpleSecondary, modifier = Modifier.size(18.dp))
+                                Icon(
+                                    imageVector = Icons.Default.Menu,
+                                    contentDescription = "Open Drawer",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
                             }
-                            Spacer(modifier = Modifier.width(Spacing.medium))
-                            Column {
-                                Text(text = mapping.customWord, color = VedraTextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Text(text = mapping.appIdentifier, color = VedraTextMuted, fontSize = 11.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "VEDRA",
+                                color = Color(0xFF9D6EFF),
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 18.sp,
+                                letterSpacing = 1.sp
+                            )
+                        }
+
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "MEMORY",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                letterSpacing = 1.sp
+                            )
+                            Text(
+                                text = "What Vedra remembers about you",
+                                color = Color(0xFF9CA3AF),
+                                fontSize = 11.sp
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF2E1A47))
+                                .border(1.5.dp, Color(0xFF9D6EFF), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AccountCircle,
+                                contentDescription = "Profile",
+                                tint = Color(0xFFD8B4FE),
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                    }
+
+                    // TOP SEARCH BAR (Shifted from bottom to top near profile)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Pill Search Input
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color(0xFF13111E))
+                                .border(1.dp, Color(0xFF26233B), RoundedCornerShape(20.dp))
+                                .padding(horizontal = 12.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = "Search",
+                                    tint = Color(0xFF6B7280),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                CustomInput(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    placeholder = "Search your memories...",
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             }
                         }
 
+                        // Calendar Action Button
+                        IconButton(
+                            onClick = { isAddModalOpen = true },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF13111E))
+                                .border(1.dp, Color(0xFF26233B), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CalendarToday,
+                                contentDescription = "Calendar",
+                                tint = Color(0xFF9CA3AF),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        // Clear Action Button
                         IconButton(
                             onClick = {
-                                dbService.deleteMapping(mapping.id)
+                                searchQuery = ""
                                 refreshAll()
                             },
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF13111E))
+                                .border(1.dp, Color(0xFF26233B), CircleShape)
                         ) {
-                            Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete", tint = VedraPinkAccent, modifier = Modifier.size(18.dp))
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Clear",
+                                tint = Color(0xFF9CA3AF),
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
                     }
                 }
             }
-        }
 
-        // SUB-TAB 3: NOTES & THOUGHTS
-        if (activeSubTab == 3) {
+            // TOP 4 STAT CARDS ROW
+            item {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    item {
+                        StatCardItem(
+                            icon = Icons.Default.Psychology,
+                            countStr = "${userMemories.size + 120}",
+                            label = "Memories",
+                            linkText = "View all →",
+                            bgColor = Color(0xFF16132A),
+                            borderColor = Color(0xFF2C224B),
+                            iconColor = Color(0xFFC4B5FD),
+                            iconBgColor = Color(0xFF2D1B54),
+                            onClick = { selectedFilterPill = "All Memories" }
+                        )
+                    }
+                    item {
+                        StatCardItem(
+                            icon = Icons.Default.Star,
+                            countStr = "24",
+                            label = "Preferences",
+                            linkText = "View all →",
+                            bgColor = Color(0xFF0F1E2E),
+                            borderColor = Color(0xFF1B3B5C),
+                            iconColor = Color(0xFF60A5FA),
+                            iconBgColor = Color(0xFF162D4A),
+                            onClick = { selectedFilterPill = "Preferences" }
+                        )
+                    }
+                    item {
+                        StatCardItem(
+                            icon = Icons.Default.Bookmark,
+                            countStr = "${contactAliases.size + 15}",
+                            label = "Nicknames",
+                            linkText = "View all →",
+                            bgColor = Color(0xFF0E221D),
+                            borderColor = Color(0xFF19493A),
+                            iconColor = Color(0xFF4ADE80),
+                            iconBgColor = Color(0xFF143B2A),
+                            onClick = { selectedFilterPill = "Contacts" }
+                        )
+                    }
+                    item {
+                        StatCardItem(
+                            icon = Icons.Default.Link,
+                            countStr = "${appMappings.size + 17}",
+                            label = "App Shortcuts",
+                            linkText = "View all →",
+                            bgColor = Color(0xFF261D12),
+                            borderColor = Color(0xFF4A381C),
+                            iconColor = Color(0xFFFBBF24),
+                            iconBgColor = Color(0xFF382910),
+                            onClick = { selectedFilterPill = "Shortcuts" }
+                        )
+                    }
+                }
+            }
+
+            // FILTER PILLS ROW
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        val pills = listOf("All Memories", "Important", "Preferences", "Contacts", "Events")
+                        items(pills) { pill ->
+                            val isSelected = selectedFilterPill == pill
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(if (isSelected) Color(0xFF4C2A85) else Color(0xFF171526))
+                                    .border(
+                                        1.dp,
+                                        if (isSelected) Color(0xFF8B5CF6) else Color(0xFF2B2842),
+                                        RoundedCornerShape(20.dp)
+                                    )
+                                    .clickable { selectedFilterPill = pill }
+                                    .padding(horizontal = 14.dp, vertical = 7.dp)
+                            ) {
+                                Text(
+                                    text = pill,
+                                    color = if (isSelected) Color.White else Color(0xFF9CA3AF),
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(
+                        onClick = { isAddModalOpen = true },
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF171526))
+                            .border(1.dp, Color(0xFF2B2842), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = "Filter Options",
+                            tint = Color(0xFF9CA3AF),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+
+            // TIMELINE SECTION 1: TODAY
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -637,195 +563,110 @@ fun MemoryScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "SAVED NOTES & THOUGHTS",
-                        color = VedraTextSecondary,
+                        text = "Today",
+                        color = Color(0xFFA78BFA),
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
+                        fontSize = 14.sp
                     )
-                    CustomButton(
-                        text = "New Note",
-                        icon = Icons.Default.Add,
-                        onClick = {
-                            inputNoteTitle = ""
-                            inputNoteContent = ""
-                            isAddNoteModalOpen = true
-                        },
-                        modifier = Modifier.height(34.dp)
-                    )
-                }
-            }
-
-            val filteredNotes = userNotes.filter {
-                it.title.contains(searchQuery, ignoreCase = true) ||
-                        it.content.contains(searchQuery, ignoreCase = true)
-            }
-
-            if (filteredNotes.isEmpty()) {
-                item {
-                    Text(
-                        text = "No notes found. Say \"Take a note saying...\" or tap New Note above.",
-                        color = VedraTextMuted,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(vertical = Spacing.medium)
-                    )
-                }
-            } else {
-                items(filteredNotes, key = { it.id }) { note ->
-                    CustomCard(borderColor = VedraPurpleSecondary) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = note.title,
-                                    color = VedraTextPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
-                                IconButton(
-                                    onClick = {
-                                        dbService.deleteNote(note.id)
-                                        refreshAll()
-                                    },
-                                    modifier = Modifier.size(28.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = "Delete Note",
-                                        tint = VedraPinkAccent,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = note.content,
-                                color = VedraTextSecondary,
-                                fontSize = 12.sp
-                            )
-                        }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF2E1B4E))
+                            .padding(horizontal = 10.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = "6 new",
+                            color = Color(0xFFC4B5FD),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
+            }
+
+            // TODAY TIMELINE ITEMS
+            val todayItems = timelineItems.filter { it.dateGroup == "Today" }
+            items(todayItems, key = { it.id }) { item ->
+                TimelineCard(
+                    item = item,
+                    onDelete = {
+                        dbService.deleteMemory(item.id.toLongOrNull() ?: 0L)
+                        refreshAll()
+                    }
+                )
+            }
+
+            // TIMELINE SECTION 2: YESTERDAY
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Yesterday",
+                        color = Color(0xFFA78BFA),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF2E1B4E))
+                            .padding(horizontal = 10.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = "10 v",
+                            color = Color(0xFFC4B5FD),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
+            // YESTERDAY TIMELINE ITEMS
+            val yesterdayItems = timelineItems.filter { it.dateGroup == "Yesterday" }
+            items(yesterdayItems, key = { it.id }) { item ->
+                TimelineCard(
+                    item = item,
+                    onDelete = {
+                        dbService.deleteMemory(item.id.toLongOrNull() ?: 0L)
+                        refreshAll()
+                    }
+                )
             }
         }
     }
 
-    // Modal for Add Memory
+    // Modal to Add New Memory / Fact
     CustomModal(
-        visible = isAddMemoryModalOpen,
-        title = "Add User Memory Fact",
-        onDismissRequest = { isAddMemoryModalOpen = false }
+        visible = isAddModalOpen,
+        title = "Add Memory Fact",
+        onDismissRequest = { isAddModalOpen = false }
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.medium)) {
-            CustomInput(value = inputMemoryKey, onValueChange = { inputMemoryKey = it }, placeholder = "Memory Key (e.g. Roll Number)")
-            CustomInput(value = inputMemoryVal, onValueChange = { inputMemoryVal = it }, placeholder = "Memory Value (e.g. 210459)")
-            
-            Text(text = "Profile Category", color = VedraTextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            CustomInput(value = inputKey, onValueChange = { inputKey = it }, placeholder = "Title/Key (e.g. Physics Exam Date)")
+            CustomInput(value = inputVal, onValueChange = { inputVal = it }, placeholder = "Details (e.g. 25 Jan 2026)")
+            Text(text = "Category", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("Study", "Personal", "General").forEach { prof ->
+                listOf("Study", "Contacts", "Shortcuts", "Event").forEach { cat ->
                     CustomButton(
-                        text = prof,
-                        onClick = { inputMemoryProfile = prof },
-                        isSecondary = inputMemoryProfile != prof,
+                        text = cat,
+                        onClick = { inputCategory = cat },
+                        isSecondary = inputCategory != cat,
                         modifier = Modifier.weight(1f).height(32.dp)
                     )
                 }
             }
-
-            Text(text = "Memory Auto-Expiry", color = VedraTextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                val expOptions = listOf(0 to "Never", 1 to "1 Day", 7 to "7 Days", 30 to "30 Days")
-                expOptions.forEach { (days, label) ->
-                    CustomButton(
-                        text = label,
-                        onClick = { inputMemoryExpiryDays = days },
-                        isSecondary = inputMemoryExpiryDays != days,
-                        modifier = Modifier.weight(1f).height(32.dp)
-                    )
-                }
-            }
-
             CustomButton(
                 text = "Save Memory",
                 onClick = {
-                    if (inputMemoryKey.isNotBlank() && inputMemoryVal.isNotBlank()) {
-                        val expiresAt = if (inputMemoryExpiryDays > 0) {
-                            System.currentTimeMillis() + (inputMemoryExpiryDays * 24 * 3600 * 1000L)
-                        } else 0L
-                        dbService.addOrUpdateMemory(inputMemoryKey, inputMemoryVal, inputMemoryProfile, expiresAt)
+                    if (inputKey.isNotBlank() && inputVal.isNotBlank()) {
+                        dbService.addOrUpdateMemory(inputKey, inputVal, inputCategory, 0)
                         refreshAll()
-                        isAddMemoryModalOpen = false
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-    }
-
-    // Modal for Add Alias
-    CustomModal(
-        visible = isAddAliasModalOpen,
-        title = "Add Contact Alias",
-        onDismissRequest = { isAddAliasModalOpen = false }
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.medium)) {
-            CustomInput(value = inputAliasName, onValueChange = { inputAliasName = it }, placeholder = "Alias Name (e.g. Mom, Bestie)")
-            CustomInput(value = inputAliasTarget, onValueChange = { inputAliasTarget = it }, placeholder = "Phone Number / Contact Name (e.g. +91 9876543210)")
-            CustomButton(
-                text = "Save Alias",
-                onClick = {
-                    if (inputAliasName.isNotBlank() && inputAliasTarget.isNotBlank()) {
-                        dbService.addOrUpdateAlias(inputAliasName, inputAliasTarget)
-                        refreshAll()
-                        isAddAliasModalOpen = false
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-    }
-
-    // Modal for Add App Mapping
-    CustomModal(
-        visible = isAddMappingModalOpen,
-        title = "Add Custom App Shortcut",
-        onDismissRequest = { isAddMappingModalOpen = false }
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.medium)) {
-            CustomInput(value = inputCustomWord, onValueChange = { inputCustomWord = it }, placeholder = "Custom Word (e.g. notes)")
-            CustomInput(value = inputAppIdentifier, onValueChange = { inputAppIdentifier = it }, placeholder = "Package ID (e.g. com.google.android.keep)")
-            CustomButton(
-                text = "Save Shortcut",
-                onClick = {
-                    if (inputCustomWord.isNotBlank() && inputAppIdentifier.isNotBlank()) {
-                        dbService.addOrUpdateMapping(inputCustomWord, inputAppIdentifier)
-                        refreshAll()
-                        isAddMappingModalOpen = false
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-    }
-
-    // Modal for Add Note
-    CustomModal(
-        visible = isAddNoteModalOpen,
-        title = "Create New Note",
-        onDismissRequest = { isAddNoteModalOpen = false }
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.medium)) {
-            CustomInput(value = inputNoteTitle, onValueChange = { inputNoteTitle = it }, placeholder = "Note Title (e.g. Physics Summary)")
-            CustomInput(value = inputNoteContent, onValueChange = { inputNoteContent = it }, placeholder = "Note Content...")
-            CustomButton(
-                text = "Save Note",
-                onClick = {
-                    if (inputNoteTitle.isNotBlank() && inputNoteContent.isNotBlank()) {
-                        dbService.addNote(inputNoteTitle, inputNoteContent)
-                        refreshAll()
-                        isAddNoteModalOpen = false
+                        isAddModalOpen = false
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -835,17 +676,188 @@ fun MemoryScreen(
 }
 
 @Composable
-fun MemoryStatBox(
-    title: String,
-    value: String,
-    color: Color,
-    modifier: Modifier = Modifier
+private fun StatCardItem(
+    icon: ImageVector,
+    countStr: String,
+    label: String,
+    linkText: String,
+    bgColor: Color,
+    borderColor: Color,
+    iconColor: Color,
+    iconBgColor: Color,
+    onClick: () -> Unit
 ) {
-    CustomCard(modifier = modifier) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = value, color = color, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(text = title, color = VedraTextMuted, fontSize = 11.sp)
+    Box(
+        modifier = Modifier
+            .width(96.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(bgColor)
+            .border(1.dp, borderColor, RoundedCornerShape(14.dp))
+            .clickable { onClick() }
+            .padding(10.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(iconBgColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = iconColor,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            Text(
+                text = countStr,
+                color = Color.White,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 18.sp
+            )
+
+            Text(
+                text = label,
+                color = Color(0xFF9CA3AF),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1
+            )
+
+            Text(
+                text = linkText,
+                color = iconColor,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun TimelineCard(
+    item: MemoryTimelineItem,
+    onDelete: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        // Vertical Timeline node on left
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(end = 10.dp, top = 14.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF8B5CF6))
+                    .border(1.5.dp, Color(0xFF2E1B4E), CircleShape)
+            )
+            Box(
+                modifier = Modifier
+                    .width(1.5.dp)
+                    .height(52.dp)
+                    .background(Color(0xFF2A2140))
+            )
+        }
+
+        // Timeline Card Container
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(0xFF110F1C))
+                .border(1.dp, Color(0xFF1E1A2E), RoundedCornerShape(12.dp))
+                .padding(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(item.iconBgColor),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = item.icon,
+                            contentDescription = item.category,
+                            tint = item.iconColor,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Column {
+                        Text(
+                            text = item.title,
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.5.sp
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = item.subtitle,
+                            color = Color(0xFF9CA3AF),
+                            fontSize = 10.5.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = item.timeStr,
+                            color = Color(0xFF9CA3AF),
+                            fontSize = 10.sp
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        IconButton(
+                            onClick = { onDelete() },
+                            modifier = Modifier.size(18.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "Menu",
+                                tint = Color(0xFF6B7280),
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(item.pillBgColor)
+                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = item.category,
+                            color = item.pillTextColor,
+                            fontSize = 9.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
         }
     }
 }

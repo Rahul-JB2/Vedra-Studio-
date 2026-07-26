@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Mic
@@ -63,6 +65,13 @@ import kotlinx.coroutines.delay
 import com.example.services.BackgroundService
 import com.example.services.NotificationService
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import com.example.ui.components.SideDrawer
+
 class MainActivity : ComponentActivity() {
 
     private lateinit var dbService: DatabaseService
@@ -96,7 +105,8 @@ class MainActivity : ComponentActivity() {
 
 data class TabItem(
     val title: String,
-    val icon: ImageVector
+    val icon: ImageVector,
+    val isCenterPill: Boolean = false
 )
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -107,24 +117,20 @@ fun MainAppLayout(
 ) {
     val context = LocalContext.current
     var isVoiceModeActive by remember { mutableStateOf(false) }
-    var activeTab by remember { mutableIntStateOf(0) }
+    var activeTab by remember { mutableIntStateOf(3) } // Default to Memory tab (index 3)
     var hasUserInteracted by remember { mutableStateOf(false) }
+    var isDrawerOpen by remember { mutableStateOf(false) }
 
-    // Phase 1, Step 3: Initial launch startup logic
+    // Initial launch setup
     LaunchedEffect(Unit) {
-        isVoiceModeActive = true
-        delay(5000)
-        if (!hasUserInteracted) {
-            isVoiceModeActive = false
-            activeTab = 0 // Home
-        }
+        isVoiceModeActive = false
     }
 
+    // 5 Main Tabs: Home, Study Hub, VED (Center Pill), Memory, Settings
     val tabs = listOf(
         TabItem("Home", Icons.Default.Home),
-        TabItem("Study", Icons.Default.School),
-        TabItem("Ved", Icons.Default.Mic),
-        TabItem("Actions", Icons.Default.FlashOn),
+        TabItem("Study Hub", Icons.Default.School),
+        TabItem("VED", Icons.Default.Mic, isCenterPill = true),
         TabItem("Memory", Icons.Default.Psychology),
         TabItem("Settings", Icons.Default.Settings)
     )
@@ -136,49 +142,77 @@ fun MainAppLayout(
                 modifier = Modifier
                     .testTag("bottom_navigation_bar")
                     .fillMaxWidth()
-                    .background(VedraSurface)
+                    .background(Color(0xFF090810))
                     .navigationBarsPadding()
-                    .padding(vertical = 4.dp),
+                    .padding(vertical = 8.dp, horizontal = 8.dp),
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 tabs.forEachIndexed { index, tab ->
                     val isSelected = activeTab == index
-                    val tint = if (isSelected) VedraPurplePrimary else VedraTextMuted
+                    val tint = if (isSelected) Color(0xFFC4B5FD) else Color(0xFF6B7280)
 
-                    Box(
-                        modifier = Modifier
-                            .testTag("tab_${tab.title.lowercase()}")
-                            .weight(1f)
-                            .combinedClickable(
-                                onClick = {
-                                    hasUserInteracted = true
-                                    activeTab = index
-                                },
-                                onLongClick = {
-                                    hasUserInteracted = true
-                                    if (index == 2) { // Ved tab long press -> Activates VoiceMode globally
+                    if (tab.isCenterPill) {
+                        // Center VED Capsule/Pill Button matching screenshot
+                        Box(
+                            modifier = Modifier
+                                .testTag("tab_${tab.title.lowercase()}")
+                                .weight(1f)
+                                .combinedClickable(
+                                    onClick = {
+                                        hasUserInteracted = true
+                                        activeTab = index
+                                    },
+                                    onLongClick = {
+                                        hasUserInteracted = true
                                         isVoiceModeActive = true
                                     }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(Color(0xFF2E1A47))
+                                    .border(1.5.dp, if (isSelected) Color(0xFFA78BFA) else Color(0xFF6D28D9), RoundedCornerShape(20.dp))
+                                    .padding(horizontal = 22.dp, vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "VED",
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            }
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .testTag("tab_${tab.title.lowercase()}")
+                                .weight(1f)
+                                .clickable {
+                                    hasUserInteracted = true
+                                    activeTab = index
                                 }
-                            )
-                            .padding(vertical = 6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = tab.icon,
-                                contentDescription = tab.title,
-                                tint = tint,
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = tab.title,
-                                color = tint,
-                                fontSize = 10.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            )
+                                .padding(vertical = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    imageVector = tab.icon,
+                                    contentDescription = tab.title,
+                                    tint = tint,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = tab.title,
+                                    color = tint,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
                         }
                     }
                 }
@@ -189,7 +223,7 @@ fun MainAppLayout(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .background(VedraBackground)
+                .background(Color(0xFF090810))
         ) {
             when (activeTab) {
                 0 -> SafeTabBoundary("Home") {
@@ -207,6 +241,9 @@ fun MainAppLayout(
                         onExecuteQuickAction = { actionText ->
                             hasUserInteracted = true
                             UtilityService.parseAndExecuteLocalCommand(context, dbService, actionText)
+                        },
+                        onOpenDrawer = {
+                            isDrawerOpen = true
                         }
                     )
                 }
@@ -225,24 +262,19 @@ fun MainAppLayout(
                         }
                     )
                 }
-                3 -> SafeTabBoundary("Actions") {
-                    ActionsScreen(
-                        onExecuteAction = { cmd ->
-                            hasUserInteracted = true
-                            UtilityService.parseAndExecuteLocalCommand(context, dbService, cmd)
-                        }
-                    )
-                }
-                4 -> SafeTabBoundary("Memory & Notes") {
+                3 -> SafeTabBoundary("Memory & Notes") {
                     MemoryScreen(
                         dbService = dbService,
                         onTestLaunch = { customWord ->
                             hasUserInteracted = true
                             UtilityService.parseAndExecuteLocalCommand(context, dbService, "open $customWord")
+                        },
+                        onOpenDrawer = {
+                            isDrawerOpen = true
                         }
                     )
                 }
-                5 -> SafeTabBoundary("Settings") {
+                4 -> SafeTabBoundary("Settings") {
                     SettingsScreen(
                         dbService = dbService,
                         voiceService = voiceService
@@ -272,6 +304,18 @@ fun MainAppLayout(
                         .padding(bottom = 24.dp, end = 16.dp)
                 )
             }
+
+            // Side Drawer (Top-Left 3 horizontal lines menu)
+            SideDrawer(
+                isOpen = isDrawerOpen,
+                onClose = { isDrawerOpen = false },
+                onSelectMenuItem = { actionKey ->
+                    hasUserInteracted = true
+                    if (actionKey == "action") {
+                        activeTab = 5 // Navigate to Actions Screen
+                    }
+                }
+            )
         }
     }
 }

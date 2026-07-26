@@ -234,6 +234,20 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
                 timestamp INTEGER NOT NULL
             )
         """.trimIndent())
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS $TABLE_CACHE (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                query_key TEXT NOT NULL UNIQUE,
+                response_text TEXT NOT NULL,
+                category TEXT NOT NULL DEFAULT 'general'
+            )
+        """.trimIndent())
+        try {
+            db.execSQL("ALTER TABLE $TABLE_CACHE RENAME COLUMN queryKey TO query_key")
+        } catch (_: Exception) {}
+        try {
+            db.execSQL("ALTER TABLE $TABLE_CACHE RENAME COLUMN responseText TO response_text")
+        } catch (_: Exception) {}
         try {
             db.execSQL("ALTER TABLE $TABLE_MEMORY ADD COLUMN profile TEXT DEFAULT 'General'")
         } catch (_: Exception) {}
@@ -827,7 +841,7 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
     fun getAllCachedResponses(): List<CachedResponse> {
         val list = mutableListOf<CachedResponse>()
         val db = readableDatabase
-        db.rawQuery("SELECT id, queryKey, responseText, category FROM $TABLE_CACHE", null).use {
+        db.rawQuery("SELECT id, query_key, response_text, category FROM $TABLE_CACHE", null).use {
             while (it.moveToNext()) {
                 list.add(
                     CachedResponse(

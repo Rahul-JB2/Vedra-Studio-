@@ -19,10 +19,14 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
+      - name: Force Headless Mode for Kotlin and KSP
+        run: |
+          echo "org.gradle.jvmargs=-Xmx3200m -Djava.awt.headless=true" >> gradle.properties
+          echo "kotlin.daemon.jvm.options=-Djava.awt.headless=true" >> gradle.properties
+          echo "kotlin.compiler.execution.strategy=in-process" >> gradle.properties
+
       - name: Build Debug APK
-        env:
-          GRADLE_OPTS: "-Djava.awt.headless=true -Dorg.gradle.jvmargs=-Xmx3200m"
-        run: gradle assembleDebug --no-daemon
+        run: gradle assembleDebug --no-daemon --no-parallel
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

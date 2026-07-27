@@ -178,6 +178,12 @@ fun MainSettingsListView(
                 )
             ),
             SettingCategorySpec(
+                categoryTitle = "WIDGETS & OVERLAY",
+                items = listOf(
+                    SettingItemSpec("widget_settings", "Widget Settings", "Configure home screen widgets, movable AI orb, colors & animations", Icons.Default.Widgets, Color(0xFF38BDF8), Color(0xFF132A3B))
+                )
+            ),
+            SettingCategorySpec(
                 categoryTitle = "PRIVACY & SECURITY",
                 items = listOf(
                     SettingItemSpec("privacy", "Privacy", "Data, permissions, privacy settings", Icons.Default.Security, Color(0xFF10B981), Color(0xFF1B3D23)),
@@ -567,10 +573,24 @@ fun SettingDetailView(
     val screenTitle = when (screenId) {
         "voice_speech", "Voice & Speech" -> "VOICE & SPEECH"
         "general_pref", "General Preferences" -> "GENERAL PREFERENCES"
-        "ai_settings", "AI Settings" -> "AI SETTINGS"
+        "appearance", "Appearance" -> "APPEARANCE & THEME"
+        "home_screen", "Home Screen" -> "HOME SCREEN"
+        "notifications", "Notifications" -> "NOTIFICATIONS & ALERTS"
+        "sound_vibration", "Sound & Vibration" -> "SOUND & VIBRATION"
+        "ai_settings", "AI Settings" -> "AI MODEL SETTINGS"
+        "memory_settings", "Memory Settings" -> "MEMORY & RECALL"
+        "personalization", "Personalization" -> "PERSONALIZATION"
+        "context_recall", "Context & Recall" -> "CONTEXT & MEMORY WINDOW"
         "automations", "Automations" -> "AUTOMATIONS & ROUTINES"
-        "privacy", "Privacy" -> "PRIVACY & SECURITY"
+        "custom_commands", "Custom Commands" -> "CUSTOM VOICE COMMANDS"
+        "quick_actions", "Quick Actions" -> "QUICK ACTIONS"
+        "widget_settings", "Widget Settings", "Widgets & Floating AI", "Widgets" -> "WIDGETS & FLOATING AI"
+        "privacy", "Privacy" -> "PRIVACY & DATA"
+        "security", "Security" -> "SECURITY & LOCK"
+        "permissions", "Permissions" -> "APP PERMISSIONS"
         "offline_ai", "Offline AI" -> "OFFLINE AI & DATA"
+        "developer_options", "Developer Options" -> "DEVELOPER OPTIONS"
+        "about_vedra", "About Vedra" -> "ABOUT VEDRA"
         "manage_subscription" -> "VEDRA PRO SUBSCRIPTION"
         "Reset All Settings" -> "RESET ALL SETTINGS"
         else -> screenId.uppercase()
@@ -579,10 +599,24 @@ fun SettingDetailView(
     val screenSubtitle = when (screenId) {
         "voice_speech", "Voice & Speech" -> "Customize Vedra's voice and speech settings"
         "general_pref", "General Preferences" -> "Configure default language, theme, and units"
+        "appearance", "Appearance" -> "Manage visual theme, colors, and animations"
+        "home_screen", "Home Screen" -> "Customize home layout, suggestions, and orb"
+        "notifications", "Notifications" -> "Manage alerts, daily briefings, and sounds"
+        "sound_vibration", "Sound & Vibration" -> "Assistant volume, haptics, and chimes"
         "ai_settings", "AI Settings" -> "Tune intelligence model, response style & API keys"
+        "memory_settings", "Memory Settings" -> "Manage stored facts, context, and memories"
+        "personalization", "Personalization" -> "Your display name, persona, and interests"
+        "context_recall", "Context & Recall" -> "Context window limit and session retention"
         "automations", "Automations" -> "Set up task chain routines & voice macros"
-        "privacy", "Privacy" -> "Manage permissions, backups, and app security"
-        "offline_ai", "Offline AI" -> "Inspect local database records & offline cache"
+        "custom_commands", "Custom Commands" -> "Custom voice shortcuts and app triggers"
+        "quick_actions", "Quick Actions" -> "Reorder and customize quick action tiles"
+        "widget_settings", "Widget Settings", "Widgets & Floating AI", "Widgets" -> "Customize home screen widgets, floating AI orb & colors"
+        "privacy", "Privacy" -> "Manage data privacy, telemetry, and history"
+        "security", "Security" -> "App lock, PIN, biometrics, and database encryption"
+        "permissions", "Permissions" -> "Review and grant Android system permissions"
+        "offline_ai", "Offline AI" -> "Offline ONNX models, database stats & cache"
+        "developer_options", "Developer Options" -> "Developer logs, state inspector & debugging"
+        "about_vedra", "About Vedra" -> "Version details, terms, and feedback"
         "manage_subscription" -> "Your active Vedra Pro membership"
         else -> "Manage $screenId options"
     }
@@ -690,10 +724,13 @@ fun SettingDetailView(
             "voice_speech", "Voice & Speech" -> {
                 VoiceAndSpeechDetailScreen(dbService = dbService, voiceService = voiceService)
             }
+            "widget_settings", "Widget Settings", "Widgets & Floating AI", "Widgets" -> {
+                WidgetSettingsDetailScreen(dbService = dbService)
+            }
             "general_pref", "General Preferences", "Appearance", "Notifications", "Sound & Vibration" -> {
                 GeneralPreferencesDetailScreen(dbService = dbService)
             }
-            "home_screen", "Home Screen", "widget_settings" -> {
+            "home_screen", "Home Screen" -> {
                 WidgetSettingsDetailScreen(dbService = dbService)
             }
             "ai_settings", "AI Settings", "Personalization", "Context & Recall" -> {

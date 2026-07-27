@@ -13,12 +13,16 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -311,6 +315,116 @@ fun <T> CustomList(
                 key = itemKey
             ) { item ->
                 itemContent(item)
+            }
+        }
+    }
+}
+
+/**
+ * AppPickerAndLockModal allowing user to long-press any shortcut box and select an installed app to lock.
+ */
+@Composable
+fun AppPickerAndLockModal(
+    visible: Boolean,
+    shortcutTitle: String,
+    onAppSelected: (com.example.services.AppLauncher.AppInfoItem) -> Unit,
+    onDismissRequest: () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var searchQuery by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    var installedApps by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<List<com.example.services.AppLauncher.AppInfoItem>>(emptyList()) }
+
+    androidx.compose.runtime.LaunchedEffect(visible) {
+        if (visible) {
+            installedApps = com.example.services.AppLauncher.getInstalledAppsOnDevice(context)
+        }
+    }
+
+    val filteredApps = androidx.compose.runtime.remember(searchQuery, installedApps) {
+        if (searchQuery.isBlank()) installedApps
+        else installedApps.filter {
+            it.label.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true)
+        }
+    }
+
+    CustomModal(
+        visible = visible,
+        title = "🔒 Lock App to '$shortcutTitle'",
+        onDismissRequest = onDismissRequest
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.small)) {
+            Text(
+                text = "Select an installed app on your phone to assign & lock to this button box:",
+                color = VedraTextMuted,
+                fontSize = 12.sp
+            )
+
+            CustomInput(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = "Search installed app (WhatsApp, YouTube, etc.)..."
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(280.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(VedraSurfaceVariant)
+                    .padding(8.dp)
+            ) {
+                if (filteredApps.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = if (installedApps.isEmpty()) "Scanning device apps..." else "No matching app found.",
+                            color = VedraTextMuted,
+                            fontSize = 12.sp
+                        )
+                    }
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(filteredApps) { app ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(VedraSurface)
+                                    .clickable { onAppSelected(app) }
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = app.label,
+                                        color = VedraTextPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.5.sp
+                                    )
+                                    Text(
+                                        text = app.packageName,
+                                        color = VedraTextMuted,
+                                        fontSize = 10.5.sp,
+                                        maxLines = 1
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(VedraPurplePrimary)
+                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = "Lock 🔒",
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

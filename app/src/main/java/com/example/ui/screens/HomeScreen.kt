@@ -1,8 +1,11 @@
 package com.example.ui.screens
 
+import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,12 +65,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.services.AppLauncher
 import com.example.services.BatteryStatus
 import com.example.services.DatabaseService
 import com.example.services.StorageDetails
 import com.example.services.StorageWeatherService
 import com.example.services.UtilityService
 import com.example.services.VoiceService
+import com.example.ui.components.AppPickerAndLockModal
 import com.example.ui.components.CustomModal
 
 @Composable
@@ -86,6 +91,9 @@ fun HomeScreen(
     var storage by remember { mutableStateOf(StorageDetails(3.2, 40.1, 64.0)) }
     var isQrScannerOpen by remember { mutableStateOf(false) }
 
+    var selectedCardForLock by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var isAppLockModalOpen by remember { mutableStateOf(false) }
+
     fun refreshDashboardData() {
         battery = StorageWeatherService.getBatteryStatus(context)
         storage = StorageWeatherService.getStorageDetails(context)
@@ -93,6 +101,27 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) {
         refreshDashboardData()
+    }
+
+    fun handleBoxClick(cardKey: String, defaultAction: () -> Unit) {
+        val lockedPkg = dbService.getSetting("locked_app_$cardKey", "")
+        if (lockedPkg.isNotBlank()) {
+            if (!AppLauncher.tryLaunchPackage(context, lockedPkg)) {
+                defaultAction()
+            }
+        } else {
+            defaultAction()
+        }
+    }
+
+    fun handleBoxLongClick(cardKey: String, title: String) {
+        selectedCardForLock = cardKey to title
+        isAppLockModalOpen = true
+    }
+
+    fun getLockedLabel(cardKey: String): String? {
+        val label = dbService.getSetting("locked_app_label_$cardKey", "")
+        return if (label.isNotBlank()) "Locked: $label" else null
     }
 
     LazyColumn(
@@ -196,9 +225,10 @@ fun HomeScreen(
                         fontSize = 12.sp
                     )
                     Text(
-                        text = "How can I help you today?",
-                        color = Color(0xFF9CA3AF),
-                        fontSize = 12.sp
+                        text = "Long-press any action box to lock your preferred app!",
+                        color = Color(0xFFC4B5FD),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
 
@@ -272,8 +302,10 @@ fun HomeScreen(
                         icon = Icons.Default.Phone,
                         iconColor = Color(0xFF25D366),
                         arrowColor = Color(0xFF25D366),
+                        lockedLabel = getLockedLabel("whatsapp"),
                         modifier = Modifier.weight(1f),
-                        onClick = { onExecuteQuickAction("open whatsapp") }
+                        onLongClick = { handleBoxLongClick("whatsapp", "Open WhatsApp") },
+                        onClick = { handleBoxClick("whatsapp") { onExecuteQuickAction("open whatsapp") } }
                     )
                     SuggestionCardItem(
                         title = "Study Planner",
@@ -281,30 +313,36 @@ fun HomeScreen(
                         icon = Icons.Default.School,
                         iconColor = Color(0xFF60A5FA),
                         arrowColor = Color(0xFF60A5FA),
+                        lockedLabel = getLockedLabel("study_planner"),
                         modifier = Modifier.weight(1f),
-                        onClick = { onNavigateTab(1) } // Study Hub Tab
+                        onLongClick = { handleBoxLongClick("study_planner", "Study Planner") },
+                        onClick = { handleBoxClick("study_planner") { onNavigateTab(1) } }
                     )
                 }
 
                 // Row 2
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SuggestionCardItem(
-                        title = "Solve this Question",
+                        title = "Solve Question",
                         subtitle = "Get instant help",
                         icon = Icons.Default.Book,
                         iconColor = Color(0xFFA78BFA),
                         arrowColor = Color(0xFFA78BFA),
+                        lockedLabel = getLockedLabel("solve_question"),
                         modifier = Modifier.weight(1f),
-                        onClick = { onNavigateTab(2) } // VED AI
+                        onLongClick = { handleBoxLongClick("solve_question", "Solve Question") },
+                        onClick = { handleBoxClick("solve_question") { onNavigateTab(2) } }
                     )
                     SuggestionCardItem(
-                        title = "Call Mom",
-                        subtitle = "Shalini (Mom)",
+                        title = "Call Contact",
+                        subtitle = "Quick call",
                         icon = Icons.Default.Phone,
                         iconColor = Color(0xFFF97316),
                         arrowColor = Color(0xFFF97316),
+                        lockedLabel = getLockedLabel("call_contact"),
                         modifier = Modifier.weight(1f),
-                        onClick = { onExecuteQuickAction("call mom") }
+                        onLongClick = { handleBoxLongClick("call_contact", "Call Contact") },
+                        onClick = { handleBoxClick("call_contact") { onExecuteQuickAction("call mom") } }
                     )
                 }
 
@@ -316,8 +354,10 @@ fun HomeScreen(
                         icon = Icons.Default.EditNote,
                         iconColor = Color(0xFFEC4899),
                         arrowColor = Color(0xFFEC4899),
+                        lockedLabel = getLockedLabel("reminder"),
                         modifier = Modifier.weight(1f),
-                        onClick = { onExecuteQuickAction("reminder") }
+                        onLongClick = { handleBoxLongClick("reminder", "Create Reminder") },
+                        onClick = { handleBoxClick("reminder") { onExecuteQuickAction("reminder") } }
                     )
                     SuggestionCardItem(
                         title = "Weather Update",
@@ -325,8 +365,10 @@ fun HomeScreen(
                         icon = Icons.Default.WbSunny,
                         iconColor = Color(0xFFFBBF24),
                         arrowColor = Color(0xFFFBBF24),
+                        lockedLabel = getLockedLabel("weather"),
                         modifier = Modifier.weight(1f),
-                        onClick = { onExecuteQuickAction("weather") }
+                        onLongClick = { handleBoxLongClick("weather", "Weather Update") },
+                        onClick = { handleBoxClick("weather") { onExecuteQuickAction("weather") } }
                     )
                 }
 
@@ -338,8 +380,10 @@ fun HomeScreen(
                         icon = Icons.Default.MusicNote,
                         iconColor = Color(0xFF38BDF8),
                         arrowColor = Color(0xFF38BDF8),
+                        lockedLabel = getLockedLabel("music"),
                         modifier = Modifier.weight(1f),
-                        onClick = { onExecuteQuickAction("play music") }
+                        onLongClick = { handleBoxLongClick("music", "Play Music") },
+                        onClick = { handleBoxClick("music") { onExecuteQuickAction("play music") } }
                     )
                     SuggestionCardItem(
                         title = "Open Calculator",
@@ -347,8 +391,10 @@ fun HomeScreen(
                         icon = Icons.Default.Calculate,
                         iconColor = Color(0xFF3B82F6),
                         arrowColor = Color(0xFF3B82F6),
+                        lockedLabel = getLockedLabel("calculator"),
                         modifier = Modifier.weight(1f),
-                        onClick = { onExecuteQuickAction("calculator") }
+                        onLongClick = { handleBoxLongClick("calculator", "Open Calculator") },
+                        onClick = { handleBoxClick("calculator") { onExecuteQuickAction("calculator") } }
                     )
                 }
             }
@@ -564,6 +610,22 @@ fun HomeScreen(
         }
     }
 
+    // App Picker & Lock Modal
+    AppPickerAndLockModal(
+        visible = isAppLockModalOpen,
+        shortcutTitle = selectedCardForLock?.second ?: "Shortcut Box",
+        onAppSelected = { app ->
+            val cardKey = selectedCardForLock?.first
+            if (cardKey != null) {
+                dbService.setSetting("locked_app_$cardKey", app.packageName)
+                dbService.setSetting("locked_app_label_$cardKey", app.label)
+                Toast.makeText(context, "Locked '${app.label}' to this shortcut box! 🔒", Toast.LENGTH_SHORT).show()
+            }
+            isAppLockModalOpen = false
+        },
+        onDismissRequest = { isAppLockModalOpen = false }
+    )
+
     // QR Scanner Modal Component
     CustomModal(
         visible = isQrScannerOpen,
@@ -599,6 +661,7 @@ fun HomeScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SuggestionCardItem(
     title: String,
@@ -607,14 +670,19 @@ fun SuggestionCardItem(
     iconColor: Color,
     arrowColor: Color,
     modifier: Modifier = Modifier,
+    lockedLabel: String? = null,
+    onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
             .background(Color(0xFF110F1C))
-            .border(1.dp, Color(0xFF1E1A2E), RoundedCornerShape(14.dp))
-            .clickable { onClick() }
+            .border(1.dp, if (lockedLabel != null) Color(0xFF10B981) else Color(0xFF1E1A2E), RoundedCornerShape(14.dp))
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .padding(10.dp)
     ) {
         Row(
@@ -644,17 +712,23 @@ fun SuggestionCardItem(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 Column {
-                    Text(
-                        text = title,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.5.sp,
-                        maxLines = 1
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = title,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.5.sp,
+                            maxLines = 1
+                        )
+                        if (lockedLabel != null) {
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(text = "🔒", fontSize = 10.sp)
+                        }
+                    }
                     Spacer(modifier = Modifier.height(1.dp))
                     Text(
-                        text = subtitle,
-                        color = Color(0xFF6B7280),
+                        text = lockedLabel ?: subtitle,
+                        color = if (lockedLabel != null) Color(0xFF10B981) else Color(0xFF6B7280),
                         fontSize = 9.5.sp,
                         maxLines = 1
                     )

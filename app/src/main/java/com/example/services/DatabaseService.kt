@@ -1366,14 +1366,53 @@ object AppLauncher {
     )
 
     fun launchAppByCustomWord(context: Context, dbService: DatabaseService, customWord: String): String {
-        val cleanWord = customWord.lowercase().trim()
-            .removePrefix("app").removeSuffix("app").trim()
+        var cleanWord = customWord.lowercase().trim()
+            .replace(Regex("""\b(app|application|kholo|open|launch|start|karo)\b""", RegexOption.IGNORE_CASE), "")
+            .trim()
 
         if (cleanWord.isBlank()) return "Please specify an app name to open."
 
-        // 1. Check custom DB mapping (user defined alias)
-        val customPkg = dbService.getAppIdentifierForWord(cleanWord)
-        if (customPkg != null) {
+        // Contact + WhatsApp Deep Linking: "rahul whatsapp", "open rahul whatsapp", "whatsapp rahul"
+        if (cleanWord.contains("whatsapp") || cleanWord.contains("wa ") || cleanWord.endsWith(" wa")) {
+            val contactQuery = cleanWord.replace("whatsapp", "")
+                .replace("chat", "")
+                .replace("of", "")
+                .replace("with", "")
+                .replace("wa", "")
+                .trim()
+
+            if (contactQuery.isNotBlank() && contactQuery.length >= 2) {
+                val resolvedTarget = dbService.resolveAlias(contactQuery) ?: contactQuery
+                val contactInfo = ContactsService.findContactByName(context, resolvedTarget)
+                val phone = contactInfo?.phoneNumber ?: resolvedTarget
+                val cleanPhone = phone.replace(Regex("""[^0-9+]"""), "")
+
+                val waUri = if (cleanPhone.length >= 5) {
+                    Uri.parse("https://api.whatsapp.com/send?phone=$cleanPhone")
+                } else {
+                    Uri.parse("whatsapp://send?phone=$cleanPhone")
+                }
+
+                val waIntent = Intent(Intent.ACTION_VIEW, waUri).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+
+                return try {
+                    context.startActivity(waIntent)
+                    "Opening WhatsApp chat with ${contactInfo?.name ?: contactQuery} ($phone)... 💬"
+                } catch (e: Exception) {
+                    if (tryLaunchPackage(context, "com.whatsapp") || tryLaunchPackage(context, "com.whatsapp.w4b")) {
+                        "Opening WhatsApp for ${contactInfo?.name ?: contactQuery}... 💬"
+                    } else {
+                        openInPlayStore(context, "WhatsApp", "com.whatsapp")
+                    }
+                }
+            }
+        }
+
+        // 1. Check custom DB mapping / locked shortcut
+        val customPkg = dbService.getAppIdentifierForWord(cleanWord) ?: dbService.getSetting("locked_app_$cleanWord", "")
+        if (customPkg.isNotBlank()) {
             if (tryLaunchPackage(context, customPkg)) {
                 return "Launching '$cleanWord'..."
             }
@@ -1407,9 +1446,32 @@ object AppLauncher {
         }
 
         // 5. IF NOT INSTALLED: Do NOT open web browser search! Open Google Play Store for this app!
-        val targetPkgForStore = knownPkg ?: customPkg
+        val targetPkgForStore = knownPkg ?: if (customPkg.isNotBlank()) customPkg else null
         return openInPlayStore(context, cleanWord, targetPkgForStore)
     }
+
+    fun getInstalledAppsOnDevice(context: Context): List<AppInfoItem> {
+        return try {
+            val pm = context.packageManager
+            val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
+            }
+            val resolveInfos = pm.queryIntentActivities(mainIntent, 0)
+            resolveInfos.map { ri ->
+                AppInfoItem(
+                    label = ri.loadLabel(pm).toString(),
+                    packageName = ri.activityInfo.packageName
+                )
+            }.distinctBy { it.packageName }.sortedBy { it.label }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    data class AppInfoItem(
+        val label: String,
+        val packageName: String
+    )
 
     private fun findInstalledPackageOnDevice(context: Context, query: String): String? {
         return try {
@@ -1447,7 +1509,7 @@ object AppLauncher {
         }
     }
 
-    private fun tryLaunchPackage(context: Context, packageName: String): Boolean {
+    fun tryLaunchPackage(context: Context, packageName: String): Boolean {
         return try {
             val pm = context.packageManager
             val intent = pm.getLaunchIntentForPackage(packageName)

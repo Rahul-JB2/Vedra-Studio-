@@ -251,16 +251,19 @@ object UtilityService {
             }
         }
 
+        // Media Search & Play (Movies, Videos, Music)
+        if (lower.contains("play movie") || lower.contains("play video") || lower.contains("movie play") || lower.contains("video play")) {
+            return MediaAndFileSearchService.searchAndPlayVideo(context, text, dbService)
+        }
+
+        if (lower.contains("search file") || lower.contains("find file") || lower.contains("file search") || lower.contains("open file") || lower.contains("check file") || lower.contains("file hai ki nahi") || lower.contains("search in phone")) {
+            return MediaAndFileSearchService.searchAndOpenFile(context, text, dbService)
+        }
+
         // Music & Spotify Control
         if (lower.startsWith("play music") || lower.startsWith("play spotify") || lower.startsWith("play ") || lower == "spotify" || lower == "music") {
-            if (!lower.contains("video") && !lower.contains("youtube")) {
-                val searchQuery = text.replace("play spotify", "", ignoreCase = true)
-                    .replace("play music", "", ignoreCase = true)
-                    .replace("play on spotify", "", ignoreCase = true)
-                    .replace("play", "", ignoreCase = true)
-                    .trim()
-                val msg = openMusicOrSpotify(context, searchQuery)
-                return UtilityResult(true, msg, "MUSIC")
+            if (!lower.contains("video") && !lower.contains("youtube") && !lower.contains("movie")) {
+                return MediaAndFileSearchService.searchAndPlayAudio(context, text, dbService)
             }
         }
 

@@ -247,7 +247,7 @@ fun VedScreen(
                     text = if (isIncognitoMode) "🕶️ Incognito" else "🕶️ Off",
                     onClick = { isIncognitoMode = !isIncognitoMode },
                     isSecondary = !isIncognitoMode,
-                    modifier = Modifier.height(36.dp)
+                    fontSize = 12.sp
                 )
 
                 // Switch between Text & Voice Mode button
@@ -270,7 +270,7 @@ fun VedScreen(
                         }
                     },
                     isSecondary = !isVoiceInputActive,
-                    modifier = Modifier.height(36.dp)
+                    fontSize = 12.sp
                 )
             }
         }
@@ -416,7 +416,7 @@ fun VedScreen(
                     text = reply,
                     onClick = { sendMessage(reply) },
                     isSecondary = true,
-                    modifier = Modifier.height(30.dp)
+                    fontSize = 12.sp
                 )
             }
         }

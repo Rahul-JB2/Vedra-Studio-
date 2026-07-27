@@ -1307,6 +1307,27 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
     fun getSetting(key: String, defaultValue: String): String {
         return getMemoryValue("setting_$key") ?: defaultValue
     }
+
+    fun logUserBehavior(actionType: String, detail: String) {
+        val currentCount = getSetting("behavior_count_$actionType", "0").toIntOrNull() ?: 0
+        setSetting("behavior_count_$actionType", (currentCount + 1).toString())
+        setSetting("behavior_last_$actionType", detail)
+    }
+
+    fun getUserBehaviorSummary(): String {
+        val playVideoCount = getSetting("behavior_count_PLAY_VIDEO", "0")
+        val playMusicCount = getSetting("behavior_count_PLAY_MUSIC", "0")
+        val fileSearchCount = getSetting("behavior_count_FILE_SEARCH", "0")
+        val lastVideo = getSetting("behavior_last_PLAY_VIDEO", "None")
+        val lastMusic = getSetting("behavior_last_PLAY_MUSIC", "None")
+        val lastFile = getSetting("behavior_last_FILE_SEARCH", "None")
+
+        return "🧠 VEDRA Behavioral Intelligence:\n" +
+                "• Videos/Movies Played: $playVideoCount times (Last: '$lastVideo')\n" +
+                "• Music Played: $playMusicCount times (Last: '$lastMusic')\n" +
+                "• Device Files Searched: $fileSearchCount times (Last: '$lastFile')\n" +
+                "VEDRA continuously learns your app choices and media preferences for instant execution."
+    }
 }
 
 object AppLauncher {
@@ -1503,9 +1524,12 @@ object AppLauncher {
             }
             val resolveInfos = pm.queryIntentActivities(mainIntent, 0)
             resolveInfos.map { ri ->
+                val pkg = ri.activityInfo.packageName
+                val iconDrawable = try { ri.loadIcon(pm) } catch (e: Exception) { null }
                 AppInfoItem(
                     label = ri.loadLabel(pm).toString(),
-                    packageName = ri.activityInfo.packageName
+                    packageName = pkg,
+                    icon = iconDrawable
                 )
             }.distinctBy { it.packageName }.sortedBy { it.label }
         } catch (e: Exception) {
@@ -1515,7 +1539,8 @@ object AppLauncher {
 
     data class AppInfoItem(
         val label: String,
-        val packageName: String
+        val packageName: String,
+        val icon: android.graphics.drawable.Drawable? = null
     )
 
     private fun findInstalledPackageOnDevice(context: Context, query: String): String? {

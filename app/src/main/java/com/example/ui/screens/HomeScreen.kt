@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.filled.Wifi
@@ -73,6 +74,7 @@ import com.example.services.StorageWeatherService
 import com.example.services.UtilityService
 import com.example.services.VoiceService
 import com.example.ui.components.AppPickerAndLockModal
+import com.example.ui.components.CustomInput
 import com.example.ui.components.CustomModal
 
 @Composable
@@ -256,6 +258,37 @@ fun HomeScreen(
                     }
                 }
             }
+        }
+
+        // VEDRA SINGLE GLOBAL SEARCH BAR
+        item {
+            var homeSearchQuery by remember { mutableStateOf("") }
+            CustomInput(
+                value = homeSearchQuery,
+                onValueChange = { homeSearchQuery = it },
+                placeholder = "Search apps, files, play songs, or commands...",
+                leadingIcon = Icons.Default.Search,
+                trailingIcon = {
+                    if (homeSearchQuery.isNotBlank()) {
+                        IconButton(onClick = {
+                            onExecuteQuickAction(homeSearchQuery)
+                            homeSearchQuery = ""
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowForward,
+                                contentDescription = "Execute Search",
+                                tint = Color(0xFFA78BFA)
+                            )
+                        }
+                    }
+                },
+                onSend = {
+                    if (homeSearchQuery.isNotBlank()) {
+                        onExecuteQuickAction(homeSearchQuery)
+                        homeSearchQuery = ""
+                    }
+                }
+            )
         }
 
         // VEDRA SUGGESTIONS SECTION HEADER

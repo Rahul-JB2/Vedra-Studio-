@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -45,11 +46,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -75,6 +78,7 @@ fun CustomButton(
     isLoading: Boolean = false,
     enabled: Boolean = true,
     isSecondary: Boolean = false,
+    fontSize: TextUnit = 13.sp,
     testTag: String = "custom_button"
 ) {
     val backgroundBrush = if (isSecondary) {
@@ -88,7 +92,6 @@ fun CustomButton(
     Box(
         modifier = modifier
             .testTag(testTag)
-            .defaultMinSize(minHeight = 48.dp)
             .clip(shape)
             .background(backgroundBrush)
             .border(
@@ -97,7 +100,7 @@ fun CustomButton(
                 shape = shape
             )
             .clickable(enabled = enabled && !isLoading) { onClick() }
-            .padding(horizontal = Spacing.medium, vertical = Spacing.small),
+            .padding(horizontal = 10.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
@@ -106,25 +109,27 @@ fun CustomButton(
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(14.dp),
                     color = VedraTextPrimary,
                     strokeWidth = 2.dp
                 )
-                Spacer(modifier = Modifier.width(Spacing.small))
+                Spacer(modifier = Modifier.width(4.dp))
             } else if (icon != null) {
                 Icon(
                     imageVector = icon,
                     contentDescription = text,
                     tint = VedraTextPrimary,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(15.dp)
                 )
-                Spacer(modifier = Modifier.width(Spacing.small))
+                Spacer(modifier = Modifier.width(4.dp))
             }
             Text(
                 text = text,
                 color = if (enabled) VedraTextPrimary else VedraTextMuted,
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp
+                fontSize = fontSize,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
         }
     }
@@ -384,6 +389,24 @@ fun AppPickerAndLockModal(
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(filteredApps) { app ->
+                            val appIconBitmap = androidx.compose.runtime.remember(app.icon) {
+                                app.icon?.let { drawable ->
+                                    try {
+                                        if (drawable is android.graphics.drawable.BitmapDrawable && drawable.bitmap != null) {
+                                            drawable.bitmap.asImageBitmap()
+                                        } else {
+                                            val w = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else 96
+                                            val h = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else 96
+                                            val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+                                            val canvas = android.graphics.Canvas(bmp)
+                                            drawable.setBounds(0, 0, canvas.width, canvas.height)
+                                            drawable.draw(canvas)
+                                            bmp.asImageBitmap()
+                                        }
+                                    } catch (e: Exception) { null }
+                                }
+                            }
+
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -394,20 +417,49 @@ fun AppPickerAndLockModal(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    if (appIconBitmap != null) {
+                                        androidx.compose.foundation.Image(
+                                            bitmap = appIconBitmap,
+                                            contentDescription = app.label,
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(VedraPurplePrimary.copy(alpha = 0.2f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = androidx.compose.material.icons.Icons.Default.Apps,
+                                                contentDescription = null,
+                                                tint = VedraPurplePrimary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                    }
+
                                     Text(
                                         text = app.label,
                                         color = VedraTextPrimary,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 13.5.sp
-                                    )
-                                    Text(
-                                        text = app.packageName,
-                                        color = VedraTextMuted,
-                                        fontSize = 10.5.sp,
-                                        maxLines = 1
+                                        fontSize = 14.sp,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
                                 }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(12.dp))

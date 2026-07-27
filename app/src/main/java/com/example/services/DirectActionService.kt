@@ -29,6 +29,25 @@ object DirectActionService {
             return UtilityResult(true, msg, "FLASHLIGHT")
         }
 
+        // 1b. Media Search & Play (Movies, Videos, Music)
+        if (lower.contains("play movie") || lower.contains("play video") || lower.contains("movie play") || lower.contains("video play") || (lower.startsWith("play ") && (lower.contains("movie") || lower.contains("video")))) {
+            return MediaAndFileSearchService.searchAndPlayVideo(context, text, dbService)
+        }
+
+        if (lower.contains("play song") || lower.contains("play music") || lower.contains("play audio") || lower.contains("play track") || lower.contains("play gaana") || lower.contains("gaana chalao")) {
+            return MediaAndFileSearchService.searchAndPlayAudio(context, text, dbService)
+        }
+
+        // 1c. Phone System Local File Search & Open
+        if (lower.contains("search file") || lower.contains("find file") || lower.contains("file search") || lower.contains("open file") || lower.contains("check file") || lower.contains("file hai ki nahi") || lower.contains("search in phone")) {
+            return MediaAndFileSearchService.searchAndOpenFile(context, text, dbService)
+        }
+
+        // 1d. AI Continuous Behavioral Learning Summary Query
+        if (lower.contains("ai learning") || lower.contains("usage behavior") || lower.contains("behavior summary") || lower.contains("learning insights") || lower.contains("my usage")) {
+            return UtilityResult(true, dbService.getUserBehaviorSummary(), "AI_BEHAVIOR")
+        }
+
         // Camera Interceptor: "open camera", "camera", "take photo", "click photo"
         if (lower.contains("camera") || lower.contains("take photo") || lower.contains("click photo") || lower.contains("photo kholo") || lower.contains("photo leni hai")) {
             return try {

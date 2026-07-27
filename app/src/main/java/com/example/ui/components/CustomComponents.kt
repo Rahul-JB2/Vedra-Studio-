@@ -31,6 +31,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -225,7 +227,7 @@ fun CustomInput(
 }
 
 /**
- * Reusable CustomModal dialog component for modals/alerts/actions.
+ * Reusable CustomModal dialog component for modals/alerts/actions matching screenshot design.
  */
 @Composable
 fun CustomModal(
@@ -233,6 +235,7 @@ fun CustomModal(
     title: String,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
+    subtitle: String? = null,
     testTag: String = "custom_modal",
     content: @Composable () -> Unit
 ) {
@@ -246,37 +249,94 @@ fun CustomModal(
                 modifier = modifier
                     .testTag(testTag)
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(Spacing.cardCorner))
-                    .border(1.dp, VedraBorder, RoundedCornerShape(Spacing.cardCorner)),
-                color = VedraSurface
+                    .clip(RoundedCornerShape(26.dp))
+                    .border(
+                        width = 1.5.dp,
+                        brush = Brush.verticalGradient(
+                            colors = listOf(Color(0xFF5B3BA8), Color(0xFF3B2D6B), Color(0xFF1E173D))
+                        ),
+                        shape = RoundedCornerShape(26.dp)
+                    ),
+                color = Color(0xFF0C0E1B)
             ) {
                 Column(
-                    modifier = Modifier.padding(Spacing.medium)
+                    modifier = Modifier.padding(20.dp)
                 ) {
+                    // Header Row with Shield Lock Badge, Title & Close Button
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.Top
                     ) {
-                        Text(
-                            text = title,
-                            color = VedraTextPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
-                        )
-                        IconButton(
-                            onClick = onDismissRequest,
-                            modifier = Modifier.size(32.dp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            // Left Shield Lock Badge with Ring Glow
+                            Box(
+                                modifier = Modifier
+                                    .size(52.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(Color(0xFF6366F1), Color(0xFF8B5CF6), Color(0xFFC084FC))
+                                        )
+                                    )
+                                    .padding(2.5.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF13152A)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = null,
+                                    tint = Color(0xFFC084FC),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(14.dp))
+
+                            // Title & Subtitle Column
+                            Column {
+                                Text(
+                                    text = title,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp
+                                )
+                                if (!subtitle.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = subtitle,
+                                        color = Color(0xFF94A3B8),
+                                        fontSize = 11.5.sp,
+                                        lineHeight = 15.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        // Top Right Circular Close Button
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF1A1D34))
+                                .border(1.dp, Color(0xFF2D3252), CircleShape)
+                                .clickable { onDismissRequest() },
+                            contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Close",
-                                tint = VedraTextSecondary
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(Spacing.small))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     content()
                 }
@@ -326,7 +386,7 @@ fun <T> CustomList(
 }
 
 /**
- * AppPickerAndLockModal allowing user to long-press any shortcut box and select an installed app to lock.
+ * AppPickerAndLockModal matching the exact user screenshot design!
  */
 @Composable
 fun AppPickerAndLockModal(
@@ -354,40 +414,35 @@ fun AppPickerAndLockModal(
 
     CustomModal(
         visible = visible,
-        title = "🔒 Lock App to '$shortcutTitle'",
+        title = "Choose an app",
+        subtitle = "Select an installed app to assign & lock it.\nTap the app to open it directly.",
         onDismissRequest = onDismissRequest
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.small)) {
-            Text(
-                text = "Select an installed app on your phone to assign & lock to this button box:",
-                color = VedraTextMuted,
-                fontSize = 12.sp
-            )
-
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            // Search Input Field
             CustomInput(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = "Search installed app (WhatsApp, YouTube, etc.)..."
+                placeholder = "Search installed apps...",
+                leadingIcon = Icons.Default.Search
             )
 
+            // App List Scroll Container
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(280.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(VedraSurfaceVariant)
-                    .padding(8.dp)
+                    .height(300.dp)
             ) {
                 if (filteredApps.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
                             text = if (installedApps.isEmpty()) "Scanning device apps..." else "No matching app found.",
-                            color = VedraTextMuted,
-                            fontSize = 12.sp
+                            color = Color(0xFF94A3B8),
+                            fontSize = 13.sp
                         )
                     }
                 } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(filteredApps) { app ->
                             val appIconBitmap = androidx.compose.runtime.remember(app.icon) {
                                 app.icon?.let { drawable ->
@@ -410,10 +465,11 @@ fun AppPickerAndLockModal(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(VedraSurface)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(Color(0xFF13162A))
+                                    .border(1.dp, Color(0xFF222644), RoundedCornerShape(16.dp))
                                     .clickable { onAppSelected(app) }
-                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -426,55 +482,133 @@ fun AppPickerAndLockModal(
                                             bitmap = appIconBitmap,
                                             contentDescription = app.label,
                                             modifier = Modifier
-                                                .size(36.dp)
-                                                .clip(RoundedCornerShape(8.dp))
+                                                .size(38.dp)
+                                                .clip(RoundedCornerShape(10.dp))
                                         )
-                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Spacer(modifier = Modifier.width(12.dp))
                                     } else {
                                         Box(
                                             modifier = Modifier
-                                                .size(36.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(VedraPurplePrimary.copy(alpha = 0.2f)),
+                                                .size(38.dp)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(Color(0xFF231C4A)),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
-                                                imageVector = androidx.compose.material.icons.Icons.Default.Apps,
+                                                imageVector = Icons.Default.Apps,
                                                 contentDescription = null,
-                                                tint = VedraPurplePrimary,
+                                                tint = Color(0xFFC084FC),
                                                 modifier = Modifier.size(20.dp)
                                             )
                                         }
-                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Spacer(modifier = Modifier.width(12.dp))
                                     }
 
+                                    // Display ONLY app label, NO package name shown
                                     Text(
                                         text = app.label,
-                                        color = VedraTextPrimary,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 15.sp,
                                         maxLines = 1,
                                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
 
+                                // Select Button exactly matching screenshot!
                                 Box(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(VedraPurplePrimary)
-                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(Color(0xFF4F46E5), Color(0xFF7C3AED), Color(0xFF9333EA))
+                                            )
+                                        )
+                                        .clickable { onAppSelected(app) }
+                                        .padding(horizontal = 18.dp, vertical = 6.dp)
                                 ) {
                                     Text(
-                                        text = "Lock 🔒",
+                                        text = "Select",
                                         color = Color.White,
-                                        fontSize = 11.sp,
+                                        fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+            // Privacy Banner at bottom of modal matching screenshot
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFF121528))
+                    .border(1.dp, Color(0xFF222644), RoundedCornerShape(18.dp))
+                    .padding(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF2A1C52)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = null,
+                                tint = Color(0xFFC084FC),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Column {
+                            Text(
+                                text = "Your privacy is important.",
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp
+                            )
+                            Text(
+                                text = "Only you can change this setting.",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                Brush.radialGradient(
+                                    listOf(Color(0xFF7C3AED), Color(0xFF2E1065))
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                 }
             }

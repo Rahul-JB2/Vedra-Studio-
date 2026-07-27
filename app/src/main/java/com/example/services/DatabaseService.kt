@@ -1315,6 +1315,10 @@ object AppLauncher {
         "youtube" to "com.google.android.youtube",
         "yt" to "com.google.android.youtube",
         "whatsapp" to "com.whatsapp",
+        "whats" to "com.whatsapp",
+        "whats app" to "com.whatsapp",
+        "whatsapp business" to "com.whatsapp.w4b",
+        "w4b" to "com.whatsapp.w4b",
         "wa" to "com.whatsapp",
         "instagram" to "com.instagram.android",
         "insta" to "com.instagram.android",
@@ -1372,12 +1376,16 @@ object AppLauncher {
 
         if (cleanWord.isBlank()) return "Please specify an app name to open."
 
-        // Contact + WhatsApp Deep Linking: "rahul whatsapp", "open rahul whatsapp", "whatsapp rahul"
-        if (cleanWord.contains("whatsapp") || cleanWord.contains("wa ") || cleanWord.endsWith(" wa")) {
+        // Contact + WhatsApp Deep Linking & Direct WhatsApp App Launching: "rahul whatsapp", "open rahul whatsapp", "whats", "whatsapp"
+        val isWhatsAppQuery = cleanWord.contains("whatsapp") || cleanWord.contains("whats") || cleanWord.contains("wa ") || cleanWord.endsWith(" wa") || cleanWord == "wa"
+        if (isWhatsAppQuery) {
             val contactQuery = cleanWord.replace("whatsapp", "")
+                .replace("whats", "")
+                .replace("app", "")
                 .replace("chat", "")
                 .replace("of", "")
                 .replace("with", "")
+                .replace("ka", "")
                 .replace("wa", "")
                 .trim()
 
@@ -1387,26 +1395,40 @@ object AppLauncher {
                 val phone = contactInfo?.phoneNumber ?: resolvedTarget
                 val cleanPhone = phone.replace(Regex("""[^0-9+]"""), "")
 
-                val waUri = if (cleanPhone.length >= 5) {
-                    Uri.parse("https://api.whatsapp.com/send?phone=$cleanPhone")
-                } else {
-                    Uri.parse("whatsapp://send?phone=$cleanPhone")
-                }
-
-                val waIntent = Intent(Intent.ACTION_VIEW, waUri).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-
-                return try {
-                    context.startActivity(waIntent)
-                    "Opening WhatsApp chat with ${contactInfo?.name ?: contactQuery} ($phone)... 💬"
-                } catch (e: Exception) {
-                    if (tryLaunchPackage(context, "com.whatsapp") || tryLaunchPackage(context, "com.whatsapp.w4b")) {
-                        "Opening WhatsApp for ${contactInfo?.name ?: contactQuery}... 💬"
+                if (cleanPhone.isNotEmpty()) {
+                    val waUri = if (cleanPhone.length >= 5) {
+                        Uri.parse("https://api.whatsapp.com/send?phone=$cleanPhone")
                     } else {
-                        openInPlayStore(context, "WhatsApp", "com.whatsapp")
+                        Uri.parse("whatsapp://send?phone=$cleanPhone")
+                    }
+
+                    val waIntent = Intent(Intent.ACTION_VIEW, waUri).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        // Explicitly set package so Android forces launching installed native WhatsApp app directly!
+                        val pm = context.packageManager
+                        if (pm.getLaunchIntentForPackage("com.whatsapp") != null) {
+                            setPackage("com.whatsapp")
+                        } else if (pm.getLaunchIntentForPackage("com.whatsapp.w4b") != null) {
+                            setPackage("com.whatsapp.w4b")
+                        }
+                    }
+
+                    return try {
+                        context.startActivity(waIntent)
+                        "Opening WhatsApp chat with ${contactInfo?.name ?: contactQuery} ($phone)... 💬"
+                    } catch (e: Exception) {
+                        if (tryLaunchPackage(context, "com.whatsapp") || tryLaunchPackage(context, "com.whatsapp.w4b")) {
+                            "Opening WhatsApp for ${contactInfo?.name ?: contactQuery}... 💬"
+                        } else {
+                            openInPlayStore(context, "WhatsApp", "com.whatsapp")
+                        }
                     }
                 }
+            }
+
+            // No specific contact or contact chat launch completed: launch native installed WhatsApp app directly
+            if (tryLaunchPackage(context, "com.whatsapp") || tryLaunchPackage(context, "com.whatsapp.w4b")) {
+                return "Opening WhatsApp... 💬"
             }
         }
 
@@ -1434,15 +1456,38 @@ object AppLauncher {
             }
         }
 
-        // 4. Special System Intents (Camera, Settings, Phone)
-        if (cleanWord.contains("camera")) {
+        // 4. Special System Intents for native device apps
+        if (cleanWord.contains("camera") || cleanWord.contains("photo") || cleanWord.contains("snap")) {
             return tryLaunchSpecialIntent(context, android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA, "Camera")
+        }
+        if (cleanWord.contains("clock") || cleanWord.contains("alarm") || cleanWord.contains("timer")) {
+            return tryLaunchSpecialIntent(context, android.provider.AlarmClock.ACTION_SHOW_ALARMS, "Clock")
+        }
+        if (cleanWord.contains("sms") || cleanWord.contains("message") || cleanWord.contains("messaging")) {
+            val smsIntent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_APP_MESSAGING) }
+            return tryLaunchSpecialIntentByIntent(context, smsIntent, "Messages")
+        }
+        if (cleanWord.contains("calendar")) {
+            val calIntent = Intent(Intent.ACTION_VIEW, Uri.parse("content://com.android.calendar/time/"))
+            return tryLaunchSpecialIntentByIntent(context, calIntent, "Calendar")
+        }
+        if (cleanWord.contains("contact")) {
+            val contactIntent = Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI)
+            return tryLaunchSpecialIntentByIntent(context, contactIntent, "Contacts")
         }
         if (cleanWord.contains("setting")) {
             return tryLaunchSpecialIntent(context, android.provider.Settings.ACTION_SETTINGS, "Settings")
         }
         if (cleanWord.contains("dial") || cleanWord.contains("phone") || cleanWord.contains("call")) {
             return tryLaunchSpecialIntent(context, Intent.ACTION_DIAL, "Phone")
+        }
+        if (cleanWord.contains("mail") || cleanWord.contains("email")) {
+            val mailIntent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_APP_EMAIL) }
+            return tryLaunchSpecialIntentByIntent(context, mailIntent, "Email")
+        }
+        if (cleanWord.contains("gallery") || cleanWord.contains("photo")) {
+            val galIntent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_APP_GALLERY) }
+            return tryLaunchSpecialIntentByIntent(context, galIntent, "Photos")
         }
 
         // 5. IF NOT INSTALLED: Do NOT open web browser search! Open Google Play Store for this app!
@@ -1530,6 +1575,16 @@ object AppLauncher {
             val intent = Intent(action).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
+            context.startActivity(intent)
+            "Launching $appName..."
+        } catch (e: Exception) {
+            openInPlayStore(context, appName, null)
+        }
+    }
+
+    private fun tryLaunchSpecialIntentByIntent(context: Context, intent: Intent, appName: String): String {
+        return try {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
             "Launching $appName..."
         } catch (e: Exception) {

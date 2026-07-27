@@ -29,6 +29,20 @@ object DirectActionService {
             return UtilityResult(true, msg, "FLASHLIGHT")
         }
 
+        // Camera Interceptor: "open camera", "camera", "take photo", "click photo"
+        if (lower.contains("camera") || lower.contains("take photo") || lower.contains("click photo") || lower.contains("photo kholo") || lower.contains("photo leni hai")) {
+            return try {
+                val intent = android.content.Intent(android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA).apply {
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+                UtilityResult(true, "Opening system camera app... 📷", "CAMERA")
+            } catch (e: Exception) {
+                val launchMsg = AppLauncher.launchAppByCustomWord(context, dbService, "camera")
+                UtilityResult(true, launchMsg, "CAMERA")
+            }
+        }
+
         // 2. App Launching Interceptor: "open [app]", "launch [app]", "start [app]"
         if (lower.startsWith("open ") || lower.startsWith("launch ") || lower.startsWith("start ") || lower.endsWith(" open") || lower.endsWith(" open karo")) {
             val appWord = text.replace("open karo", "", ignoreCase = true)
@@ -55,11 +69,15 @@ object DirectActionService {
             }
         }
 
-        // 3. SMS & Text Handling: "Text [Name] [Message]", "Send SMS to [Name] [Message]"
-        if (lower.startsWith("text ") || lower.startsWith("send sms ") || lower.startsWith("sms ")) {
-            val raw = text.replace("send sms to ", "", ignoreCase = true)
+        // 3. SMS & Text Handling: "Text [Name] [Message]", "Send SMS to [Name] [Message]", "Message [Name] [Message]"
+        if (lower.startsWith("text ") || lower.startsWith("send sms ") || lower.startsWith("sms ") || lower.startsWith("message ") || lower.startsWith("msg ") || lower.startsWith("send message ")) {
+            val raw = text.replace("send message to ", "", ignoreCase = true)
+                .replace("send message ", "", ignoreCase = true)
+                .replace("send sms to ", "", ignoreCase = true)
                 .replace("send sms ", "", ignoreCase = true)
                 .replace("text ", "", ignoreCase = true)
+                .replace("message ", "", ignoreCase = true)
+                .replace("msg ", "", ignoreCase = true)
                 .replace("sms ", "", ignoreCase = true)
                 .trim()
             val spaceIdx = raw.indexOf(' ')
@@ -70,6 +88,12 @@ object DirectActionService {
                 val contactInfo = ContactsService.findContactByName(context, resolvedTarget)
                 val phone = contactInfo?.phoneNumber ?: resolvedTarget
                 val msg = ContactsService.sendSMS(context, phone, smsMsg)
+                return UtilityResult(true, msg, "SMS")
+            } else if (raw.isNotEmpty()) {
+                val resolvedTarget = dbService.resolveAlias(raw) ?: raw
+                val contactInfo = ContactsService.findContactByName(context, resolvedTarget)
+                val phone = contactInfo?.phoneNumber ?: raw
+                val msg = ContactsService.sendSMS(context, phone, "")
                 return UtilityResult(true, msg, "SMS")
             }
         }

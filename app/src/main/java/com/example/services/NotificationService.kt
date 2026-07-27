@@ -82,7 +82,18 @@ object NotificationService {
             }
         }.start()
 
-        return "Timer set for $minutes minute(s)."
+        return try {
+            val intent = Intent(android.provider.AlarmClock.ACTION_SET_TIMER).apply {
+                putExtra(android.provider.AlarmClock.EXTRA_LENGTH, seconds)
+                putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, label)
+                putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, false)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            "Opening System Clock app to set $minutes-minute timer... ⏱️"
+        } catch (e: Exception) {
+            "Timer set for $minutes minute(s)."
+        }
     }
 
     fun setAlarm(context: Context, hour24: Int, minute: Int, label: String = "Alarm"): String {
@@ -105,7 +116,20 @@ object NotificationService {
 
         val timeStr = String.format("%02d:%02d", hour24, minute)
         showNotification(context, "Alarm Set", "Alarm configured for $timeStr.")
-        return "Alarm scheduled for $timeStr."
+
+        return try {
+            val intent = Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
+                putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour24)
+                putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute)
+                putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, label)
+                putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, false)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            "Opening System Clock app to set alarm for $timeStr... ⏰"
+        } catch (e: Exception) {
+            "Alarm scheduled for $timeStr."
+        }
     }
 
     fun cancelTimer(timerId: Long) {

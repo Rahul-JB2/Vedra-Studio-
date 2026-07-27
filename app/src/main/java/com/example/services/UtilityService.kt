@@ -218,13 +218,11 @@ object UtilityService {
             return executeRoutineChain(context, dbService, lower, routineJson)
         }
 
-        // Flashlight commands
-        if (lower.contains("turn on flashlight") || lower == "flashlight on" || lower == "flashlight") {
-            val msg = toggleFlashlight(context, true)
-            return UtilityResult(true, msg, "FLASHLIGHT")
-        }
-        if (lower.contains("turn off flashlight") || lower == "flashlight off") {
-            val msg = toggleFlashlight(context, false)
+        // Flashlight commands (English, Hindi, Hinglish)
+        if (lower.contains("flashlight") || lower.contains("flash light") || lower.contains("torch")) {
+            val isOff = lower.contains("off") || lower.contains("band") || lower.contains("close") ||
+                    lower.contains("stop") || lower.contains("disable") || lower.contains("bujha")
+            val msg = toggleFlashlight(context, !isOff)
             return UtilityResult(true, msg, "FLASHLIGHT")
         }
 

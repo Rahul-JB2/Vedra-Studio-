@@ -7,36 +7,35 @@ object DirectActionService {
 
     /**
      * Intercepts app-opening commands directly.
-     * Returns true if an app-launch command was handled, allowing UI to bypass chat text response.
+     * Returns false so that the main UI flow processes the action via processDirectVoiceAction,
+     * ensuring that AI displays a chat bubble and provides a spoken TTS response.
      */
     fun handleDirectAppLaunch(context: Context, dbService: DatabaseService, text: String): Boolean {
-        val lower = text.trim().lowercase(Locale.US)
-        if (lower.startsWith("open ") || lower.startsWith("launch ") || lower.startsWith("start ")) {
-            val appWord = text.replace("open ", "", ignoreCase = true)
-                .replace("launch ", "", ignoreCase = true)
-                .replace("start ", "", ignoreCase = true)
-                .trim()
-            if (appWord.isNotEmpty()) {
-                val resultMsg = AppLauncher.launchAppByCustomWord(context, dbService, appWord)
-                // If app launch succeeded or attempted package launch
-                return !resultMsg.contains("Could not find", ignoreCase = true)
-            }
-        }
         return false
     }
 
     /**
-     * Handles direct voice-to-action handlers (Calls, SMS, Alarms, Timers, Notes, App Launcher)
+     * Handles direct voice-to-action handlers (Flashlight, Apps, Calls, SMS, Alarms, Timers, Notes)
      * instantly without cloud roundtrips.
      */
     fun processDirectVoiceAction(context: Context, dbService: DatabaseService, text: String): UtilityResult? {
         val lower = text.trim().lowercase(Locale.US)
 
-        // 1. App Launching Interceptor
-        if (lower.startsWith("open ") || lower.startsWith("launch ") || lower.startsWith("start ")) {
-            val appWord = text.replace("open ", "", ignoreCase = true)
+        // 1. Flashlight & Torch Interceptor (English, Hindi, Hinglish)
+        if (lower.contains("flashlight") || lower.contains("flash light") || lower.contains("torch")) {
+            val isOff = lower.contains("off") || lower.contains("band") || lower.contains("close") ||
+                    lower.contains("stop") || lower.contains("disable") || lower.contains("bujha")
+            val msg = UtilityService.toggleFlashlight(context, !isOff)
+            return UtilityResult(true, msg, "FLASHLIGHT")
+        }
+
+        // 2. App Launching Interceptor: "open [app]", "launch [app]", "start [app]"
+        if (lower.startsWith("open ") || lower.startsWith("launch ") || lower.startsWith("start ") || lower.endsWith(" open") || lower.endsWith(" open karo")) {
+            val appWord = text.replace("open karo", "", ignoreCase = true)
+                .replace("open ", "", ignoreCase = true)
                 .replace("launch ", "", ignoreCase = true)
                 .replace("start ", "", ignoreCase = true)
+                .replace("open", "", ignoreCase = true)
                 .trim()
             if (appWord.isNotEmpty()) {
                 val launchMsg = AppLauncher.launchAppByCustomWord(context, dbService, appWord)

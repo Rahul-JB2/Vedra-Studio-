@@ -141,13 +141,6 @@ fun VedScreen(
         // Turn-Taking VAD Cue: Instantly stop ongoing TTS playback when user interrupts
         voiceService.stopSpeaking()
 
-        // Direct App Launch Interceptor: If it's an app opening command ("open whatsapp", "open instagram"),
-        // launch immediately without routing through chat interface or displaying response bubbles.
-        if (DirectActionService.handleDirectAppLaunch(context, dbService, clean)) {
-            inputText = ""
-            return
-        }
-
         inputText = ""
         messages.add(ChatMessage(sender = "USER", text = clean))
         

@@ -87,11 +87,16 @@ class MainActivity : ComponentActivity() {
         NotificationService.createNotificationChannel(this)
         BackgroundService.startBackgroundTasks(this, dbService)
 
+        val launchVoice = intent?.getBooleanExtra("OPEN_VOICE_MODE", false) ?: false
+        val launchTab = intent?.getIntExtra("OPEN_TAB", -1) ?: -1
+
         setContent {
             VedraTheme {
                 MainAppLayout(
                     dbService = dbService,
-                    voiceService = voiceService
+                    voiceService = voiceService,
+                    initialVoiceMode = launchVoice,
+                    initialTab = if (launchTab in 0..4) launchTab else 3
                 )
             }
         }
@@ -113,17 +118,24 @@ data class TabItem(
 @Composable
 fun MainAppLayout(
     dbService: DatabaseService,
-    voiceService: VoiceService
+    voiceService: VoiceService,
+    initialVoiceMode: Boolean = false,
+    initialTab: Int = 3
 ) {
     val context = LocalContext.current
-    var isVoiceModeActive by remember { mutableStateOf(false) }
-    var activeTab by remember { mutableIntStateOf(3) } // Default to Memory tab (index 3)
+    var isVoiceModeActive by remember { mutableStateOf(initialVoiceMode) }
+    var activeTab by remember { mutableIntStateOf(initialTab) }
     var hasUserInteracted by remember { mutableStateOf(false) }
     var isDrawerOpen by remember { mutableStateOf(false) }
 
     // Initial launch setup
-    LaunchedEffect(Unit) {
-        isVoiceModeActive = false
+    LaunchedEffect(initialVoiceMode, initialTab) {
+        if (initialVoiceMode) {
+            isVoiceModeActive = true
+        }
+        if (initialTab in 0..4) {
+            activeTab = initialTab
+        }
     }
 
     // 5 Main Tabs: Home, Study Hub, VED (Center Pill), Memory, Settings

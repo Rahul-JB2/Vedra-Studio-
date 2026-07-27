@@ -6,6 +6,7 @@ import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import android.net.Uri
+import java.util.Locale
 
 data class AppMapping(
     val id: Long = 0,
@@ -1310,29 +1311,139 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
 
 object AppLauncher {
 
+    private val knownAppPackages = mapOf(
+        "youtube" to "com.google.android.youtube",
+        "yt" to "com.google.android.youtube",
+        "whatsapp" to "com.whatsapp",
+        "wa" to "com.whatsapp",
+        "instagram" to "com.instagram.android",
+        "insta" to "com.instagram.android",
+        "facebook" to "com.facebook.katana",
+        "fb" to "com.facebook.katana",
+        "chrome" to "com.android.chrome",
+        "browser" to "com.android.chrome",
+        "gmail" to "com.google.android.gm",
+        "email" to "com.google.android.gm",
+        "mail" to "com.google.android.gm",
+        "maps" to "com.google.android.apps.maps",
+        "google maps" to "com.google.android.apps.maps",
+        "spotify" to "com.spotify.music",
+        "telegram" to "org.telegram.messenger",
+        "snapchat" to "com.snapchat.android",
+        "twitter" to "com.twitter.android",
+        "x" to "com.twitter.android",
+        "linkedin" to "com.linkedin.android",
+        "calculator" to "com.google.android.calculator",
+        "calc" to "com.google.android.calculator",
+        "clock" to "com.google.android.deskclock",
+        "alarm" to "com.google.android.deskclock",
+        "settings" to "com.android.settings",
+        "photos" to "com.google.android.apps.photos",
+        "google photos" to "com.google.android.apps.photos",
+        "gallery" to "com.sec.android.gallery3d",
+        "phone" to "com.google.android.dialer",
+        "dialer" to "com.google.android.dialer",
+        "messages" to "com.google.android.apps.messaging",
+        "sms" to "com.google.android.apps.messaging",
+        "playstore" to "com.android.vending",
+        "play store" to "com.android.vending",
+        "store" to "com.android.vending",
+        "paytm" to "net.one97.paytm",
+        "gpay" to "com.google.android.apps.nbu.paisa.user",
+        "google pay" to "com.google.android.apps.nbu.paisa.user",
+        "phonepe" to "com.phonepe.app",
+        "amazon" to "in.amazon.mShop.android.shopping",
+        "flipkart" to "com.flipkart.android",
+        "netflix" to "com.netflix.mediaclient",
+        "prime" to "com.amazon.avod.thirdpartyclient",
+        "prime video" to "com.amazon.avod.thirdpartyclient",
+        "hotstar" to "in.startv.hotstar",
+        "zomato" to "com.application.zomato",
+        "swiggy" to "in.swiggy.android",
+        "uber" to "com.ubercab",
+        "drive" to "com.google.android.apps.docs",
+        "google drive" to "com.google.android.apps.docs"
+    )
+
     fun launchAppByCustomWord(context: Context, dbService: DatabaseService, customWord: String): String {
         val cleanWord = customWord.lowercase().trim()
-        val appIdentifier = dbService.getAppIdentifierForWord(cleanWord)
+            .removePrefix("app").removeSuffix("app").trim()
 
-        if (appIdentifier != null) {
-            val launched = tryLaunchPackage(context, appIdentifier)
-            if (launched) {
-                return "Launching '$cleanWord' ($appIdentifier)..."
+        if (cleanWord.isBlank()) return "Please specify an app name to open."
+
+        // 1. Check custom DB mapping (user defined alias)
+        val customPkg = dbService.getAppIdentifierForWord(cleanWord)
+        if (customPkg != null) {
+            if (tryLaunchPackage(context, customPkg)) {
+                return "Launching '$cleanWord'..."
             }
         }
 
-        val directLaunched = tryLaunchPackage(context, cleanWord)
-        if (directLaunched) {
-            return "Launching app '$cleanWord'..."
+        // 2. Check known package dictionary
+        val knownPkg = knownAppPackages[cleanWord]
+        if (knownPkg != null) {
+            if (tryLaunchPackage(context, knownPkg)) {
+                return "Launching ${getAppDisplayName(cleanWord)}..."
+            }
         }
 
+        // 3. Search all installed packages dynamically by app label and package name
+        val installedPkg = findInstalledPackageOnDevice(context, cleanWord)
+        if (installedPkg != null) {
+            if (tryLaunchPackage(context, installedPkg)) {
+                return "Launching '${getAppDisplayName(cleanWord)}'..."
+            }
+        }
+
+        // 4. Special System Intents (Camera, Settings, Phone)
+        if (cleanWord.contains("camera")) {
+            return tryLaunchSpecialIntent(context, android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA, "Camera")
+        }
+        if (cleanWord.contains("setting")) {
+            return tryLaunchSpecialIntent(context, android.provider.Settings.ACTION_SETTINGS, "Settings")
+        }
+        if (cleanWord.contains("dial") || cleanWord.contains("phone") || cleanWord.contains("call")) {
+            return tryLaunchSpecialIntent(context, Intent.ACTION_DIAL, "Phone")
+        }
+
+        // 5. IF NOT INSTALLED: Do NOT open web browser search! Open Google Play Store for this app!
+        val targetPkgForStore = knownPkg ?: customPkg
+        return openInPlayStore(context, cleanWord, targetPkgForStore)
+    }
+
+    private fun findInstalledPackageOnDevice(context: Context, query: String): String? {
         return try {
-            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$cleanWord+app"))
-            webIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(webIntent)
-            "Opening search for '$cleanWord' app..."
+            val pm = context.packageManager
+            val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
+            }
+            val resolveInfos = pm.queryIntentActivities(mainIntent, 0)
+            val lowerQuery = query.lowercase().trim()
+
+            // Match exact app label
+            for (ri in resolveInfos) {
+                val label = ri.loadLabel(pm).toString().lowercase()
+                if (label == lowerQuery) {
+                    return ri.activityInfo.packageName
+                }
+            }
+            // Match label contains query
+            for (ri in resolveInfos) {
+                val label = ri.loadLabel(pm).toString().lowercase()
+                if (label.contains(lowerQuery) || lowerQuery.contains(label)) {
+                    return ri.activityInfo.packageName
+                }
+            }
+            // Match package contains query
+            for (ri in resolveInfos) {
+                val pkg = ri.activityInfo.packageName.lowercase()
+                if (pkg.contains(lowerQuery)) {
+                    return ri.activityInfo.packageName
+                }
+            }
+            null
         } catch (e: Exception) {
-            "Custom mapping '$cleanWord' not found or app is not installed."
+            null
         }
     }
 
@@ -1349,6 +1460,54 @@ object AppLauncher {
             }
         } catch (e: Exception) {
             false
+        }
+    }
+
+    private fun tryLaunchSpecialIntent(context: Context, action: String, appName: String): String {
+        return try {
+            val intent = Intent(action).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            "Launching $appName..."
+        } catch (e: Exception) {
+            openInPlayStore(context, appName, null)
+        }
+    }
+
+    private fun openInPlayStore(context: Context, appName: String, packageName: String?): String {
+        return try {
+            val storeUri = if (!packageName.isNullOrBlank()) {
+                Uri.parse("market://details?id=$packageName")
+            } else {
+                Uri.parse("market://search?q=${Uri.encode(appName)}&c=apps")
+            }
+            val intent = Intent(Intent.ACTION_VIEW, storeUri).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            "'$appName' is not installed on your phone. Opening Google Play Store to install it... 📱"
+        } catch (e: Exception) {
+            try {
+                val webUri = if (!packageName.isNullOrBlank()) {
+                    Uri.parse("https://play.google.com/store/apps/details?id=$packageName")
+                } else {
+                    Uri.parse("https://play.google.com/store/search?q=${Uri.encode(appName)}&c=apps")
+                }
+                val webIntent = Intent(Intent.ACTION_VIEW, webUri).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(webIntent)
+                "'$appName' is not installed. Opening Google Play Store page... 📱"
+            } catch (err: Exception) {
+                "App '$appName' is not installed on this device."
+            }
+        }
+    }
+
+    private fun getAppDisplayName(rawWord: String): String {
+        return rawWord.split(" ").joinToString(" ") { word ->
+            word.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
         }
     }
 }

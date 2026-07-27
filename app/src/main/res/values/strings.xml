@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">VEDRA</string>
+    <string name="widget_name">Vedra AI Voice Widget</string>
+    <string name="widget_description">Quick voice assistant, AI status, and custom action shortcuts on your home screen.</string>
 </resources>

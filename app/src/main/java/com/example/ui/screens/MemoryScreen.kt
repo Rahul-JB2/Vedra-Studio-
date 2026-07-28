@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
@@ -57,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -71,6 +73,7 @@ import com.example.services.UserMemory
 import com.example.ui.components.CustomButton
 import com.example.ui.components.CustomInput
 import com.example.ui.components.CustomModal
+import com.example.ui.components.VedraDriveModal
 import com.example.ui.theme.Spacing
 import com.example.ui.theme.VedraPurplePrimary
 
@@ -105,6 +108,7 @@ fun MemoryScreen(
 
     // Modal state for Memory
     var isAddModalOpen by remember { mutableStateOf(false) }
+    var isDriveModalOpen by remember { mutableStateOf(false) }
     var inputKey by remember { mutableStateOf("") }
     var inputVal by remember { mutableStateOf("") }
     var inputCategory by remember { mutableStateOf("Study") }
@@ -365,137 +369,116 @@ fun MemoryScreen(
                         }
                     }
 
-                    // TOP SEARCH BAR (Shifted from bottom to top near profile)
+                    // TOP SEARCH BAR & DRIVE ACTION BUTTON
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Pill Search Input
-                        Box(
+                        CustomInput(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = "Search memories & documents...",
+                            leadingIcon = Icons.Default.Search,
+                            trailingIcon = if (searchQuery.isNotBlank()) {
+                                {
+                                    IconButton(
+                                        onClick = { searchQuery = "" },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Clear",
+                                            tint = Color(0xFF9CA3AF),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            } else null,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        // VEDRA AI Drive Button
+                        IconButton(
+                            onClick = { isDriveModalOpen = true },
                             modifier = Modifier
-                                .weight(1f)
-                                .height(40.dp)
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(Color(0xFF13111E))
-                                .border(1.dp, Color(0xFF26233B), RoundedCornerShape(20.dp))
-                                .padding(horizontal = 12.dp),
-                            contentAlignment = Alignment.CenterStart
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF231C4A))
+                                .border(1.dp, Color(0xFF7C3AED), CircleShape)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = "Search",
-                                    tint = Color(0xFF6B7280),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                CustomInput(
-                                    value = searchQuery,
-                                    onValueChange = { searchQuery = it },
-                                    placeholder = "Search your memories...",
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Default.Folder,
+                                contentDescription = "VEDRA AI Drive",
+                                tint = Color(0xFFC084FC),
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
 
-                        // Calendar Action Button
+                        // Add Memory Button
                         IconButton(
                             onClick = { isAddModalOpen = true },
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(42.dp)
                                 .clip(CircleShape)
                                 .background(Color(0xFF13111E))
                                 .border(1.dp, Color(0xFF26233B), CircleShape)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.CalendarToday,
-                                contentDescription = "Calendar",
-                                tint = Color(0xFF9CA3AF),
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-
-                        // Clear Action Button
-                        IconButton(
-                            onClick = {
-                                searchQuery = ""
-                                refreshAll()
-                            },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF13111E))
-                                .border(1.dp, Color(0xFF26233B), CircleShape)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Clear",
+                                contentDescription = "Add Memory",
                                 tint = Color(0xFF9CA3AF),
                                 modifier = Modifier.size(16.dp)
                             )
                         }
                     }
-                }
-            }
 
-            // TOP 4 STAT CARDS ROW
-            item {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    item {
-                        StatCardItem(
-                            icon = Icons.Default.Psychology,
-                            countStr = "${userMemories.size + 120}",
-                            label = "Memories",
-                            linkText = "View all →",
-                            bgColor = Color(0xFF16132A),
-                            borderColor = Color(0xFF2C224B),
-                            iconColor = Color(0xFFC4B5FD),
-                            iconBgColor = Color(0xFF2D1B54),
-                            onClick = { selectedFilterPill = "All Memories" }
-                        )
-                    }
-                    item {
-                        StatCardItem(
-                            icon = Icons.Default.Star,
-                            countStr = "24",
-                            label = "Preferences",
-                            linkText = "View all →",
-                            bgColor = Color(0xFF0F1E2E),
-                            borderColor = Color(0xFF1B3B5C),
-                            iconColor = Color(0xFF60A5FA),
-                            iconBgColor = Color(0xFF162D4A),
-                            onClick = { selectedFilterPill = "Preferences" }
-                        )
-                    }
-                    item {
-                        StatCardItem(
-                            icon = Icons.Default.Bookmark,
-                            countStr = "${contactAliases.size + 15}",
-                            label = "Nicknames",
-                            linkText = "View all →",
-                            bgColor = Color(0xFF0E221D),
-                            borderColor = Color(0xFF19493A),
-                            iconColor = Color(0xFF4ADE80),
-                            iconBgColor = Color(0xFF143B2A),
-                            onClick = { selectedFilterPill = "Contacts" }
-                        )
-                    }
-                    item {
-                        StatCardItem(
-                            icon = Icons.Default.Link,
-                            countStr = "${appMappings.size + 17}",
-                            label = "App Shortcuts",
-                            linkText = "View all →",
-                            bgColor = Color(0xFF261D12),
-                            borderColor = Color(0xFF4A381C),
-                            iconColor = Color(0xFFFBBF24),
-                            iconBgColor = Color(0xFF382910),
-                            onClick = { selectedFilterPill = "Shortcuts" }
-                        )
+                    // VEDRA AI KNOWLEDGE DRIVE QUICK BANNER
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(Color(0xFF1D173B), Color(0xFF131124))
+                                )
+                            )
+                            .border(1.dp, Color(0xFF382963), RoundedCornerShape(16.dp))
+                            .clickable { isDriveModalOpen = true }
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF2D1B54)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Folder,
+                                    contentDescription = null,
+                                    tint = Color(0xFFC4B5FD),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "VEDRA AI Drive & Knowledge Base 📁",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.5.sp
+                                )
+                                Text(
+                                    text = "Tap or Long-press Memory Tab to open Database & Upload Docs",
+                                    color = Color(0xFF9CA3AF),
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -673,6 +656,13 @@ fun MemoryScreen(
             )
         }
     }
+
+    // VEDRA AI Knowledge Drive Modal
+    VedraDriveModal(
+        visible = isDriveModalOpen,
+        dbService = dbService,
+        onDismissRequest = { isDriveModalOpen = false }
+    )
 }
 
 @Composable

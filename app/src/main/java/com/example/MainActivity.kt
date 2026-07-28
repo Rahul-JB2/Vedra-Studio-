@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Psychology
@@ -43,12 +44,15 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.services.DatabaseService
 import com.example.services.UtilityService
 import com.example.services.VoiceService
+import com.example.ui.components.VedraDriveModal
 import com.example.ui.screens.ActionsScreen
+import com.example.ui.screens.DatabaseScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.MemoryScreen
 import com.example.ui.screens.SettingsScreen
@@ -127,6 +131,7 @@ fun MainAppLayout(
     var activeTab by remember { mutableIntStateOf(initialTab) }
     var hasUserInteracted by remember { mutableStateOf(false) }
     var isDrawerOpen by remember { mutableStateOf(false) }
+    var isDriveModalOpen by remember { mutableStateOf(false) }
 
     // Initial launch setup
     LaunchedEffect(initialVoiceMode, initialTab) {
@@ -138,12 +143,12 @@ fun MainAppLayout(
         }
     }
 
-    // 5 Main Tabs: Home, Study Hub, VED (Center Pill), Memory, Settings
+    // 5 Main Tabs: Home, Database, VED (Center Pill), Study, Settings
     val tabs = listOf(
         TabItem("Home", Icons.Default.Home),
-        TabItem("Study Hub", Icons.Default.School),
+        TabItem("Database", Icons.Default.Folder),
         TabItem("VED", Icons.Default.Mic, isCenterPill = true),
-        TabItem("Memory", Icons.Default.Psychology),
+        TabItem("Study", Icons.Default.School),
         TabItem("Settings", Icons.Default.Settings)
     )
 
@@ -156,7 +161,7 @@ fun MainAppLayout(
                     .fillMaxWidth()
                     .background(Color(0xFF090810))
                     .navigationBarsPadding()
-                    .padding(vertical = 8.dp, horizontal = 8.dp),
+                    .padding(vertical = 6.dp, horizontal = 2.dp),
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -187,14 +192,16 @@ fun MainAppLayout(
                                     .clip(RoundedCornerShape(20.dp))
                                     .background(Color(0xFF2E1A47))
                                     .border(1.5.dp, if (isSelected) Color(0xFFA78BFA) else Color(0xFF6D28D9), RoundedCornerShape(20.dp))
-                                    .padding(horizontal = 22.dp, vertical = 8.dp),
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = "VED",
                                     color = Color.White,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.ExtraBold
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -203,10 +210,18 @@ fun MainAppLayout(
                             modifier = Modifier
                                 .testTag("tab_${tab.title.lowercase()}")
                                 .weight(1f)
-                                .clickable {
-                                    hasUserInteracted = true
-                                    activeTab = index
-                                }
+                                .combinedClickable(
+                                    onClick = {
+                                        hasUserInteracted = true
+                                        activeTab = index
+                                    },
+                                    onLongClick = {
+                                        hasUserInteracted = true
+                                        if (tab.title == "Database") {
+                                            isDriveModalOpen = true
+                                        }
+                                    }
+                                )
                                 .padding(vertical = 4.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -215,14 +230,17 @@ fun MainAppLayout(
                                     imageVector = tab.icon,
                                     contentDescription = tab.title,
                                     tint = tint,
-                                    modifier = Modifier.size(22.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(3.dp))
                                 Text(
                                     text = tab.title,
                                     color = tint,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    fontSize = 10.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -259,9 +277,12 @@ fun MainAppLayout(
                         }
                     )
                 }
-                1 -> SafeTabBoundary("Study Hub") {
-                    StudyHubScreen(
-                        dbService = dbService
+                1 -> SafeTabBoundary("Database & Drive") {
+                    DatabaseScreen(
+                        dbService = dbService,
+                        onOpenDrawer = {
+                            isDrawerOpen = true
+                        }
                     )
                 }
                 2 -> SafeTabBoundary("Ved AI Assistant") {
@@ -274,22 +295,23 @@ fun MainAppLayout(
                         }
                     )
                 }
-                3 -> SafeTabBoundary("Memory & Notes") {
-                    MemoryScreen(
-                        dbService = dbService,
-                        onTestLaunch = { customWord ->
-                            hasUserInteracted = true
-                            UtilityService.parseAndExecuteLocalCommand(context, dbService, "open $customWord")
-                        },
-                        onOpenDrawer = {
-                            isDrawerOpen = true
-                        }
+                3 -> SafeTabBoundary("Study Hub") {
+                    StudyHubScreen(
+                        dbService = dbService
                     )
                 }
                 4 -> SafeTabBoundary("Settings") {
                     SettingsScreen(
                         dbService = dbService,
                         voiceService = voiceService
+                    )
+                }
+                5 -> SafeTabBoundary("Actions") {
+                    ActionsScreen(
+                        onExecuteAction = { command ->
+                            hasUserInteracted = true
+                            UtilityService.parseAndExecuteLocalCommand(context, dbService, command)
+                        }
                     )
                 }
             }
@@ -323,10 +345,19 @@ fun MainAppLayout(
                 onClose = { isDrawerOpen = false },
                 onSelectMenuItem = { actionKey ->
                     hasUserInteracted = true
-                    if (actionKey == "action") {
-                        activeTab = 5 // Navigate to Actions Screen
+                    if (actionKey == "database") {
+                        activeTab = 1 // Navigate to Database & Drive Screen
+                    } else if (actionKey == "action") {
+                        activeTab = 6 // Navigate to Actions Screen
                     }
                 }
+            )
+
+            // VEDRA AI Knowledge Base / Drive Modal (triggered via Memory long-press)
+            VedraDriveModal(
+                visible = isDriveModalOpen,
+                dbService = dbService,
+                onDismissRequest = { isDriveModalOpen = false }
             )
         }
     }

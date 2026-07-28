@@ -29,9 +29,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Article
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CreateNewFolder
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -611,6 +620,550 @@ fun AppPickerAndLockModal(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * VEDRA AI Knowledge Drive & Database Modal
+ * Allows creating, editing, deleting, and uploading documents across organized folders.
+ * All document content is auto-saved into SQLite DB and fed into VEDRA AI context!
+ */
+@Composable
+fun VedraDriveModal(
+    visible: Boolean,
+    dbService: com.example.services.DatabaseService,
+    onDismissRequest: () -> Unit
+) {
+    if (!visible) return
+
+    var folders by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(dbService.getAllDriveFolders()) }
+    var selectedFolder by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<com.example.services.DriveFolder?>(null) }
+    var documents by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<List<com.example.services.DriveDocument>>(emptyList()) }
+    var searchQuery by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+
+    // Dialog state for folder creation
+    var isCreateFolderOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var newFolderName by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+
+    // Dialog state for document creation
+    var isCreateDocOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var newDocTitle by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    var newDocContent by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    var newDocType by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("TXT") }
+
+    // Viewing document state
+    var selectedDocToView by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<com.example.services.DriveDocument?>(null) }
+
+    // Editing Folder state
+    var editingFolder by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<com.example.services.DriveFolder?>(null) }
+    var editingFolderName by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+
+    val refreshAll = {
+        folders = dbService.getAllDriveFolders()
+        if (selectedFolder != null) {
+            documents = dbService.getDocumentsInFolder(selectedFolder!!.id)
+        } else {
+            documents = emptyList()
+        }
+    }
+
+    androidx.compose.runtime.LaunchedEffect(visible, selectedFolder) {
+        refreshAll()
+    }
+
+    CustomModal(
+        visible = visible,
+        title = if (selectedFolder == null) "VEDRA AI Knowledge Drive" else "📁 ${selectedFolder!!.name}",
+        subtitle = if (selectedFolder == null) "Organized document database connected to VEDRA AI." else "Documents stored in folder auto-saved for AI responses.",
+        onDismissRequest = onDismissRequest
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            // TOP BAR: Navigation Breadcrumb + Action Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (selectedFolder != null) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF1F1A3A))
+                            .clickable { selectedFolder = null }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color(0xFFC084FC),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "All Folders",
+                                color = Color(0xFFC084FC),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "📁 ${folders.size} Folders Connected",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                // Add Folder / Add Doc button
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color(0xFF6366F1), Color(0xFF8B5CF6))
+                            )
+                        )
+                        .clickable {
+                            if (selectedFolder == null) {
+                                newFolderName = ""
+                                isCreateFolderOpen = true
+                            } else {
+                                newDocTitle = ""
+                                newDocContent = ""
+                                newDocType = "TXT"
+                                isCreateDocOpen = true
+                            }
+                        }
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = if (selectedFolder == null) Icons.Default.CreateNewFolder else Icons.Default.Add,
+                            contentDescription = "New",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (selectedFolder == null) "+ New Folder" else "+ Upload Doc",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            // Search Bar for Drive Documents & Folders
+            CustomInput(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = if (selectedFolder == null) "Search folders & documents..." else "Search docs in ${selectedFolder!!.name}...",
+                leadingIcon = Icons.Default.Search,
+                trailingIcon = if (searchQuery.isNotBlank()) {
+                    {
+                        IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear",
+                                tint = Color(0xFF9CA3AF),
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+                } else null
+            )
+
+            // MAIN CONTENT BOX
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp)
+            ) {
+                if (selectedFolder == null) {
+                    // ALL FOLDERS VIEW
+                    val filteredFolders = folders.filter {
+                        searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true)
+                    }
+
+                    if (filteredFolders.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "No folders found. Tap '+ New Folder' to create one!",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 13.sp
+                            )
+                        }
+                    } else {
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(filteredFolders) { folder ->
+                                val docCount = dbService.getDocumentsInFolder(folder.id).size
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(Color(0xFF13162A))
+                                        .border(1.dp, Color(0xFF222644), RoundedCornerShape(16.dp))
+                                        .clickable { selectedFolder = folder }
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(38.dp)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(Color(0xFF231C4A)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Folder,
+                                                contentDescription = null,
+                                                tint = Color(0xFFC084FC),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(12.dp))
+
+                                        Column {
+                                            Text(
+                                                text = folder.name,
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 15.sp
+                                            )
+                                            Text(
+                                                text = "$docCount documents stored • Auto-saved DB",
+                                                color = Color(0xFF94A3B8),
+                                                fontSize = 11.5.sp
+                                            )
+                                        }
+                                    }
+
+                                    // Action Buttons: Edit / Delete Folder
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(
+                                            onClick = {
+                                                editingFolder = folder
+                                                editingFolderName = folder.name
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Edit,
+                                                contentDescription = "Rename",
+                                                tint = Color(0xFF9CA3AF),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+
+                                        IconButton(
+                                            onClick = {
+                                                dbService.deleteDriveFolder(folder.id)
+                                                refreshAll()
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Delete",
+                                                tint = Color(0xFFEF4444),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // DOCUMENTS INSIDE FOLDER VIEW
+                    val filteredDocs = documents.filter {
+                        searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.content.contains(searchQuery, ignoreCase = true)
+                    }
+
+                    if (filteredDocs.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "No documents in this folder. Tap '+ Upload Doc' to add!",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 13.sp
+                            )
+                        }
+                    } else {
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(filteredDocs) { doc ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(Color(0xFF13162A))
+                                        .border(1.dp, Color(0xFF222644), RoundedCornerShape(16.dp))
+                                        .clickable { selectedDocToView = doc }
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(Color(0xFF1E1B38)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = doc.fileType,
+                                                color = Color(0xFFC084FC),
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 10.sp
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(10.dp))
+
+                                        Column {
+                                            Text(
+                                                text = doc.title,
+                                                color = Color.White,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 14.sp,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = doc.content,
+                                                color = Color(0xFF94A3B8),
+                                                fontSize = 11.sp,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+
+                                    IconButton(
+                                        onClick = {
+                                            dbService.deleteDriveDocument(doc.id)
+                                            refreshAll()
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete Doc",
+                                            tint = Color(0xFFEF4444),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // BOTTOM AI INTEGRATION BANNER
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xFF121528))
+                    .border(1.dp, Color(0xFF222644), RoundedCornerShape(16.dp))
+                    .padding(10.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "🤖 AI Knowledge Connected",
+                            color = Color(0xFFC084FC),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.5.sp
+                        )
+                    }
+                    Text(
+                        text = "Auto-saved in SQLite DB",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 11.sp
+                    )
+                }
+            }
+        }
+    }
+
+    // MODAL FOR CREATING FOLDER
+    if (isCreateFolderOpen) {
+        CustomModal(
+            visible = true,
+            title = "New Drive Folder",
+            onDismissRequest = { isCreateFolderOpen = false }
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                CustomInput(
+                    value = newFolderName,
+                    onValueChange = { newFolderName = it },
+                    placeholder = "Folder name (e.g. Science Docs, Notes...)"
+                )
+                CustomButton(
+                    text = "Create Folder 📁",
+                    onClick = {
+                        if (newFolderName.isNotBlank()) {
+                            dbService.createDriveFolder(newFolderName.trim())
+                            isCreateFolderOpen = false
+                            refreshAll()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+
+    // MODAL FOR EDITING FOLDER
+    if (editingFolder != null) {
+        CustomModal(
+            visible = true,
+            title = "Rename Folder",
+            onDismissRequest = { editingFolder = null }
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                CustomInput(
+                    value = editingFolderName,
+                    onValueChange = { editingFolderName = it },
+                    placeholder = "New folder name..."
+                )
+                CustomButton(
+                    text = "Save Rename ✏️",
+                    onClick = {
+                        if (editingFolderName.isNotBlank()) {
+                            dbService.updateDriveFolder(editingFolder!!.id, editingFolderName.trim())
+                            editingFolder = null
+                            refreshAll()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+
+    // MODAL FOR UPLOADING / CREATING DOCUMENT
+    if (isCreateDocOpen && selectedFolder != null) {
+        CustomModal(
+            visible = true,
+            title = "Upload / Add Document",
+            subtitle = "Add notes, research papers, or syllabus into '${selectedFolder!!.name}'",
+            onDismissRequest = { isCreateDocOpen = false }
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                CustomInput(
+                    value = newDocTitle,
+                    onValueChange = { newDocTitle = it },
+                    placeholder = "Document Title (e.g., Biology Chapter 4 Notes)"
+                )
+
+                // Select File Type
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    listOf("TXT", "PDF", "MD", "DOC", "CODE").forEach { type ->
+                        val isSel = newDocType == type
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSel) Color(0xFF7C3AED) else Color(0xFF1B1830))
+                                .clickable { newDocType = type }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = type,
+                                color = if (isSel) Color.White else Color(0xFF94A3B8),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                CustomInput(
+                    value = newDocContent,
+                    onValueChange = { newDocContent = it },
+                    placeholder = "Paste or type document content here...",
+                    modifier = Modifier.height(100.dp)
+                )
+
+                CustomButton(
+                    text = "Save & Connect to VEDRA AI 🚀",
+                    onClick = {
+                        if (newDocTitle.isNotBlank() && newDocContent.isNotBlank()) {
+                            dbService.createDriveDocument(
+                                folderId = selectedFolder!!.id,
+                                title = newDocTitle.trim(),
+                                content = newDocContent.trim(),
+                                fileType = newDocType
+                            )
+                            isCreateDocOpen = false
+                            refreshAll()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+
+    // MODAL FOR VIEWING DOCUMENT CONTENT
+    if (selectedDocToView != null) {
+        CustomModal(
+            visible = true,
+            title = "📄 ${selectedDocToView!!.title}",
+            subtitle = "Type: ${selectedDocToView!!.fileType} • Stored in Database for AI Context",
+            onDismissRequest = { selectedDocToView = null }
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF110E20))
+                        .border(1.dp, Color(0xFF282348), RoundedCornerShape(12.dp))
+                        .padding(12.dp)
+                ) {
+                    LazyColumn {
+                        item {
+                            Text(
+                                text = selectedDocToView!!.content,
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp
+                            )
+                        }
+                    }
+                }
+
+                CustomButton(
+                    text = "Close Document",
+                    onClick = { selectedDocToView = null },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }

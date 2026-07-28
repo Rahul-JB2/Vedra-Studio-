@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.AltRoute
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Icon
@@ -38,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.VedraBorder
@@ -59,6 +61,7 @@ fun SideDrawer(
     onSelectMenuItem: (String) -> Unit
 ) {
     val items = listOf(
+        DrawerMenuItem("Database & Drive", Icons.Default.Folder, "AI Sync", "database"),
         DrawerMenuItem("Action", Icons.Default.FlashOn, "Coming soon", "action"),
         DrawerMenuItem("Automation", Icons.Default.AltRoute, "Coming soon", "automation"),
         DrawerMenuItem("Plugins", Icons.Default.Extension, "Coming soon", "plugins"),
@@ -158,7 +161,10 @@ fun SideDrawer(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
                                             Box(
                                                 modifier = Modifier
                                                     .size(36.dp)
@@ -178,7 +184,9 @@ fun SideDrawer(
                                                 text = item.title,
                                                 color = VedraTextPrimary,
                                                 fontWeight = FontWeight.SemiBold,
-                                                fontSize = 13.sp
+                                                fontSize = 13.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
 

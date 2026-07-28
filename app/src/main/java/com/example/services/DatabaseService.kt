@@ -81,6 +81,23 @@ data class ExpenseItem(
     val timestamp: Long = System.currentTimeMillis()
 )
 
+data class DriveFolder(
+    val id: Long = 0,
+    val name: String,
+    val colorHex: String = "#8B5CF6",
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+data class DriveDocument(
+    val id: Long = 0,
+    val folderId: Long,
+    val title: String,
+    val content: String,
+    val fileType: String = "TXT",
+    val fileSize: Long = 0,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
 class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     companion object {
@@ -98,6 +115,8 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
         const val TABLE_NOTES = "notes"
         const val TABLE_STUDY_HABITS = "study_habits"
         const val TABLE_EXPENSES = "expenses"
+        const val TABLE_DRIVE_FOLDERS = "drive_folders"
+        const val TABLE_DRIVE_DOCUMENTS = "drive_documents"
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -258,7 +277,27 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
         try {
             db.execSQL("DELETE FROM $TABLE_MEMORY WHERE expires_at > 0 AND expires_at < ${System.currentTimeMillis()}")
         } catch (_: Exception) {}
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS $TABLE_DRIVE_FOLDERS (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                color_hex TEXT NOT NULL DEFAULT '#8B5CF6',
+                created_at INTEGER NOT NULL
+            )
+        """.trimIndent())
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS $TABLE_DRIVE_DOCUMENTS (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                folder_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                file_type TEXT NOT NULL DEFAULT 'TXT',
+                file_size INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL
+            )
+        """.trimIndent())
         seedDefaultPlugins(db)
+        seedDefaultDriveData(db)
     }
 
     private fun seedDefaultMappings(db: SQLiteDatabase) {
@@ -998,6 +1037,189 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
     fun clearAppMappings(): Boolean = writableDatabase.delete(TABLE_MAPPINGS, null, null) > 0
     fun clearCachedResponses(): Boolean = writableDatabase.delete(TABLE_CACHE, null, null) > 0
 
+    // VEDRA AI KNOWLEDGE BASE DRIVE METHODS
+    private fun seedDefaultDriveData(db: SQLiteDatabase) {
+        val countCursor = db.rawQuery("SELECT COUNT(*) FROM $TABLE_DRIVE_FOLDERS", null)
+        var count = 0
+        countCursor.use {
+            if (it.moveToFirst()) count = it.getInt(0)
+        }
+        if (count == 0) {
+            val now = System.currentTimeMillis()
+            val f1 = ContentValues().apply {
+                put("name", "General AI Knowledge")
+                put("color_hex", "#8B5CF6")
+                put("created_at", now)
+            }
+            val f1Id = db.insert(TABLE_DRIVE_FOLDERS, null, f1)
+
+            val f2 = ContentValues().apply {
+                put("name", "Study & Research Papers")
+                put("color_hex", "#3B82F6")
+                put("created_at", now)
+            }
+            val f2Id = db.insert(TABLE_DRIVE_FOLDERS, null, f2)
+
+            val f3 = ContentValues().apply {
+                put("name", "Personal Documents & Notes")
+                put("color_hex", "#10B981")
+                put("created_at", now)
+            }
+            val f3Id = db.insert(TABLE_DRIVE_FOLDERS, null, f3)
+
+            val f4 = ContentValues().apply {
+                put("name", "Code & Formula Reference")
+                put("color_hex", "#F59E0B")
+                put("created_at", now)
+            }
+            val f4Id = db.insert(TABLE_DRIVE_FOLDERS, null, f4)
+
+            if (f1Id > 0) {
+                val d1 = ContentValues().apply {
+                    put("folder_id", f1Id)
+                    put("title", "VEDRA AI System Instructions")
+                    put("content", "VEDRA is an advanced AI personal assistant built with Jetpack Compose, Room Database, and offline semantic search. VEDRA assists with study planning, contact management, daily tasks, and secure application launching.")
+                    put("file_type", "TXT")
+                    put("file_size", 250)
+                    put("created_at", now)
+                }
+                db.insert(TABLE_DRIVE_DOCUMENTS, null, d1)
+            }
+
+            if (f2Id > 0) {
+                val d2 = ContentValues().apply {
+                    put("folder_id", f2Id)
+                    put("title", "Rotational Dynamics Formulas")
+                    put("content", "Torque Tau = I * Alpha. Angular Momentum L = I * Omega. Kinetic Energy K_rot = 0.5 * I * Omega^2. Moment of Inertia for Solid Cylinder I = 0.5 * M * R^2. Moment of Inertia for Sphere I = 2/5 * M * R^2.")
+                    put("file_type", "MD")
+                    put("file_size", 380)
+                    put("created_at", now)
+                }
+                db.insert(TABLE_DRIVE_DOCUMENTS, null, d2)
+
+                val d3 = ContentValues().apply {
+                    put("folder_id", f2Id)
+                    put("title", "JEE Physics Syllabus 2026 Summary")
+                    put("content", "Key Topics for JEE Physics 2026: Mechanics, Electricity & Magnetism, Optics, Modern Physics, Thermodynamics, and Oscillations & Waves. Practice numerical problems daily and revise flashcards.")
+                    put("file_type", "PDF")
+                    put("file_size", 420)
+                    put("created_at", now)
+                }
+                db.insert(TABLE_DRIVE_DOCUMENTS, null, d3)
+            }
+        }
+    }
+
+    fun getAllDriveFolders(): List<DriveFolder> {
+        val list = mutableListOf<DriveFolder>()
+        val cursor = readableDatabase.rawQuery("SELECT id, name, color_hex, created_at FROM $TABLE_DRIVE_FOLDERS ORDER BY name ASC", null)
+        cursor.use {
+            while (it.moveToNext()) {
+                list.add(
+                    DriveFolder(
+                        id = it.getLong(0),
+                        name = it.getString(1),
+                        colorHex = it.getString(2),
+                        createdAt = it.getLong(3)
+                    )
+                )
+            }
+        }
+        return list
+    }
+
+    fun createDriveFolder(name: String, colorHex: String = "#8B5CF6"): Long {
+        val values = ContentValues().apply {
+            put("name", name)
+            put("color_hex", colorHex)
+            put("created_at", System.currentTimeMillis())
+        }
+        return writableDatabase.insert(TABLE_DRIVE_FOLDERS, null, values)
+    }
+
+    fun updateDriveFolder(id: Long, name: String): Boolean {
+        val values = ContentValues().apply { put("name", name) }
+        return writableDatabase.update(TABLE_DRIVE_FOLDERS, values, "id=?", arrayOf(id.toString())) > 0
+    }
+
+    fun deleteDriveFolder(id: Long): Boolean {
+        writableDatabase.delete(TABLE_DRIVE_DOCUMENTS, "folder_id=?", arrayOf(id.toString()))
+        return writableDatabase.delete(TABLE_DRIVE_FOLDERS, "id=?", arrayOf(id.toString())) > 0
+    }
+
+    fun getDocumentsInFolder(folderId: Long): List<DriveDocument> {
+        val list = mutableListOf<DriveDocument>()
+        val cursor = readableDatabase.rawQuery(
+            "SELECT id, folder_id, title, content, file_type, file_size, created_at FROM $TABLE_DRIVE_DOCUMENTS WHERE folder_id=? ORDER BY created_at DESC",
+            arrayOf(folderId.toString())
+        )
+        cursor.use {
+            while (it.moveToNext()) {
+                list.add(
+                    DriveDocument(
+                        id = it.getLong(0),
+                        folderId = it.getLong(1),
+                        title = it.getString(2),
+                        content = it.getString(3),
+                        fileType = it.getString(4),
+                        fileSize = it.getLong(5),
+                        createdAt = it.getLong(6)
+                    )
+                )
+            }
+        }
+        return list
+    }
+
+    fun getAllDriveDocuments(): List<DriveDocument> {
+        val list = mutableListOf<DriveDocument>()
+        val cursor = readableDatabase.rawQuery(
+            "SELECT id, folder_id, title, content, file_type, file_size, created_at FROM $TABLE_DRIVE_DOCUMENTS ORDER BY created_at DESC",
+            null
+        )
+        cursor.use {
+            while (it.moveToNext()) {
+                list.add(
+                    DriveDocument(
+                        id = it.getLong(0),
+                        folderId = it.getLong(1),
+                        title = it.getString(2),
+                        content = it.getString(3),
+                        fileType = it.getString(4),
+                        fileSize = it.getLong(5),
+                        createdAt = it.getLong(6)
+                    )
+                )
+            }
+        }
+        return list
+    }
+
+    fun createDriveDocument(folderId: Long, title: String, content: String, fileType: String = "TXT"): Long {
+        val values = ContentValues().apply {
+            put("folder_id", folderId)
+            put("title", title)
+            put("content", content)
+            put("file_type", fileType)
+            put("file_size", content.toByteArray().size.toLong())
+            put("created_at", System.currentTimeMillis())
+        }
+        return writableDatabase.insert(TABLE_DRIVE_DOCUMENTS, null, values)
+    }
+
+    fun updateDriveDocument(id: Long, title: String, content: String): Boolean {
+        val values = ContentValues().apply {
+            put("title", title)
+            put("content", content)
+            put("file_size", content.toByteArray().size.toLong())
+        }
+        return writableDatabase.update(TABLE_DRIVE_DOCUMENTS, values, "id=?", arrayOf(id.toString())) > 0
+    }
+
+    fun deleteDriveDocument(id: Long): Boolean {
+        return writableDatabase.delete(TABLE_DRIVE_DOCUMENTS, "id=?", arrayOf(id.toString())) > 0
+    }
+
     // ON-DEVICE SEMANTIC SEARCH & EMBEDDING SIMILARITY ENGINE
     fun searchOfflineContent(query: String): String? {
         val clean = query.trim().lowercase()
@@ -1048,6 +1270,15 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
             if (score > highestScore && score >= 40) {
                 highestScore = score
                 bestMatchMessage = "🔍 [Offline Semantic Note Match - $score% Similarity]\nTitle: ${note.title}\nContent: ${note.content}"
+            }
+        }
+
+        // 1b. Evaluate VEDRA AI Drive Documents
+        getAllDriveDocuments().forEach { doc ->
+            val score = calculateSemanticSimilarity("${doc.title} ${doc.content}")
+            if (score > highestScore && score >= 35) {
+                highestScore = score
+                bestMatchMessage = "📄 [VEDRA AI Drive Document Match - $score% Relevance]\nDocument: ${doc.title}\nContent:\n${doc.content}"
             }
         }
 

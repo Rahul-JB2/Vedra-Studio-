@@ -146,12 +146,12 @@ fun MainAppLayout(
         }
     }
 
-    // 5 Main Tabs: Home, Study, VED (Center Pill), Database, Settings
+    // 5 Main Tabs: Home, Study, VED (Center Pill), VEDrive, Settings
     val tabs = listOf(
         TabItem("Home", Icons.Default.Home),
         TabItem("Study", Icons.Default.School),
         TabItem("VED", Icons.Default.Mic, isCenterPill = true),
-        TabItem("Database", Icons.Default.Folder),
+        TabItem("VEDrive", Icons.Default.Folder),
         TabItem("Settings", Icons.Default.Settings)
     )
 
@@ -305,7 +305,7 @@ fun MainAppLayout(
                         }
                     )
                 }
-                3 -> SafeTabBoundary("Database & Drive") {
+                3 -> SafeTabBoundary("VEDrive") {
                     DatabaseScreen(
                         dbService = dbService,
                         onOpenDrawer = {

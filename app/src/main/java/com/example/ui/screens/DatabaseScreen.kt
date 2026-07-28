@@ -5,10 +5,16 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +33,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -50,19 +57,26 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.NoteAdd
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.RemoveRedEye
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.testTag
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -130,8 +144,9 @@ fun DatabaseScreen(
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
     var showOptionsMenu by remember { mutableStateOf(false) }
+    var showAddFabMenu by remember { mutableStateOf(false) }
 
-    // Navigation View
+    // Active Navigation View Mode
     var activeViewMode by remember { mutableStateOf(StorageScreenView.FILE_MANAGER) }
 
     // Active Items
@@ -284,6 +299,40 @@ fun DatabaseScreen(
         }
     }
 
+    // Open file using system viewer app or built-in reader
+    val openDocumentFile: (DriveDocument) -> Unit = { doc ->
+        var openedExternally = false
+        val contentStr = doc.content.trim()
+        if (contentStr.startsWith("content://") || contentStr.startsWith("file://") || contentStr.startsWith("http")) {
+            try {
+                val uri = Uri.parse(contentStr)
+                val mimeType = when (doc.fileType.uppercase(Locale.ROOT)) {
+                    "PDF" -> "application/pdf"
+                    "IMG", "JPG", "PNG", "JPEG" -> "image/*"
+                    "DOC", "DOCX" -> "application/msword"
+                    else -> "*/*"
+                }
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, mimeType)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+                openedExternally = true
+                Toast.makeText(context, "Opening ${doc.title}...", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                openedExternally = false
+            }
+        }
+
+        if (!openedExternally) {
+            activeDocument = doc
+            editedTitle = doc.title
+            editedContent = doc.content
+            activeViewMode = StorageScreenView.VIEW_FILE_CONTENT
+        }
+    }
+
     // Device storage file importer
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -301,15 +350,20 @@ fun DatabaseScreen(
                 fileName = "Doc_${System.currentTimeMillis() % 10000}.pdf"
             }
 
-            val ext = if (fileName.endsWith(".pdf", true)) "PDF" else "TXT"
+            val ext = when {
+                fileName.endsWith(".pdf", true) -> "PDF"
+                fileName.endsWith(".doc", true) || fileName.endsWith(".docx", true) -> "DOC"
+                fileName.endsWith(".jpg", true) || fileName.endsWith(".png", true) || fileName.endsWith(".jpeg", true) -> "IMG"
+                else -> "TXT"
+            }
             dbService.createDriveDocument(
                 folderId = currentFolderId,
                 title = fileName,
-                content = "Imported File path: $it",
+                content = uri.toString(),
                 fileType = ext
             )
             refreshCurrentDirectory()
-            Toast.makeText(context, "Added $fileName!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Added $fileName to VEDrive!", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -323,9 +377,10 @@ fun DatabaseScreen(
     ) {
         when (activeViewMode) {
             StorageScreenView.FILE_MANAGER -> {
-                Column(
-                    modifier = Modifier.fillMaxSize()
-                ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier.fillMaxSize()
+                    ) {
                     // ================= 1. HEADER BAR =================
                     Row(
                         modifier = Modifier
@@ -385,7 +440,7 @@ fun DatabaseScreen(
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "VEData",
+                                    text = "VEDrive",
                                     color = Color.White,
                                     fontSize = 17.sp,
                                     fontWeight = FontWeight.ExtraBold
@@ -395,8 +450,35 @@ fun DatabaseScreen(
 
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
+                            // Authentic Google Drive Icon Button for direct Drive imports
+                            IconButton(
+                                onClick = {
+                                    val driveIntent = context.packageManager.getLaunchIntentForPackage("com.google.android.apps.docs")
+                                    if (driveIntent != null) {
+                                        Toast.makeText(context, "Opening Google Drive...", Toast.LENGTH_SHORT).show()
+                                        context.startActivity(driveIntent)
+                                    } else {
+                                        Toast.makeText(context, "Opening File Picker for Drive / VEData...", Toast.LENGTH_SHORT).show()
+                                        filePickerLauncher.launch("*/*")
+                                    }
+                                },
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF1E1D32))
+                                        .border(1.dp, Color(0xFF38375A), CircleShape)
+                                        .padding(6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    GoogleDriveIcon(modifier = Modifier.fillMaxSize())
+                                }
+                            }
+
                             IconButton(
                                 onClick = { isSearchActive = !isSearchActive },
                                 modifier = Modifier.size(32.dp)
@@ -428,10 +510,11 @@ fun DatabaseScreen(
                                     modifier = Modifier.background(Color(0xFF18172A))
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text("Import Files", color = Color.White, fontSize = 13.sp) },
-                                        leadingIcon = { Icon(Icons.Default.InsertDriveFile, null, tint = Color(0xFF38BDF8)) },
+                                        text = { Text("Import from Drive", color = Color.White, fontSize = 13.sp) },
+                                        leadingIcon = { GoogleDriveIcon(modifier = Modifier.size(18.dp)) },
                                         onClick = {
                                             showOptionsMenu = false
+                                            Toast.makeText(context, "Opening Google Drive...", Toast.LENGTH_SHORT).show()
                                             filePickerLauncher.launch("*/*")
                                         }
                                     )
@@ -596,7 +679,7 @@ fun DatabaseScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Database",
+                                text = "VEDrive",
                                 color = Color(0xFF8B5CF6),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
@@ -685,7 +768,15 @@ fun DatabaseScreen(
                                     CompactRecentFileItem(
                                         recentFile = recentFile,
                                         onClick = {
-                                            Toast.makeText(context, "Opening ${recentFile.title}", Toast.LENGTH_SHORT).show()
+                                            val doc = DriveDocument(
+                                                id = System.currentTimeMillis() % 10000,
+                                                folderId = currentFolderId,
+                                                title = recentFile.title,
+                                                content = "📄 Document Preview: ${recentFile.title}\nCategory: ${recentFile.category}\nPath: ${recentFile.breadcrumbPath}\nSize: ${recentFile.fileSize}\nLast Opened: ${recentFile.timestamp}\n\n[Study Content & Practice Notes]",
+                                                fileType = if (recentFile.isPdf) "PDF" else "TXT",
+                                                fileSize = 1024L * 1024L
+                                            )
+                                            openDocumentFile(doc)
                                         },
                                         onRename = { itemToRename = recentFile },
                                         onDetails = { itemForDetails = recentFile },
@@ -743,10 +834,7 @@ fun DatabaseScreen(
                                     CompactDocumentGridCard(
                                         doc = doc,
                                         onClick = {
-                                            activeDocument = doc
-                                            editedTitle = doc.title
-                                            editedContent = doc.content
-                                            activeViewMode = StorageScreenView.VIEW_FILE_CONTENT
+                                            openDocumentFile(doc)
                                         },
                                         onRename = { itemToRename = doc },
                                         onDetails = { itemForDetails = doc },
@@ -801,10 +889,7 @@ fun DatabaseScreen(
                                     CompactDocumentListItem(
                                         doc = doc,
                                         onClick = {
-                                            activeDocument = doc
-                                            editedTitle = doc.title
-                                            editedContent = doc.content
-                                            activeViewMode = StorageScreenView.VIEW_FILE_CONTENT
+                                            openDocumentFile(doc)
                                         },
                                         onRename = { itemToRename = doc },
                                         onDetails = { itemForDetails = doc },
@@ -820,7 +905,186 @@ fun DatabaseScreen(
                         }
                     }
                 }
+
+                // Floating Action Button (+) for VEDrive uploads / additions (positioned near AI widget area)
+                FloatingActionButton(
+                    onClick = { showAddFabMenu = true },
+                    containerColor = Color(0xFF8B5CF6),
+                    contentColor = Color.White,
+                    shape = CircleShape,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(bottom = 90.dp, end = 20.dp)
+                        .shadow(12.dp, CircleShape)
+                        .testTag("vedrive_add_fab")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Upload or Add File to VEDrive",
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                // Quick Add Options Dialog when (+) FAB is clicked
+                if (showAddFabMenu) {
+                    AlertDialog(
+                        onDismissRequest = { showAddFabMenu = false },
+                        containerColor = Color(0xFF131224),
+                        title = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF8B5CF6)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Add, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text("Add to VEDrive", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            }
+                        },
+                        text = {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                            ) {
+                                // Option 1: Upload PDF / File
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFF1E1D32))
+                                        .clickable {
+                                            showAddFabMenu = false
+                                            filePickerLauncher.launch("*/*")
+                                        }
+                                        .padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color(0xFF2563EB)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.UploadFile, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text("Upload PDF / File", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        Text("Select PDF or document from phone storage", color = Color(0xFF8E8EA8), fontSize = 11.sp)
+                                    }
+                                }
+
+                                // Option 2: New Folder
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFF1E1D32))
+                                        .clickable {
+                                            showAddFabMenu = false
+                                            createItemTab = "FOLDER"
+                                            activeViewMode = StorageScreenView.CREATE_ITEM
+                                        }
+                                        .padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color(0xFFEAB308)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.CreateNewFolder, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text("New Folder", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        Text("Create a new folder in VEDrive", color = Color(0xFF8E8EA8), fontSize = 11.sp)
+                                    }
+                                }
+
+                                // Option 3: New Document / Note
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFF1E1D32))
+                                        .clickable {
+                                            showAddFabMenu = false
+                                            createItemTab = "FILE"
+                                            activeViewMode = StorageScreenView.CREATE_ITEM
+                                        }
+                                        .padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color(0xFF8B5CF6)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.NoteAdd, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text("New Document / Note", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        Text("Write study note or text document", color = Color(0xFF8E8EA8), fontSize = 11.sp)
+                                    }
+                                }
+
+                                // Option 4: Import from Google Drive
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFF1E1D32))
+                                        .clickable {
+                                            showAddFabMenu = false
+                                            val driveIntent = context.packageManager.getLaunchIntentForPackage("com.google.android.apps.docs")
+                                            if (driveIntent != null) {
+                                                Toast.makeText(context, "Opening Google Drive...", Toast.LENGTH_SHORT).show()
+                                                context.startActivity(driveIntent)
+                                            } else {
+                                                filePickerLauncher.launch("*/*")
+                                            }
+                                        }
+                                        .padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color(0xFF0F9D58)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        GoogleDriveIcon(modifier = Modifier.size(22.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text("Import from Google Drive", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        Text("Import files directly from Drive app", color = Color(0xFF8E8EA8), fontSize = 11.sp)
+                                    }
+                                }
+                            }
+                        },
+                        confirmButton = {},
+                        dismissButton = {
+                            TextButton(onClick = { showAddFabMenu = false }) {
+                                Text("Cancel", color = Color(0xFF8E8EA8))
+                            }
+                        }
+                    )
+                }
             }
+        }
 
             // ================= CREATE ITEM VIEW =================
             StorageScreenView.CREATE_ITEM -> {
@@ -998,21 +1262,39 @@ fun DatabaseScreen(
                         ) {
                             Text(text = "Type: ${doc.fileType}  •  Size: ${doc.fileSize} B", color = Color(0xFF8E8EA8), fontSize = 12.sp)
 
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFF20173D))
-                                    .clickable {
-                                        dbService.addOrUpdateMemory(
-                                            key = editedTitle,
-                                            value = editedContent,
-                                            profile = "Document Reference"
-                                        )
-                                        Toast.makeText(context, "Fed to VED AI!", Toast.LENGTH_SHORT).show()
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFF1E293B))
+                                        .clickable {
+                                            openDocumentFile(doc)
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.OpenInNew, null, tint = Color(0xFF38BDF8), modifier = Modifier.size(13.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Open App", color = Color(0xFF38BDF8), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
-                                    .padding(horizontal = 10.dp, vertical = 5.dp)
-                            ) {
-                                Text("Feed to VED", color = Color(0xFFC084FC), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFF20173D))
+                                        .clickable {
+                                            dbService.addOrUpdateMemory(
+                                                key = editedTitle,
+                                                value = editedContent,
+                                                profile = "Document Reference"
+                                            )
+                                            Toast.makeText(context, "Fed to VED AI!", Toast.LENGTH_SHORT).show()
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                                ) {
+                                    Text("Feed to VED", color = Color(0xFFC084FC), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
 
@@ -1994,4 +2276,61 @@ fun MoveItemModalDialog(
             }
         }
     )
+}
+
+// ================= AUTHENTIC GOOGLE DRIVE ICON COMPOSABLE =================
+@Composable
+fun GoogleDriveIcon(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val driveBitmap = remember(context) {
+        try {
+            val drawable = context.packageManager.getApplicationIcon("com.google.android.apps.docs")
+            drawable.toBitmap().asImageBitmap()
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    if (driveBitmap != null) {
+        Image(
+            bitmap = driveBitmap,
+            contentDescription = "Google Drive",
+            modifier = modifier
+        )
+    } else {
+        Canvas(modifier = modifier) {
+            val w = size.width
+            val h = size.height
+
+            // Yellow segment (left side)
+            val yellowPath = Path().apply {
+                moveTo(w * 0.34f, h * 0.08f)
+                lineTo(w * 0.66f, h * 0.08f)
+                lineTo(w * 0.36f, h * 0.62f)
+                lineTo(w * 0.04f, h * 0.62f)
+                close()
+            }
+            drawPath(yellowPath, color = Color(0xFFFFC107)) // Google Yellow
+
+            // Blue segment (right)
+            val bluePath = Path().apply {
+                moveTo(w * 0.66f, h * 0.08f)
+                lineTo(w * 0.96f, h * 0.62f)
+                lineTo(w * 0.66f, h * 0.92f)
+                lineTo(w * 0.36f, h * 0.62f)
+                close()
+            }
+            drawPath(bluePath, color = Color(0xFF1A73E8)) // Google Blue
+
+            // Green segment (bottom)
+            val greenPath = Path().apply {
+                moveTo(w * 0.04f, h * 0.62f)
+                lineTo(w * 0.36f, h * 0.62f)
+                lineTo(w * 0.66f, h * 0.92f)
+                lineTo(w * 0.34f, h * 0.92f)
+                close()
+            }
+            drawPath(greenPath, color = Color(0xFF0F9D58)) // Google Green
+        }
+    }
 }

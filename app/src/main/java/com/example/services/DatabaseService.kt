@@ -1189,7 +1189,33 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
         return writableDatabase.update(TABLE_DRIVE_FOLDERS, values, "id=?", arrayOf(id.toString())) > 0
     }
 
+    fun moveDriveFolder(id: Long, newParentId: Long): Boolean {
+        val values = ContentValues().apply { put("parent_id", newParentId) }
+        return writableDatabase.update(TABLE_DRIVE_FOLDERS, values, "id=?", arrayOf(id.toString())) > 0
+    }
+
+    fun copyDriveFolder(id: Long, targetParentId: Long): Long {
+        val folder = getDriveFolderById(id) ?: return -1L
+        val newFolderId = createDriveFolder(name = "${folder.name}_copy", colorHex = folder.colorHex, parentId = targetParentId)
+        if (newFolderId > 0) {
+            val subfolders = getAllDriveFolders(id)
+            for (sub in subfolders) {
+                copyDriveFolder(sub.id, newFolderId)
+            }
+            val docs = getDocumentsInFolder(id)
+            for (doc in docs) {
+                createDriveDocument(newFolderId, doc.title, doc.content, doc.fileType)
+            }
+        }
+        return newFolderId
+    }
+
     fun deleteDriveFolder(id: Long): Boolean {
+        // Recursively delete subfolders as well
+        val subfolders = getAllDriveFolders(id)
+        for (sub in subfolders) {
+            deleteDriveFolder(sub.id)
+        }
         writableDatabase.delete(TABLE_DRIVE_DOCUMENTS, "folder_id=?", arrayOf(id.toString()))
         return writableDatabase.delete(TABLE_DRIVE_FOLDERS, "id=?", arrayOf(id.toString())) > 0
     }
@@ -1265,6 +1291,24 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
 
     fun deleteDriveDocument(id: Long): Boolean {
         return writableDatabase.delete(TABLE_DRIVE_DOCUMENTS, "id=?", arrayOf(id.toString())) > 0
+    }
+
+    fun moveDriveDocument(id: Long, newFolderId: Long): Boolean {
+        val values = ContentValues().apply { put("folder_id", newFolderId) }
+        return writableDatabase.update(TABLE_DRIVE_DOCUMENTS, values, "id=?", arrayOf(id.toString())) > 0
+    }
+
+    fun copyDriveDocument(id: Long, targetFolderId: Long): Long {
+        val cursor = readableDatabase.rawQuery("SELECT title, content, file_type FROM $TABLE_DRIVE_DOCUMENTS WHERE id=?", arrayOf(id.toString()))
+        cursor.use {
+            if (it.moveToFirst()) {
+                val title = it.getString(0)
+                val content = it.getString(1)
+                val fileType = it.getString(2)
+                return createDriveDocument(targetFolderId, "${title}_copy", content, fileType)
+            }
+        }
+        return -1L
     }
 
     // ON-DEVICE SEMANTIC SEARCH & EMBEDDING SIMILARITY ENGINE

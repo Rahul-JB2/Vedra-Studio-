@@ -146,12 +146,12 @@ fun MainAppLayout(
         }
     }
 
-    // 5 Main Tabs: Home, Database, VED (Center Pill), Study, Settings
+    // 5 Main Tabs: Home, Study, VED (Center Pill), Database, Settings
     val tabs = listOf(
         TabItem("Home", Icons.Default.Home),
-        TabItem("Database", Icons.Default.Folder),
-        TabItem("VED", Icons.Default.Mic, isCenterPill = true),
         TabItem("Study", Icons.Default.School),
+        TabItem("VED", Icons.Default.Mic, isCenterPill = true),
+        TabItem("Database", Icons.Default.Folder),
         TabItem("Settings", Icons.Default.Settings)
     )
 
@@ -287,12 +287,9 @@ fun MainAppLayout(
                         }
                     )
                 }
-                1 -> SafeTabBoundary("Database & Drive") {
-                    DatabaseScreen(
-                        dbService = dbService,
-                        onOpenDrawer = {
-                            isDrawerOpen = true
-                        }
+                1 -> SafeTabBoundary("Study Hub") {
+                    StudyHubScreen(
+                        dbService = dbService
                     )
                 }
                 2 -> SafeTabBoundary("Ved AI Assistant") {
@@ -308,9 +305,12 @@ fun MainAppLayout(
                         }
                     )
                 }
-                3 -> SafeTabBoundary("Study Hub") {
-                    StudyHubScreen(
-                        dbService = dbService
+                3 -> SafeTabBoundary("Database & Drive") {
+                    DatabaseScreen(
+                        dbService = dbService,
+                        onOpenDrawer = {
+                            isDrawerOpen = true
+                        }
                     )
                 }
                 4 -> SafeTabBoundary("Settings") {
@@ -361,10 +361,10 @@ fun MainAppLayout(
                     hasUserInteracted = true
                     when (actionKey) {
                         "ved" -> activeTab = 2 // Navigate to Ved AI tab
-                        "database" -> activeTab = 1 // Navigate to Database & Drive tab
-                        "workspace" -> activeTab = 3 // Navigate to Study Hub / Workspace tab
+                        "database" -> activeTab = 3 // Navigate to Database & Drive tab
+                        "workspace" -> activeTab = 1 // Navigate to Study Hub / Workspace tab
                         "automation" -> activeTab = 5 // Navigate to Actions / Automation tab
-                        "search" -> activeTab = 1 // Navigate to Search in Database
+                        "search" -> activeTab = 3 // Navigate to Search in Database
                         "drive" -> isDriveModalOpen = true // Open Drive Manager
                         "settings" -> activeTab = 4 // Navigate to Settings tab
                         "pro_upgrade" -> Toast.makeText(context, "⚡ Upgraded to VEDRA PRO!", Toast.LENGTH_SHORT).show()

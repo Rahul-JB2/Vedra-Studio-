@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import android.content.Intent
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -36,13 +37,16 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
@@ -51,6 +55,8 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.RemoveRedEye
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -132,6 +138,12 @@ fun DatabaseScreen(
     var activeDocument by remember { mutableStateOf<DriveDocument?>(null) }
     var activeFolder by remember { mutableStateOf<DriveFolder?>(null) }
 
+    // 3-Dot Menu Dialog Action States
+    var itemToRename by remember { mutableStateOf<Any?>(null) }
+    var itemForDetails by remember { mutableStateOf<Any?>(null) }
+    var itemToDelete by remember { mutableStateOf<Any?>(null) }
+    var itemToMove by remember { mutableStateOf<Any?>(null) }
+
     // Edit states
     var editedContent by remember { mutableStateOf("") }
     var editedTitle by remember { mutableStateOf("") }
@@ -209,6 +221,67 @@ fun DatabaseScreen(
 
         currentSubfolders = folders
         currentDocuments = docs
+    }
+
+    val shareItem: (Any) -> Unit = { item ->
+        when (item) {
+            is DriveFolder -> {
+                val countText = when (item.name) {
+                    "books" -> "4 folders • 1,245 files"
+                    "modules" -> "3 folders • 876 files"
+                    "handbooks" -> "245 files"
+                    "notes" -> "1,326 files"
+                    "previous_year_papers" -> "2 folders • 2,341 files"
+                    "mock_tests" -> "1,105 files"
+                    "pdfs" -> "3,652 files"
+                    "workspace" -> "6 folders • 2,134 files"
+                    else -> "${dbService.getDocumentsInFolder(item.id).size} files"
+                }
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_SUBJECT, "Folder: ${item.name}")
+                    putExtra(Intent.EXTRA_TEXT, "📁 Folder: ${item.name}\n📊 Contents: $countText\nVEDRA AI Database Resource")
+                }
+                context.startActivity(Intent.createChooser(intent, "Share Folder"))
+                Toast.makeText(context, "Sharing folder '${item.name}'", Toast.LENGTH_SHORT).show()
+            }
+            is DriveDocument -> {
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_SUBJECT, item.title)
+                    putExtra(Intent.EXTRA_TEXT, "📄 ${item.title}\n\n${item.content}\n\nShared via VEDRA AI Database")
+                }
+                context.startActivity(Intent.createChooser(intent, "Share Document"))
+                Toast.makeText(context, "Sharing document '${item.title}'", Toast.LENGTH_SHORT).show()
+            }
+            is SampleRecentFile -> {
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_SUBJECT, item.title)
+                    putExtra(Intent.EXTRA_TEXT, "📄 ${item.title}\nCategory: ${item.category}\nPath: ${item.breadcrumbPath}")
+                }
+                context.startActivity(Intent.createChooser(intent, "Share File"))
+                Toast.makeText(context, "Sharing recent file '${item.title}'", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val copyItem: (Any) -> Unit = { item ->
+        when (item) {
+            is DriveFolder -> {
+                dbService.copyDriveFolder(item.id, item.parentId)
+                refreshCurrentDirectory()
+                Toast.makeText(context, "Copied folder '${item.name}'", Toast.LENGTH_SHORT).show()
+            }
+            is DriveDocument -> {
+                dbService.copyDriveDocument(item.id, item.folderId)
+                refreshCurrentDirectory()
+                Toast.makeText(context, "Copied document '${item.title}'", Toast.LENGTH_SHORT).show()
+            }
+            is SampleRecentFile -> {
+                Toast.makeText(context, "Copied recent file '${item.title}'", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     // Device storage file importer
@@ -312,7 +385,7 @@ fun DatabaseScreen(
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "VEDRA AI",
+                                    text = "VEData",
                                     color = Color.White,
                                     fontSize = 17.sp,
                                     fontWeight = FontWeight.ExtraBold
@@ -400,27 +473,7 @@ fun DatabaseScreen(
                         }
                     }
 
-                    // Title Header Section
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = if (currentFolderId == 0L) "Database" else folderStack.lastOrNull()?.name ?: "Folder",
-                            color = Color.White,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Organize and access all your study resources",
-                            color = Color(0xFF8E8EA8),
-                            fontSize = 11.5.sp
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     // ================= 2. DUAL TAB SWITCHER BAR =================
                     Row(
@@ -633,7 +686,13 @@ fun DatabaseScreen(
                                         recentFile = recentFile,
                                         onClick = {
                                             Toast.makeText(context, "Opening ${recentFile.title}", Toast.LENGTH_SHORT).show()
-                                        }
+                                        },
+                                        onRename = { itemToRename = recentFile },
+                                        onDetails = { itemForDetails = recentFile },
+                                        onDelete = { itemToDelete = recentFile },
+                                        onMove = { itemToMove = recentFile },
+                                        onShare = { shareItem(recentFile) },
+                                        onCopy = { copyItem(recentFile) }
                                     )
                                 }
                                 item { Spacer(modifier = Modifier.height(24.dp)) }
@@ -671,10 +730,12 @@ fun DatabaseScreen(
                                             folderStack.add(folder)
                                             currentFolderId = folder.id
                                         },
-                                        onMoreClick = {
-                                            activeFolder = folder
-                                            activeViewMode = StorageScreenView.ITEM_DETAILS
-                                        }
+                                        onRename = { itemToRename = folder },
+                                        onDetails = { itemForDetails = folder },
+                                        onDelete = { itemToDelete = folder },
+                                        onMove = { itemToMove = folder },
+                                        onShare = { shareItem(folder) },
+                                        onCopy = { copyItem(folder) }
                                     )
                                 }
 
@@ -686,7 +747,13 @@ fun DatabaseScreen(
                                             editedTitle = doc.title
                                             editedContent = doc.content
                                             activeViewMode = StorageScreenView.VIEW_FILE_CONTENT
-                                        }
+                                        },
+                                        onRename = { itemToRename = doc },
+                                        onDetails = { itemForDetails = doc },
+                                        onDelete = { itemToDelete = doc },
+                                        onMove = { itemToMove = doc },
+                                        onShare = { shareItem(doc) },
+                                        onCopy = { copyItem(doc) }
                                     )
                                 }
                             }
@@ -721,10 +788,12 @@ fun DatabaseScreen(
                                         onRecentClick = {
                                             selectedTab = DatabaseTab.RECENT
                                         },
-                                        onMoreClick = {
-                                            activeFolder = folder
-                                            activeViewMode = StorageScreenView.ITEM_DETAILS
-                                        }
+                                        onRename = { itemToRename = folder },
+                                        onDetails = { itemForDetails = folder },
+                                        onDelete = { itemToDelete = folder },
+                                        onMove = { itemToMove = folder },
+                                        onShare = { shareItem(folder) },
+                                        onCopy = { copyItem(folder) }
                                     )
                                 }
 
@@ -736,7 +805,13 @@ fun DatabaseScreen(
                                             editedTitle = doc.title
                                             editedContent = doc.content
                                             activeViewMode = StorageScreenView.VIEW_FILE_CONTENT
-                                        }
+                                        },
+                                        onRename = { itemToRename = doc },
+                                        onDetails = { itemForDetails = doc },
+                                        onDelete = { itemToDelete = doc },
+                                        onMove = { itemToMove = doc },
+                                        onShare = { shareItem(doc) },
+                                        onCopy = { copyItem(doc) }
                                     )
                                 }
 
@@ -1050,24 +1125,231 @@ fun DatabaseScreen(
             }
         }
     }
+
+    // ================= MODAL DIALOGS FOR 3-DOT MENU ACTIONS =================
+    itemToRename?.let { item ->
+        val currentName = when (item) {
+            is DriveFolder -> item.name
+            is DriveDocument -> item.title
+            is SampleRecentFile -> item.title
+            else -> ""
+        }
+        RenameModalDialog(
+            initialName = currentName,
+            onDismiss = { itemToRename = null },
+            onConfirm = { newName ->
+                when (item) {
+                    is DriveFolder -> dbService.updateDriveFolder(item.id, newName)
+                    is DriveDocument -> dbService.updateDriveDocument(item.id, newName, item.content)
+                    is SampleRecentFile -> {}
+                }
+                refreshCurrentDirectory()
+                Toast.makeText(context, "Renamed to '$newName'", Toast.LENGTH_SHORT).show()
+                itemToRename = null
+            }
+        )
+    }
+
+    itemForDetails?.let { item ->
+        val detailsList = when (item) {
+            is DriveFolder -> {
+                val countText = when (item.name) {
+                    "books" -> "4 folders • 1,245 files"
+                    "modules" -> "3 folders • 876 files"
+                    "handbooks" -> "245 files"
+                    "notes" -> "1,326 files"
+                    "previous_year_papers" -> "2 folders • 2,341 files"
+                    "mock_tests" -> "1,105 files"
+                    "pdfs" -> "3,652 files"
+                    "workspace" -> "6 folders • 2,134 files"
+                    else -> "${dbService.getDocumentsInFolder(item.id).size} files"
+                }
+                listOf(
+                    "Name" to item.name,
+                    "Folder ID" to "${item.id}",
+                    "Location" to if (item.parentId == 0L) "Root Database" else "Folder #${item.parentId}",
+                    "Contents" to countText,
+                    "Created" to SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date(item.createdAt))
+                )
+            }
+            is DriveDocument -> {
+                listOf(
+                    "Title" to item.title,
+                    "Document ID" to "${item.id}",
+                    "File Type" to item.fileType,
+                    "File Size" to "${item.fileSize} Bytes",
+                    "Folder ID" to "${item.folderId}",
+                    "Created" to SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date(item.createdAt))
+                )
+            }
+            is SampleRecentFile -> {
+                listOf(
+                    "Title" to item.title,
+                    "Category" to item.category,
+                    "Path" to item.breadcrumbPath,
+                    "Size" to item.fileSize,
+                    "Timestamp" to item.timestamp
+                )
+            }
+            else -> emptyList()
+        }
+
+        ItemDetailsModalDialog(
+            title = "Item Details",
+            detailsMap = detailsList,
+            onDismiss = { itemForDetails = null }
+        )
+    }
+
+    itemToDelete?.let { item ->
+        val delName = when (item) {
+            is DriveFolder -> item.name
+            is DriveDocument -> item.title
+            is SampleRecentFile -> item.title
+            else -> ""
+        }
+        ConfirmDeleteModalDialog(
+            itemName = delName,
+            onDismiss = { itemToDelete = null },
+            onConfirm = {
+                when (item) {
+                    is DriveFolder -> dbService.deleteDriveFolder(item.id)
+                    is DriveDocument -> dbService.deleteDriveDocument(item.id)
+                    is SampleRecentFile -> {}
+                }
+                refreshCurrentDirectory()
+                Toast.makeText(context, "Deleted '$delName'", Toast.LENGTH_SHORT).show()
+                itemToDelete = null
+            }
+        )
+    }
+
+    itemToMove?.let { item ->
+        val moveName = when (item) {
+            is DriveFolder -> item.name
+            is DriveDocument -> item.title
+            is SampleRecentFile -> item.title
+            else -> ""
+        }
+        val availableFolders = remember(item) {
+            if (item is DriveFolder) {
+                dbService.getAllDriveFolders().filter { it.id != item.id }
+            } else {
+                dbService.getAllDriveFolders()
+            }
+        }
+
+        MoveItemModalDialog(
+            itemName = moveName,
+            availableFolders = availableFolders,
+            onDismiss = { itemToMove = null },
+            onSelectFolder = { targetFolderId ->
+                when (item) {
+                    is DriveFolder -> dbService.moveDriveFolder(item.id, targetFolderId)
+                    is DriveDocument -> dbService.moveDriveDocument(item.id, targetFolderId)
+                    is SampleRecentFile -> {}
+                }
+                refreshCurrentDirectory()
+                Toast.makeText(context, "Moved '$moveName'", Toast.LENGTH_SHORT).show()
+                itemToMove = null
+            }
+        )
+    }
 }
 
-// ================= COMPACT RECENT FILE ITEM (Matching Image 2) =================
+// ================= DROPDOWN MENU FOR 3-DOTS ACTIONS =================
+@Composable
+fun ItemActionDropdown(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    onRename: () -> Unit,
+    onDetails: () -> Unit,
+    onDelete: () -> Unit,
+    onMove: () -> Unit,
+    onShare: () -> Unit,
+    onCopy: () -> Unit
+) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        modifier = Modifier
+            .background(Color(0xFF18172A))
+            .border(1.dp, Color(0xFF2E2D4D), RoundedCornerShape(8.dp))
+    ) {
+        DropdownMenuItem(
+            text = { Text("Rename", color = Color.White, fontSize = 13.sp) },
+            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(18.dp)) },
+            onClick = {
+                onDismiss()
+                onRename()
+            }
+        )
+        DropdownMenuItem(
+            text = { Text("Details", color = Color.White, fontSize = 13.sp) },
+            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFA855F7), modifier = Modifier.size(18.dp)) },
+            onClick = {
+                onDismiss()
+                onDetails()
+            }
+        )
+        DropdownMenuItem(
+            text = { Text("Move", color = Color.White, fontSize = 13.sp) },
+            leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(18.dp)) },
+            onClick = {
+                onDismiss()
+                onMove()
+            }
+        )
+        DropdownMenuItem(
+            text = { Text("Copy", color = Color.White, fontSize = 13.sp) },
+            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(18.dp)) },
+            onClick = {
+                onDismiss()
+                onCopy()
+            }
+        )
+        DropdownMenuItem(
+            text = { Text("Share", color = Color.White, fontSize = 13.sp) },
+            leadingIcon = { Icon(Icons.Default.Share, contentDescription = null, tint = Color(0xFF6366F1), modifier = Modifier.size(18.dp)) },
+            onClick = {
+                onDismiss()
+                onShare()
+            }
+        )
+        DropdownMenuItem(
+            text = { Text("Delete", color = Color(0xFFEF4444), fontSize = 13.sp) },
+            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp)) },
+            onClick = {
+                onDismiss()
+                onDelete()
+            }
+        )
+    }
+}
+
+// ================= COMPACT RECENT FILE ITEM =================
 @Composable
 fun CompactRecentFileItem(
     recentFile: SampleRecentFile,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onRename: () -> Unit,
+    onDetails: () -> Unit,
+    onDelete: () -> Unit,
+    onMove: () -> Unit,
+    onShare: () -> Unit,
+    onCopy: () -> Unit
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(Color(0xFF0F0E1E))
             .clickable { onClick() }
-            .padding(horizontal = 10.dp, vertical = 8.dp), // COMPACT HALF SIZE PADDING
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // File Icon Box
         Box(
             modifier = Modifier
                 .size(34.dp)
@@ -1085,7 +1367,6 @@ fun CompactRecentFileItem(
 
         Spacer(modifier = Modifier.width(10.dp))
 
-        // Middle Text Info
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = recentFile.title,
@@ -1109,7 +1390,6 @@ fun CompactRecentFileItem(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // Right side info (Timestamp, size, Eye button, 3 dots)
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -1127,7 +1407,6 @@ fun CompactRecentFileItem(
                 )
             }
 
-            // Eye Button
             Box(
                 modifier = Modifier
                     .size(28.dp)
@@ -1143,45 +1422,68 @@ fun CompactRecentFileItem(
                 )
             }
 
-            Icon(
-                imageVector = Icons.Default.MoreVert,
-                contentDescription = "More",
-                tint = Color(0xFF6B7280),
-                modifier = Modifier.size(16.dp)
-            )
+            Box {
+                IconButton(
+                    onClick = { showMenu = true },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "More",
+                        tint = Color(0xFF6B7280),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                ItemActionDropdown(
+                    expanded = showMenu,
+                    onDismiss = { showMenu = false },
+                    onRename = onRename,
+                    onDetails = onDetails,
+                    onDelete = onDelete,
+                    onMove = onMove,
+                    onShare = onShare,
+                    onCopy = onCopy
+                )
+            }
         }
     }
 }
 
-// ================= COMPACT FOLDER LIST ITEM (Matching Image 1 - HALF SIZE) =================
+// ================= COMPACT FOLDER LIST ITEM =================
 @Composable
 fun CompactFolderListItem(
     folder: DriveFolder,
     fileCountText: String,
     onClick: () -> Unit,
     onRecentClick: () -> Unit,
-    onMoreClick: () -> Unit
+    onRename: () -> Unit,
+    onDetails: () -> Unit,
+    onDelete: () -> Unit,
+    onMove: () -> Unit,
+    onShare: () -> Unit,
+    onCopy: () -> Unit
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(Color(0xFF0F0E1E))
             .clickable { onClick() }
-            .padding(horizontal = 10.dp, vertical = 7.dp), // HALF SIZE PADDING
+            .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Yellow Folder Icon
         Icon(
             imageVector = Icons.Default.Folder,
             contentDescription = null,
-            tint = Color(0xFFEAB308), // Yellow folder color matching Image 1
+            tint = Color(0xFFEAB308),
             modifier = Modifier.size(28.dp)
         )
 
         Spacer(modifier = Modifier.width(10.dp))
 
-        // Name & Subtext
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = folder.name,
@@ -1200,7 +1502,6 @@ fun CompactFolderListItem(
 
         Spacer(modifier = Modifier.width(6.dp))
 
-        // [ 👁 Recent ] Button
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(12.dp))
@@ -1227,16 +1528,28 @@ fun CompactFolderListItem(
 
         Spacer(modifier = Modifier.width(4.dp))
 
-        // 3 Dots Menu Button
-        IconButton(
-            onClick = onMoreClick,
-            modifier = Modifier.size(28.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.MoreVert,
-                contentDescription = "More",
-                tint = Color(0xFF6B7280),
-                modifier = Modifier.size(16.dp)
+        Box {
+            IconButton(
+                onClick = { showMenu = true },
+                modifier = Modifier.size(28.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "More",
+                    tint = Color(0xFF6B7280),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            ItemActionDropdown(
+                expanded = showMenu,
+                onDismiss = { showMenu = false },
+                onRename = onRename,
+                onDetails = onDetails,
+                onDelete = onDelete,
+                onMove = onMove,
+                onShare = onShare,
+                onCopy = onCopy
             )
         }
     }
@@ -1246,8 +1559,16 @@ fun CompactFolderListItem(
 @Composable
 fun CompactDocumentListItem(
     doc: DriveDocument,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onRename: () -> Unit,
+    onDetails: () -> Unit,
+    onDelete: () -> Unit,
+    onMove: () -> Unit,
+    onShare: () -> Unit,
+    onCopy: () -> Unit
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1296,6 +1617,33 @@ fun CompactDocumentListItem(
                 modifier = Modifier.size(13.dp)
             )
         }
+
+        Spacer(modifier = Modifier.width(4.dp))
+
+        Box {
+            IconButton(
+                onClick = { showMenu = true },
+                modifier = Modifier.size(28.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "More",
+                    tint = Color(0xFF6B7280),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            ItemActionDropdown(
+                expanded = showMenu,
+                onDismiss = { showMenu = false },
+                onRename = onRename,
+                onDetails = onDetails,
+                onDelete = onDelete,
+                onMove = onMove,
+                onShare = onShare,
+                onCopy = onCopy
+            )
+        }
     }
 }
 
@@ -1305,15 +1653,22 @@ fun CompactFolderGridCard(
     folder: DriveFolder,
     fileCountText: String,
     onClick: () -> Unit,
-    onMoreClick: () -> Unit
+    onRename: () -> Unit,
+    onDetails: () -> Unit,
+    onDelete: () -> Unit,
+    onMove: () -> Unit,
+    onShare: () -> Unit,
+    onCopy: () -> Unit
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(Color(0xFF0F0E1E))
             .clickable { onClick() }
-            .padding(10.dp) // COMPACT PADDING
+            .padding(10.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1327,11 +1682,24 @@ fun CompactFolderGridCard(
                 modifier = Modifier.size(28.dp)
             )
 
-            IconButton(
-                onClick = onMoreClick,
-                modifier = Modifier.size(24.dp)
-            ) {
-                Icon(Icons.Default.MoreVert, "More", tint = Color(0xFF6B7280), modifier = Modifier.size(14.dp))
+            Box {
+                IconButton(
+                    onClick = { showMenu = true },
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(Icons.Default.MoreVert, "More", tint = Color(0xFF6B7280), modifier = Modifier.size(14.dp))
+                }
+
+                ItemActionDropdown(
+                    expanded = showMenu,
+                    onDismiss = { showMenu = false },
+                    onRename = onRename,
+                    onDetails = onDetails,
+                    onDelete = onDelete,
+                    onMove = onMove,
+                    onShare = onShare,
+                    onCopy = onCopy
+                )
             }
         }
 
@@ -1359,8 +1727,16 @@ fun CompactFolderGridCard(
 @Composable
 fun CompactDocumentGridCard(
     doc: DriveDocument,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onRename: () -> Unit,
+    onDetails: () -> Unit,
+    onDelete: () -> Unit,
+    onMove: () -> Unit,
+    onShare: () -> Unit,
+    onCopy: () -> Unit
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1369,12 +1745,38 @@ fun CompactDocumentGridCard(
             .clickable { onClick() }
             .padding(10.dp)
     ) {
-        Icon(
-            imageVector = if (doc.title.endsWith(".pdf", true)) Icons.Default.PictureAsPdf else Icons.Default.Description,
-            contentDescription = null,
-            tint = if (doc.title.endsWith(".pdf", true)) Color(0xFFEF4444) else Color(0xFF38BDF8),
-            modifier = Modifier.size(26.dp)
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (doc.title.endsWith(".pdf", true)) Icons.Default.PictureAsPdf else Icons.Default.Description,
+                contentDescription = null,
+                tint = if (doc.title.endsWith(".pdf", true)) Color(0xFFEF4444) else Color(0xFF38BDF8),
+                modifier = Modifier.size(26.dp)
+            )
+
+            Box {
+                IconButton(
+                    onClick = { showMenu = true },
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(Icons.Default.MoreVert, "More", tint = Color(0xFF6B7280), modifier = Modifier.size(14.dp))
+                }
+
+                ItemActionDropdown(
+                    expanded = showMenu,
+                    onDismiss = { showMenu = false },
+                    onRename = onRename,
+                    onDetails = onDetails,
+                    onDelete = onDelete,
+                    onMove = onMove,
+                    onShare = onShare,
+                    onCopy = onCopy
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(6.dp))
 
@@ -1393,4 +1795,203 @@ fun CompactDocumentGridCard(
             fontSize = 10.sp
         )
     }
+}
+
+// ================= MODAL DIALOG COMPOSABLES =================
+@Composable
+fun RenameModalDialog(
+    initialName: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var name by remember { mutableStateOf(initialName) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF18172A),
+        title = {
+            Text("Rename Item", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        },
+        text = {
+            Column {
+                Text("Enter new name:", color = Color(0xFF8E8EA8), fontSize = 13.sp)
+                Spacer(modifier = Modifier.height(10.dp))
+                CustomInput(
+                    value = name,
+                    onValueChange = { name = it },
+                    placeholder = "Name...",
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            CustomButton(
+                text = "Save",
+                onClick = {
+                    if (name.isNotBlank()) {
+                        onConfirm(name.trim())
+                    }
+                }
+            )
+        },
+        dismissButton = {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onDismiss() }
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
+            ) {
+                Text("Cancel", color = Color(0xFF8E8EA8), fontSize = 13.sp)
+            }
+        }
+    )
+}
+
+@Composable
+fun ItemDetailsModalDialog(
+    title: String,
+    detailsMap: List<Pair<String, String>>,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF18172A),
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFA855F7), modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                detailsMap.forEach { (label, value) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(label, color = Color(0xFF8E8EA8), fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
+                        Text(value, color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            CustomButton(
+                text = "Close",
+                onClick = onDismiss
+            )
+        }
+    )
+}
+
+@Composable
+fun ConfirmDeleteModalDialog(
+    itemName: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF18172A),
+        title = {
+            Text("Delete Item", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        },
+        text = {
+            Text("Are you sure you want to delete '$itemName'? This action cannot be undone.", color = Color(0xFF8E8EA8), fontSize = 13.sp)
+        },
+        confirmButton = {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFEF4444))
+                    .clickable { onConfirm() }
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text("Delete", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
+        },
+        dismissButton = {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onDismiss() }
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
+            ) {
+                Text("Cancel", color = Color(0xFF8E8EA8), fontSize = 13.sp)
+            }
+        }
+    )
+}
+
+@Composable
+fun MoveItemModalDialog(
+    itemName: String,
+    availableFolders: List<DriveFolder>,
+    onDismiss: () -> Unit,
+    onSelectFolder: (Long) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF18172A),
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Move '$itemName'", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(240.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text("Select destination folder:", color = Color(0xFF8E8EA8), fontSize = 12.sp)
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF24233D))
+                        .clickable { onSelectFolder(0L) }
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Folder, contentDescription = null, tint = Color(0xFF8B5CF6), modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("Root Database", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+
+                availableFolders.forEach { folder ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFF24233D))
+                            .clickable { onSelectFolder(folder.id) }
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Folder, contentDescription = null, tint = Color(0xFFEAB308), modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(folder.name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onDismiss() }
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
+            ) {
+                Text("Cancel", color = Color(0xFF8E8EA8), fontSize = 13.sp)
+            }
+        }
+    )
 }

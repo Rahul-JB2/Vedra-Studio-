@@ -1857,66 +1857,10 @@ fun AutomationsDetailScreen(dbService: DatabaseService) {
 // ==========================================
 @Composable
 fun PrivacySecurityDetailScreen(dbService: DatabaseService) {
-    val context = LocalContext.current
-    var permissionsList by remember { mutableStateOf<List<PermissionStatus>>(emptyList()) }
-    val permLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) {
-        permissionsList = PermissionService.checkAllPermissions(context)
-    }
-
-    LaunchedEffect(Unit) {
-        permissionsList = PermissionService.checkAllPermissions(context)
-    }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            Text(text = "SYSTEM PERMISSIONS", color = Color(0xFFA78BFA), fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
-        }
-
-        items(permissionsList) { perm ->
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFF12101D))
-                    .border(1.dp, Color(0xFF1E1B2E), RoundedCornerShape(14.dp))
-                    .padding(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = if (perm.isGranted) Icons.Default.CheckCircle else Icons.Default.Warning,
-                            contentDescription = null,
-                            tint = if (perm.isGranted) Color(0xFF10B981) else Color(0xFFEF4444),
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            val shortName = perm.permissionName.substringAfterLast(".")
-                            Text(text = shortName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            Text(text = perm.requiredForFeature, color = Color(0xFF9CA3AF), fontSize = 11.sp)
-                        }
-                    }
-
-                    CustomButton(
-                        text = if (perm.isGranted) "Granted" else "Grant",
-                        onClick = { permLauncher.launch(arrayOf(perm.permissionName)) },
-                        isSecondary = perm.isGranted,
-                        modifier = Modifier.height(28.dp)
-                    )
-                }
-            }
-        }
-    }
+    PermissionOnboardingScreen(
+        onComplete = {},
+        isDismissable = true
+    )
 }
 
 // ==========================================

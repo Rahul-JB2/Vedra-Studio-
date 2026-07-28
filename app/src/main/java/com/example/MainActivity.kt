@@ -48,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.services.DatabaseService
+import com.example.services.PermissionService
 import com.example.services.UtilityService
 import com.example.services.VoiceService
 import com.example.ui.components.VedraDriveModal
@@ -55,6 +56,7 @@ import com.example.ui.screens.ActionsScreen
 import com.example.ui.screens.DatabaseScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.MemoryScreen
+import com.example.ui.screens.PermissionOnboardingScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.StudyHubScreen
 import com.example.ui.screens.VedScreen
@@ -130,11 +132,23 @@ fun MainAppLayout(
     initialTab: Int = 3
 ) {
     val context = LocalContext.current
+    var showPermissionOnboarding by remember {
+        mutableStateOf(!PermissionService.isPermissionsOnboarded(context))
+    }
     var isVoiceModeActive by remember { mutableStateOf(initialVoiceMode) }
     var activeTab by remember { mutableIntStateOf(initialTab) }
     var hasUserInteracted by remember { mutableStateOf(false) }
     var isDrawerOpen by remember { mutableStateOf(false) }
     var isDriveModalOpen by remember { mutableStateOf(false) }
+
+    if (showPermissionOnboarding) {
+        PermissionOnboardingScreen(
+            onComplete = {
+                showPermissionOnboarding = false
+            }
+        )
+        return
+    }
 
     // Initial launch setup
     LaunchedEffect(initialVoiceMode, initialTab) {

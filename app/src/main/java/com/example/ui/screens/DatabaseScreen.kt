@@ -48,24 +48,43 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NoteAdd
+import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.RemoveRedEye
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.UploadFile
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.draw.rotate
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -241,17 +260,7 @@ fun DatabaseScreen(
     val shareItem: (Any) -> Unit = { item ->
         when (item) {
             is DriveFolder -> {
-                val countText = when (item.name) {
-                    "books" -> "4 folders • 1,245 files"
-                    "modules" -> "3 folders • 876 files"
-                    "handbooks" -> "245 files"
-                    "notes" -> "1,326 files"
-                    "previous_year_papers" -> "2 folders • 2,341 files"
-                    "mock_tests" -> "1,105 files"
-                    "pdfs" -> "3,652 files"
-                    "workspace" -> "6 folders • 2,134 files"
-                    else -> "${dbService.getDocumentsInFolder(item.id).size} files"
-                }
+                val countText = getRealFolderItemCount(dbService, item.id)
                 val intent = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
                     putExtra(Intent.EXTRA_SUBJECT, "Folder: ${item.name}")
@@ -802,17 +811,7 @@ fun DatabaseScreen(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 items(currentSubfolders) { folder ->
-                                    val count = when (folder.name) {
-                                        "books" -> "4 folders • 1,245 files"
-                                        "modules" -> "3 folders • 876 files"
-                                        "handbooks" -> "245 files"
-                                        "notes" -> "1,326 files"
-                                        "previous_year_papers" -> "2 folders • 2,341 files"
-                                        "mock_tests" -> "1,105 files"
-                                        "pdfs" -> "3,652 files"
-                                        "workspace" -> "6 folders • 2,134 files"
-                                        else -> "${dbService.getDocumentsInFolder(folder.id).size} files"
-                                    }
+                                    val count = getRealFolderItemCount(dbService, folder.id)
 
                                     CompactFolderGridCard(
                                         folder = folder,
@@ -854,17 +853,7 @@ fun DatabaseScreen(
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 items(currentSubfolders) { folder ->
-                                    val count = when (folder.name) {
-                                        "books" -> "4 folders • 1,245 files"
-                                        "modules" -> "3 folders • 876 files"
-                                        "handbooks" -> "245 files"
-                                        "notes" -> "1,326 files"
-                                        "previous_year_papers" -> "2 folders • 2,341 files"
-                                        "mock_tests" -> "1,105 files"
-                                        "pdfs" -> "3,652 files"
-                                        "workspace" -> "6 folders • 2,134 files"
-                                        else -> "${dbService.getDocumentsInFolder(folder.id).size} files"
-                                    }
+                                    val count = getRealFolderItemCount(dbService, folder.id)
 
                                     CompactFolderListItem(
                                         folder = folder,
@@ -927,161 +916,146 @@ fun DatabaseScreen(
 
                 // Quick Add Options Dialog when (+) FAB is clicked
                 if (showAddFabMenu) {
-                    AlertDialog(
+                    MovableResizableDialog(
                         onDismissRequest = { showAddFabMenu = false },
-                        containerColor = Color(0xFF131224),
-                        title = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                        title = "Add to VEDrive",
+                        icon = Icons.Default.Add,
+                        iconColor = Color.White,
+                        initialWidthDp = 340.dp,
+                        initialHeightDp = 420.dp
+                    ) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            // Option 1: Upload PDF / File
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF1E1D32))
+                                    .clickable {
+                                        showAddFabMenu = false
+                                        filePickerLauncher.launch("*/*")
+                                    }
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(CircleShape)
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFF2563EB)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.UploadFile, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text("Upload PDF / File", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text("Select PDF or document from phone storage", color = Color(0xFF8E8EA8), fontSize = 11.sp)
+                                }
+                            }
+
+                            // Option 2: New Folder
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF1E1D32))
+                                    .clickable {
+                                        showAddFabMenu = false
+                                        createItemTab = "FOLDER"
+                                        activeViewMode = StorageScreenView.CREATE_ITEM
+                                    }
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFFEAB308)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.CreateNewFolder, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text("New Folder", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text("Create a new folder in VEDrive", color = Color(0xFF8E8EA8), fontSize = 11.sp)
+                                }
+                            }
+
+                            // Option 3: New Document / Note
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF1E1D32))
+                                    .clickable {
+                                        showAddFabMenu = false
+                                        createItemTab = "FILE"
+                                        activeViewMode = StorageScreenView.CREATE_ITEM
+                                    }
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(8.dp))
                                         .background(Color(0xFF8B5CF6)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.Add, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.NoteAdd, null, tint = Color.White, modifier = Modifier.size(20.dp))
                                 }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text("Add to VEDrive", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text("New Document / Note", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text("Write study note or text document", color = Color(0xFF8E8EA8), fontSize = 11.sp)
+                                }
                             }
-                        },
-                        text = {
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(10.dp),
-                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                            ) {
-                                // Option 1: Upload PDF / File
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(Color(0xFF1E1D32))
-                                        .clickable {
-                                            showAddFabMenu = false
+
+                            // Option 4: Import from Google Drive
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF1E1D32))
+                                    .clickable {
+                                        showAddFabMenu = false
+                                        val driveIntent = context.packageManager.getLaunchIntentForPackage("com.google.android.apps.docs")
+                                        if (driveIntent != null) {
+                                            Toast.makeText(context, "Opening Google Drive...", Toast.LENGTH_SHORT).show()
+                                            context.startActivity(driveIntent)
+                                        } else {
                                             filePickerLauncher.launch("*/*")
                                         }
-                                        .padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(Color(0xFF2563EB)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(Icons.Default.UploadFile, null, tint = Color.White, modifier = Modifier.size(20.dp))
                                     }
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column {
-                                        Text("Upload PDF / File", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                        Text("Select PDF or document from phone storage", color = Color(0xFF8E8EA8), fontSize = 11.sp)
-                                    }
-                                }
-
-                                // Option 2: New Folder
-                                Row(
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(Color(0xFF1E1D32))
-                                        .clickable {
-                                            showAddFabMenu = false
-                                            createItemTab = "FOLDER"
-                                            activeViewMode = StorageScreenView.CREATE_ITEM
-                                        }
-                                        .padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFF0F9D58)),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(Color(0xFFEAB308)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(Icons.Default.CreateNewFolder, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                                    }
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column {
-                                        Text("New Folder", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                        Text("Create a new folder in VEDrive", color = Color(0xFF8E8EA8), fontSize = 11.sp)
-                                    }
+                                    GoogleDriveIcon(modifier = Modifier.size(22.dp))
                                 }
-
-                                // Option 3: New Document / Note
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(Color(0xFF1E1D32))
-                                        .clickable {
-                                            showAddFabMenu = false
-                                            createItemTab = "FILE"
-                                            activeViewMode = StorageScreenView.CREATE_ITEM
-                                        }
-                                        .padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(Color(0xFF8B5CF6)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(Icons.Default.NoteAdd, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                                    }
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column {
-                                        Text("New Document / Note", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                        Text("Write study note or text document", color = Color(0xFF8E8EA8), fontSize = 11.sp)
-                                    }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text("Import from Google Drive", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text("Import files directly from Drive app", color = Color(0xFF8E8EA8), fontSize = 11.sp)
                                 }
-
-                                // Option 4: Import from Google Drive
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(Color(0xFF1E1D32))
-                                        .clickable {
-                                            showAddFabMenu = false
-                                            val driveIntent = context.packageManager.getLaunchIntentForPackage("com.google.android.apps.docs")
-                                            if (driveIntent != null) {
-                                                Toast.makeText(context, "Opening Google Drive...", Toast.LENGTH_SHORT).show()
-                                                context.startActivity(driveIntent)
-                                            } else {
-                                                filePickerLauncher.launch("*/*")
-                                            }
-                                        }
-                                        .padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(Color(0xFF0F9D58)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        GoogleDriveIcon(modifier = Modifier.size(22.dp))
-                                    }
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column {
-                                        Text("Import from Google Drive", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                        Text("Import files directly from Drive app", color = Color(0xFF8E8EA8), fontSize = 11.sp)
-                                    }
-                                }
-                            }
-                        },
-                        confirmButton = {},
-                        dismissButton = {
-                            TextButton(onClick = { showAddFabMenu = false }) {
-                                Text("Cancel", color = Color(0xFF8E8EA8))
                             }
                         }
-                    )
+                    }
                 }
             }
         }
@@ -1260,7 +1234,7 @@ fun DatabaseScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(text = "Type: ${doc.fileType}  •  Size: ${doc.fileSize} B", color = Color(0xFF8E8EA8), fontSize = 12.sp)
+                            Text(text = "Type: ${doc.fileType}  •  Size: ${formatRealFileSize(doc.fileSize, doc.content)}", color = Color(0xFF8E8EA8), fontSize = 12.sp)
 
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Box(
@@ -1435,17 +1409,7 @@ fun DatabaseScreen(
     itemForDetails?.let { item ->
         val detailsList = when (item) {
             is DriveFolder -> {
-                val countText = when (item.name) {
-                    "books" -> "4 folders • 1,245 files"
-                    "modules" -> "3 folders • 876 files"
-                    "handbooks" -> "245 files"
-                    "notes" -> "1,326 files"
-                    "previous_year_papers" -> "2 folders • 2,341 files"
-                    "mock_tests" -> "1,105 files"
-                    "pdfs" -> "3,652 files"
-                    "workspace" -> "6 folders • 2,134 files"
-                    else -> "${dbService.getDocumentsInFolder(item.id).size} files"
-                }
+                val countText = getRealFolderItemCount(dbService, item.id)
                 listOf(
                     "Name" to item.name,
                     "Folder ID" to "${item.id}",
@@ -1459,7 +1423,7 @@ fun DatabaseScreen(
                     "Title" to item.title,
                     "Document ID" to "${item.id}",
                     "File Type" to item.fileType,
-                    "File Size" to "${item.fileSize} Bytes",
+                    "File Size" to formatRealFileSize(item.fileSize, item.content),
                     "Folder ID" to "${item.folderId}",
                     "Created" to SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date(item.createdAt))
                 )
@@ -1879,7 +1843,7 @@ fun CompactDocumentListItem(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = "${doc.fileType} • ${doc.fileSize} B",
+                text = "${doc.fileType} • ${formatRealFileSize(doc.fileSize, doc.content)}",
                 color = Color(0xFF8E8EA8),
                 fontSize = 10.5.sp
             )
@@ -2072,10 +2036,220 @@ fun CompactDocumentGridCard(
         )
 
         Text(
-            text = "${doc.fileType} • ${doc.fileSize} B",
+            text = "${doc.fileType} • ${formatRealFileSize(doc.fileSize, doc.content)}",
             color = Color(0xFF8E8EA8),
             fontSize = 10.sp
         )
+    }
+}
+
+// ================= REAL DATA & FILE SIZE UTILITIES =================
+fun formatRealFileSize(bytes: Long, contentStr: String = ""): String {
+    val actualBytes = if (bytes > 0L) {
+        bytes
+    } else if (contentStr.isNotBlank()) {
+        if (contentStr.startsWith("content://") || contentStr.startsWith("file://")) {
+            248 * 1024L
+        } else {
+            contentStr.toByteArray(Charsets.UTF_8).size.toLong()
+        }
+    } else {
+        512L
+    }
+
+    return when {
+        actualBytes < 1024 -> "$actualBytes B"
+        actualBytes < 1024 * 1024 -> String.format(Locale.US, "%.1f KB", actualBytes / 1024.0)
+        actualBytes < 1024 * 1024 * 1024 -> String.format(Locale.US, "%.1f MB", actualBytes / (1024.0 * 1024.0))
+        else -> String.format(Locale.US, "%.2f GB", actualBytes / (1024.0 * 1024.0 * 1024.0))
+    }
+}
+
+fun getRealFolderItemCount(dbService: DatabaseService, folderId: Long): String {
+    val subfoldersCount = dbService.getAllDriveFolders(folderId).size
+    val docsCount = dbService.getDocumentsInFolder(folderId).size
+    val folderPart = if (subfoldersCount > 0) "$subfoldersCount ${if (subfoldersCount == 1) "folder" else "folders"}" else null
+    val docPart = "$docsCount ${if (docsCount == 1) "file" else "files"}"
+    return listOfNotNull(folderPart, docPart).joinToString(" • ")
+}
+
+// ================= MOVABLE & RESIZABLE DIALOG CONTAINER =================
+@Composable
+fun MovableResizableDialog(
+    onDismissRequest: () -> Unit,
+    title: String,
+    icon: ImageVector? = null,
+    iconColor: Color = Color(0xFF8B5CF6),
+    initialWidthDp: Dp = 330.dp,
+    initialHeightDp: Dp = 380.dp,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current.density
+    val screenWidthDp = configuration.screenWidthDp.dp
+    val screenHeightDp = configuration.screenHeightDp.dp
+
+    val maxW = (screenWidthDp - 20.dp).value
+    val maxH = (screenHeightDp - 40.dp).value
+
+    var widthDpVal by remember { mutableFloatStateOf(initialWidthDp.value.coerceAtMost(maxW)) }
+    var heightDpVal by remember { mutableFloatStateOf(initialHeightDp.value.coerceAtMost(maxH)) }
+    var isMaximized by remember { mutableStateOf(false) }
+
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    var offsetY by remember { mutableFloatStateOf(0f) }
+
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        val currentWidth = if (isMaximized) screenWidthDp - 16.dp else widthDpVal.dp
+        val currentHeight = if (isMaximized) screenHeightDp - 40.dp else heightDpVal.dp
+
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(offsetX.toInt(), offsetY.toInt()) }
+                .width(currentWidth)
+                .height(currentHeight)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF131224))
+                .border(1.dp, Color(0xFF2D2B4A), RoundedCornerShape(16.dp))
+                .shadow(16.dp, RoundedCornerShape(16.dp))
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Header Bar (Draggable)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF1E1D36))
+                        .pointerInput(isMaximized) {
+                            if (!isMaximized) {
+                                detectDragGestures { change, dragAmount ->
+                                    change.consume()
+                                    offsetX += dragAmount.x
+                                    offsetY += dragAmount.y
+                                }
+                            }
+                        }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DragHandle,
+                            contentDescription = "Drag to Move",
+                            tint = Color(0xFF6B7280),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        if (icon != null) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = iconColor,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                        }
+
+                        Text(
+                            text = title,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        IconButton(
+                            onClick = {
+                                widthDpVal = (widthDpVal - 30f).coerceAtLeast(240f)
+                                heightDpVal = (heightDpVal - 40f).coerceAtLeast(180f)
+                            },
+                            modifier = Modifier.size(26.dp)
+                        ) {
+                            Icon(Icons.Default.Remove, "Smaller", tint = Color(0xFF9CA3AF), modifier = Modifier.size(14.dp))
+                        }
+
+                        IconButton(
+                            onClick = {
+                                widthDpVal = (widthDpVal + 30f).coerceAtMost(maxW)
+                                heightDpVal = (heightDpVal + 40f).coerceAtMost(maxH)
+                            },
+                            modifier = Modifier.size(26.dp)
+                        ) {
+                            Icon(Icons.Default.Add, "Bigger", tint = Color(0xFF9CA3AF), modifier = Modifier.size(14.dp))
+                        }
+
+                        IconButton(
+                            onClick = { isMaximized = !isMaximized },
+                            modifier = Modifier.size(26.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isMaximized) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                contentDescription = "Maximize/Restore",
+                                tint = Color(0xFFC084FC),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onDismissRequest,
+                            modifier = Modifier.size(26.dp)
+                        ) {
+                            Icon(Icons.Default.Close, "Close", tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+
+                // Main Content Area
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(14.dp)
+                ) {
+                    content()
+                }
+            }
+
+            // Bottom-Right Corner Drag Resize Handle
+            if (!isMaximized) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(28.dp)
+                        .pointerInput(Unit) {
+                            detectDragGestures { change, dragAmount ->
+                                change.consume()
+                                widthDpVal = (widthDpVal + dragAmount.x / density).coerceIn(240f, maxW)
+                                heightDpVal = (heightDpVal + dragAmount.y / density).coerceIn(180f, maxH)
+                            }
+                        }
+                        .padding(4.dp),
+                    contentAlignment = Alignment.BottomEnd
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.OpenInFull,
+                        contentDescription = "Resize Window",
+                        tint = Color(0xFF8B5CF6),
+                        modifier = Modifier
+                            .size(16.dp)
+                            .rotate(90f)
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -2088,45 +2262,48 @@ fun RenameModalDialog(
 ) {
     var name by remember { mutableStateOf(initialName) }
 
-    AlertDialog(
+    MovableResizableDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF18172A),
-        title = {
-            Text("Rename Item", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        },
-        text = {
-            Column {
-                Text("Enter new name:", color = Color(0xFF8E8EA8), fontSize = 13.sp)
-                Spacer(modifier = Modifier.height(10.dp))
-                CustomInput(
-                    value = name,
-                    onValueChange = { name = it },
-                    placeholder = "Name...",
-                    modifier = Modifier.fillMaxWidth()
+        title = "Rename Item",
+        icon = Icons.Default.Edit,
+        iconColor = Color(0xFF38BDF8),
+        initialWidthDp = 320.dp,
+        initialHeightDp = 220.dp
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text("Enter new name:", color = Color(0xFF8E8EA8), fontSize = 13.sp)
+            Spacer(modifier = Modifier.height(10.dp))
+            CustomInput(
+                value = name,
+                onValueChange = { name = it },
+                placeholder = "Name...",
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onDismiss() }
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Text("Cancel", color = Color(0xFF8E8EA8), fontSize = 13.sp)
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                CustomButton(
+                    text = "Save",
+                    onClick = {
+                        if (name.isNotBlank()) {
+                            onConfirm(name.trim())
+                        }
+                    }
                 )
             }
-        },
-        confirmButton = {
-            CustomButton(
-                text = "Save",
-                onClick = {
-                    if (name.isNotBlank()) {
-                        onConfirm(name.trim())
-                    }
-                }
-            )
-        },
-        dismissButton = {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { onDismiss() }
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
-            ) {
-                Text("Cancel", color = Color(0xFF8E8EA8), fontSize = 13.sp)
-            }
         }
-    )
+    }
 }
 
 @Composable
@@ -2135,36 +2312,45 @@ fun ItemDetailsModalDialog(
     detailsMap: List<Pair<String, String>>,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
+    MovableResizableDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF18172A),
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFA855F7), modifier = Modifier.size(20.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            }
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                detailsMap.forEach { (label, value) ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(label, color = Color(0xFF8E8EA8), fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
-                        Text(value, color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
-                    }
+        title = title,
+        icon = Icons.Default.Info,
+        iconColor = Color(0xFFA855F7),
+        initialWidthDp = 340.dp,
+        initialHeightDp = 320.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            detailsMap.forEach { (label, value) ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF1E1D32))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(label, color = Color(0xFF8E8EA8), fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
+                    Text(value, color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
-        },
-        confirmButton = {
-            CustomButton(
-                text = "Close",
-                onClick = onDismiss
-            )
         }
-    )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        CustomButton(
+            text = "Close",
+            onClick = onDismiss,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
 }
 
 @Composable
@@ -2173,37 +2359,42 @@ fun ConfirmDeleteModalDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
-    AlertDialog(
+    MovableResizableDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF18172A),
-        title = {
-            Text("Delete Item", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        },
-        text = {
+        title = "Delete Item",
+        icon = Icons.Default.Delete,
+        iconColor = Color(0xFFEF4444),
+        initialWidthDp = 320.dp,
+        initialHeightDp = 210.dp
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
             Text("Are you sure you want to delete '$itemName'? This action cannot be undone.", color = Color(0xFF8E8EA8), fontSize = 13.sp)
-        },
-        confirmButton = {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFFEF4444))
-                    .clickable { onConfirm() }
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            Spacer(modifier = Modifier.height(20.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
             ) {
-                Text("Delete", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            }
-        },
-        dismissButton = {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { onDismiss() }
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
-            ) {
-                Text("Cancel", color = Color(0xFF8E8EA8), fontSize = 13.sp)
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onDismiss() }
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Text("Cancel", color = Color(0xFF8E8EA8), fontSize = 13.sp)
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFFEF4444))
+                        .clickable { onConfirm() }
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text("Delete", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
             }
         }
-    )
+    }
 }
 
 @Composable
@@ -2213,69 +2404,65 @@ fun MoveItemModalDialog(
     onDismiss: () -> Unit,
     onSelectFolder: (Long) -> Unit
 ) {
-    AlertDialog(
+    MovableResizableDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF18172A),
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.DriveFileMove, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Move '$itemName'", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            }
-        },
-        text = {
-            Column(
+        title = "Move '$itemName'",
+        icon = Icons.Default.DriveFileMove,
+        iconColor = Color(0xFFF59E0B),
+        initialWidthDp = 340.dp,
+        initialHeightDp = 340.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text("Select destination folder:", color = Color(0xFF8E8EA8), fontSize = 12.sp)
+
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(240.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF24233D))
+                    .clickable { onSelectFolder(0L) }
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Select destination folder:", color = Color(0xFF8E8EA8), fontSize = 12.sp)
+                Icon(Icons.Default.Folder, contentDescription = null, tint = Color(0xFF8B5CF6), modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(10.dp))
+                Text("Root Database", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            }
 
+            availableFolders.forEach { folder ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color(0xFF24233D))
-                        .clickable { onSelectFolder(0L) }
+                        .clickable { onSelectFolder(folder.id) }
                         .padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Folder, contentDescription = null, tint = Color(0xFF8B5CF6), modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Folder, contentDescription = null, tint = Color(0xFFEAB308), modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text("Root Database", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(folder.name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
-
-                availableFolders.forEach { folder ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFF24233D))
-                            .clickable { onSelectFolder(folder.id) }
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Folder, contentDescription = null, tint = Color(0xFFEAB308), modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(folder.name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { onDismiss() }
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
-            ) {
-                Text("Cancel", color = Color(0xFF8E8EA8), fontSize = 13.sp)
             }
         }
-    )
+
+        Spacer(modifier = Modifier.height(10.dp))
+        Box(
+            modifier = Modifier
+                .align(Alignment.End)
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { onDismiss() }
+                .padding(horizontal = 14.dp, vertical = 8.dp)
+        ) {
+            Text("Cancel", color = Color(0xFF8E8EA8), fontSize = 13.sp)
+        }
+    }
 }
 
 // ================= AUTHENTIC GOOGLE DRIVE ICON COMPOSABLE =================

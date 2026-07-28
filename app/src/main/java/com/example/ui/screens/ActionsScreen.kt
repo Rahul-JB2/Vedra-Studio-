@@ -80,12 +80,7 @@ fun ActionsScreen(
     var newActionCommand by remember { mutableStateOf("") }
 
     val customActions = remember {
-        mutableStateListOf(
-            QuickActionItem("WhatsApp", "Open chat", "open whatsapp", Icons.Default.Message, Color(0xFF25D366)),
-            QuickActionItem("Call Mom", "Quick dial", "call mom", Icons.Default.Call, VedraPurplePrimary),
-            QuickActionItem("Flashlight", "Toggle light", "turn on flashlight", Icons.Default.FlashOn, VedraCyanAccent),
-            QuickActionItem("Camera", "Open camera", "open camera", Icons.Default.CameraAlt, VedraPinkAccent)
-        )
+        mutableStateListOf<QuickActionItem>()
     }
 
     LazyColumn(
@@ -133,52 +128,69 @@ fun ActionsScreen(
             }
         }
 
-        items(customActions.filter { it.title.contains(searchQuery, ignoreCase = true) }) { action ->
-            CustomCard(
-                onClick = { onExecuteAction(action.command) }
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+        if (customActions.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = Spacing.large),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(action.iconColor.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = action.icon,
-                                contentDescription = null,
-                                tint = action.iconColor,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(Spacing.medium))
-                        Column {
-                            Text(
-                                text = action.title,
-                                color = VedraTextPrimary,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp
-                            )
-                            Text(
-                                text = action.subtitle,
-                                color = VedraTextMuted,
-                                fontSize = 12.sp
-                            )
-                        }
-                    }
-
-                    CustomButton(
-                        text = "Run",
-                        onClick = { onExecuteAction(action.command) },
-                        isSecondary = true,
-                        modifier = Modifier.height(32.dp)
+                    Text(
+                        text = "No custom quick actions created yet. Tap 'Create Action' to create one.",
+                        color = VedraTextMuted,
+                        fontSize = 13.sp
                     )
+                }
+            }
+        } else {
+            items(customActions.filter { it.title.contains(searchQuery, ignoreCase = true) }) { action ->
+                CustomCard(
+                    onClick = { onExecuteAction(action.command) }
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(action.iconColor.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = action.icon,
+                                    contentDescription = null,
+                                    tint = action.iconColor,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(Spacing.medium))
+                            Column {
+                                Text(
+                                    text = action.title,
+                                    color = VedraTextPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
+                                )
+                                Text(
+                                    text = action.subtitle,
+                                    color = VedraTextMuted,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+
+                        CustomButton(
+                            text = "Run",
+                            onClick = { onExecuteAction(action.command) },
+                            isSecondary = true,
+                            modifier = Modifier.height(32.dp)
+                        )
+                    }
                 }
             }
         }

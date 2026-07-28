@@ -66,7 +66,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.ui.theme.Spacing
 import com.example.ui.theme.VedraBorder
 import com.example.ui.theme.VedraPurplePrimary
@@ -253,54 +256,56 @@ fun CustomModal(
         enter = fadeIn(),
         exit = fadeOut()
     ) {
-        Dialog(onDismissRequest = onDismissRequest) {
+        Dialog(
+            onDismissRequest = onDismissRequest,
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
             Surface(
                 modifier = modifier
                     .testTag(testTag)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(26.dp))
-                    .border(
-                        width = 1.5.dp,
-                        brush = Brush.verticalGradient(
-                            colors = listOf(Color(0xFF5B3BA8), Color(0xFF3B2D6B), Color(0xFF1E173D))
-                        ),
-                        shape = RoundedCornerShape(26.dp)
-                    ),
-                color = Color(0xFF0C0E1B)
+                    .fillMaxSize(),
+                color = Color(0xFF090810)
             ) {
                 Column(
-                    modifier = Modifier.padding(20.dp)
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp, vertical = 24.dp)
+                        .verticalScroll(rememberScrollState())
                 ) {
-                    // Header Row with Shield Lock Badge, Title & Close Button
+                    // Header Row with Title, Subtitle & Top Close / Back Action
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.weight(1f)
                         ) {
-                            // Left Shield Lock Badge with Ring Glow
+                            // Left Shield / Back Badge with Ring Glow
                             Box(
                                 modifier = Modifier
-                                    .size(52.dp)
+                                    .size(44.dp)
                                     .clip(CircleShape)
                                     .background(
                                         Brush.linearGradient(
                                             listOf(Color(0xFF6366F1), Color(0xFF8B5CF6), Color(0xFFC084FC))
                                         )
                                     )
-                                    .padding(2.5.dp)
+                                    .padding(2.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFF13152A)),
+                                    .background(Color(0xFF13152A))
+                                    .clickable { onDismissRequest() },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Lock,
-                                    contentDescription = null,
-                                    tint = Color(0xFFC084FC),
-                                    modifier = Modifier.size(24.dp)
+                                    imageVector = Icons.Default.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
 
@@ -312,15 +317,15 @@ fun CustomModal(
                                     text = title,
                                     color = Color.White,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp
+                                    fontSize = 19.sp
                                 )
                                 if (!subtitle.isNullOrBlank()) {
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = subtitle,
                                         color = Color(0xFF94A3B8),
-                                        fontSize = 11.5.sp,
-                                        lineHeight = 15.sp
+                                        fontSize = 12.sp,
+                                        lineHeight = 16.sp
                                     )
                                 }
                             }
@@ -329,7 +334,7 @@ fun CustomModal(
                         // Top Right Circular Close Button
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
+                                .size(36.dp)
                                 .clip(CircleShape)
                                 .background(Color(0xFF1A1D34))
                                 .border(1.dp, Color(0xFF2D3252), CircleShape)
@@ -340,12 +345,12 @@ fun CustomModal(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Close",
                                 tint = Color.White,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     content()
                 }

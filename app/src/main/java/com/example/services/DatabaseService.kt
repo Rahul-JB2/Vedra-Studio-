@@ -85,6 +85,7 @@ data class DriveFolder(
     val id: Long = 0,
     val name: String,
     val colorHex: String = "#8B5CF6",
+    val parentId: Long = 0L,
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -117,6 +118,7 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
         const val TABLE_EXPENSES = "expenses"
         const val TABLE_DRIVE_FOLDERS = "drive_folders"
         const val TABLE_DRIVE_DOCUMENTS = "drive_documents"
+        const val TABLE_CHAT_HISTORY = "chat_history"
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -193,13 +195,23 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
         """.trimIndent())
 
         seedDefaultMappings(db)
-        seedDefaultMemories(db)
-        seedDefaultAliases(db)
-        seedDefaultRoutines(db)
-        seedDefaultStudyTasks(db)
-        seedDefaultFlashcards(db)
-        seedDefaultCachedResponses(db)
-        seedDefaultPlugins(db)
+        purgeDemoData(db)
+    }
+
+    private fun purgeDemoData(db: SQLiteDatabase) {
+        try {
+            db.execSQL("DELETE FROM $TABLE_MEMORY WHERE memory_value IN ('BSEB Class 12 Science', 'JEE Main & Advanced 2026', 'Physics (Rotational Dynamics)') OR memory_key IN ('Photosynthesis', 'Shalini Mom', 'JEE Exam')")
+            db.execSQL("DELETE FROM $TABLE_ALIASES WHERE target_contact LIKE '%+91 98765%' OR alias_name IN ('mom', 'dad', 'friend', 'Mom')")
+            db.execSQL("DELETE FROM $TABLE_ROUTINES WHERE trigger_phrase IN ('good morning', 'study mode')")
+            db.execSQL("DELETE FROM $TABLE_STUDY_TASKS WHERE title LIKE '%Newton%' OR title LIKE '%Rotational%' OR title LIKE '%Thermodynamics%'")
+            db.execSQL("DELETE FROM $TABLE_FLASHCARDS WHERE question LIKE '%Moment of Inertia%' OR question LIKE '%Impulse%' OR question LIKE '%Carnot%' OR question LIKE '%escape velocity%' OR question LIKE '%derivative%'")
+            db.execSQL("DELETE FROM $TABLE_PLUGINS WHERE name IN ('Weather Webhook API', 'IoT Lab Sensor')")
+            db.execSQL("DELETE FROM $TABLE_DRIVE_FOLDERS WHERE name IN ('General AI Knowledge', 'Study & Research Papers', 'Personal Documents & Notes', 'Code & Formula Reference')")
+            db.execSQL("DELETE FROM $TABLE_DRIVE_DOCUMENTS WHERE title IN ('VEDRA AI System Instructions', 'Rotational Dynamics Formulas', 'JEE Physics Syllabus 2026 Summary')")
+            db.execSQL("DELETE FROM $TABLE_CHAT_HISTORY WHERE session_title IN ('Rotational Dynamics Equations', 'JEE Physics Study Strategy', 'Flashlight & App Execution')")
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -282,9 +294,13 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 color_hex TEXT NOT NULL DEFAULT '#8B5CF6',
+                parent_id INTEGER NOT NULL DEFAULT 0,
                 created_at INTEGER NOT NULL
             )
         """.trimIndent())
+        try {
+            db.execSQL("ALTER TABLE $TABLE_DRIVE_FOLDERS ADD COLUMN parent_id INTEGER DEFAULT 0")
+        } catch (_: Exception) {}
         db.execSQL("""
             CREATE TABLE IF NOT EXISTS $TABLE_DRIVE_DOCUMENTS (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -296,8 +312,16 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
                 created_at INTEGER NOT NULL
             )
         """.trimIndent())
-        seedDefaultPlugins(db)
-        seedDefaultDriveData(db)
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS $TABLE_CHAT_HISTORY (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_title TEXT NOT NULL,
+                user_text TEXT NOT NULL,
+                ved_response TEXT NOT NULL,
+                timestamp INTEGER NOT NULL
+            )
+        """.trimIndent())
+        purgeDemoData(db)
     }
 
     private fun seedDefaultMappings(db: SQLiteDatabase) {
@@ -1110,9 +1134,14 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
         }
     }
 
-    fun getAllDriveFolders(): List<DriveFolder> {
+    fun getAllDriveFolders(parentId: Long = -1L): List<DriveFolder> {
         val list = mutableListOf<DriveFolder>()
-        val cursor = readableDatabase.rawQuery("SELECT id, name, color_hex, created_at FROM $TABLE_DRIVE_FOLDERS ORDER BY name ASC", null)
+        val sql = if (parentId < 0) {
+            "SELECT id, name, color_hex, parent_id, created_at FROM $TABLE_DRIVE_FOLDERS ORDER BY name ASC"
+        } else {
+            "SELECT id, name, color_hex, parent_id, created_at FROM $TABLE_DRIVE_FOLDERS WHERE parent_id = $parentId ORDER BY name ASC"
+        }
+        val cursor = readableDatabase.rawQuery(sql, null)
         cursor.use {
             while (it.moveToNext()) {
                 list.add(
@@ -1120,7 +1149,8 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
                         id = it.getLong(0),
                         name = it.getString(1),
                         colorHex = it.getString(2),
-                        createdAt = it.getLong(3)
+                        parentId = if (it.isNull(3)) 0L else it.getLong(3),
+                        createdAt = it.getLong(4)
                     )
                 )
             }
@@ -1128,10 +1158,27 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
         return list
     }
 
-    fun createDriveFolder(name: String, colorHex: String = "#8B5CF6"): Long {
+    fun getDriveFolderById(id: Long): DriveFolder? {
+        val cursor = readableDatabase.rawQuery("SELECT id, name, color_hex, parent_id, created_at FROM $TABLE_DRIVE_FOLDERS WHERE id = ?", arrayOf(id.toString()))
+        cursor.use {
+            if (it.moveToFirst()) {
+                return DriveFolder(
+                    id = it.getLong(0),
+                    name = it.getString(1),
+                    colorHex = it.getString(2),
+                    parentId = if (it.isNull(3)) 0L else it.getLong(3),
+                    createdAt = it.getLong(4)
+                )
+            }
+        }
+        return null
+    }
+
+    fun createDriveFolder(name: String, colorHex: String = "#8B5CF6", parentId: Long = 0L): Long {
         val values = ContentValues().apply {
             put("name", name)
             put("color_hex", colorHex)
+            put("parent_id", parentId)
             put("created_at", System.currentTimeMillis())
         }
         return writableDatabase.insert(TABLE_DRIVE_FOLDERS, null, values)
@@ -1559,7 +1606,80 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
                 "• Device Files Searched: $fileSearchCount times (Last: '$lastFile')\n" +
                 "VEDRA continuously learns your app choices and media preferences for instant execution."
     }
+
+    private fun seedDefaultChatHistory(db: SQLiteDatabase) {
+        val cursor = db.rawQuery("SELECT COUNT(*) FROM $TABLE_CHAT_HISTORY", null)
+        var count = 0
+        cursor.use {
+            if (it.moveToFirst()) count = it.getInt(0)
+        }
+        if (count == 0) {
+            val now = System.currentTimeMillis()
+            val defaultChats = listOf(
+                Triple("Rotational Dynamics Equations", "Explain torque and angular momentum equations for solid cylinder.", "Torque τ = I · α, Angular Momentum L = I · ω. For a solid cylinder about central axis, I = 0.5 · M · R²."),
+                Triple("JEE Physics Study Strategy", "How to prepare for JEE Physics Mechanics in 30 days?", "Focus on Newton's Laws, Friction, Rotational Motion, and Work-Energy-Power. Solve 20 PYQ problems daily and revise flashcards."),
+                Triple("Flashlight & App Execution", "Turn on flashlight and open calculator.", "⚡ Activated Flashlight! Launching Calculator app...")
+            )
+            for (chat in defaultChats) {
+                val cv = ContentValues().apply {
+                    put("session_title", chat.first)
+                    put("user_text", chat.second)
+                    put("ved_response", chat.third)
+                    put("timestamp", now)
+                }
+                db.insert(TABLE_CHAT_HISTORY, null, cv)
+            }
+        }
+    }
+
+    fun saveChatHistory(sessionTitle: String, userText: String, vedResponse: String): Long {
+        val db = writableDatabase
+        val title = if (sessionTitle.isNotBlank()) sessionTitle else userText.take(30).replace("\n", " ")
+        val cv = ContentValues().apply {
+            put("session_title", title)
+            put("user_text", userText)
+            put("ved_response", vedResponse)
+            put("timestamp", System.currentTimeMillis())
+        }
+        return db.insert(TABLE_CHAT_HISTORY, null, cv)
+    }
+
+    fun getAllChatHistory(): List<ChatHistoryItem> {
+        val list = mutableListOf<ChatHistoryItem>()
+        val db = readableDatabase
+        try {
+            val cursor = db.rawQuery("SELECT id, session_title, user_text, ved_response, timestamp FROM $TABLE_CHAT_HISTORY ORDER BY id DESC LIMIT 50", null)
+            cursor.use {
+                while (it.moveToNext()) {
+                    list.add(
+                        ChatHistoryItem(
+                            id = it.getLong(0),
+                            sessionTitle = it.getString(1),
+                            userText = it.getString(2),
+                            vedResponse = it.getString(3),
+                            timestamp = it.getLong(4)
+                        )
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return list
+    }
+
+    fun clearChatHistory(): Boolean {
+        return writableDatabase.delete(TABLE_CHAT_HISTORY, null, null) > 0
+    }
 }
+
+data class ChatHistoryItem(
+    val id: Long,
+    val sessionTitle: String,
+    val userText: String,
+    val vedResponse: String,
+    val timestamp: Long
+)
 
 object AppLauncher {
 

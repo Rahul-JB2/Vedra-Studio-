@@ -125,150 +125,87 @@ fun MemoryScreen(
 
         userNotes.clear()
         userNotes.addAll(dbService.getAllNotes())
-
-        // Seed initial rich data if database memories are empty
-        if (userMemories.isEmpty()) {
-            dbService.addOrUpdateMemory("Photosynthesis", "You asked about Photosynthesis. You're studying Biology.", "Study", 0)
-            dbService.addOrUpdateMemory("Shalini Mom", "You call Shalini \"Mom\". Nickname saved for this contact.", "Contacts", 0)
-            dbService.addOrUpdateMemory("JEE Exam", "Your JEE exam is on 25 Jan 2026. Important date saved.", "Event", 0)
-            userMemories.addAll(dbService.getAllMemories("All"))
-        }
-        if (contactAliases.isEmpty()) {
-            dbService.addOrUpdateAlias("Mom", "Shalini (Mom)")
-            contactAliases.addAll(dbService.getAllAliases())
-        }
-        if (appMappings.isEmpty()) {
-            dbService.addOrUpdateMapping("WA", "com.whatsapp")
-            dbService.addOrUpdateMapping("YT", "com.google.android.youtube")
-            appMappings.addAll(dbService.getAllMappings())
-        }
     }
 
     LaunchedEffect(Unit) {
         refreshAll()
     }
 
-    // Dynamic timeline list combining memories, aliases, shortcuts, and events exactly matching the image
+    // Dynamic timeline list combining memories, aliases, shortcuts, and notes from actual database
     val timelineItems = remember(userMemories.size, contactAliases.size, appMappings.size, userNotes.size, searchQuery, selectedFilterPill) {
-        val list = mutableListOf(
-            MemoryTimelineItem(
-                id = "1",
-                title = "You asked about Photosynthesis.",
-                subtitle = "You're studying Biology.",
-                timeStr = "9:30 AM",
-                dateGroup = "Today",
-                category = "Study",
-                icon = Icons.Default.Psychology,
-                iconColor = Color(0xFFC4B5FD),
-                iconBgColor = Color(0xFF2D1B54),
-                pillBgColor = Color(0xFF2C1E4A),
-                pillTextColor = Color(0xFFC4B5FD)
-            ),
-            MemoryTimelineItem(
-                id = "2",
-                title = "You call Shalini \"Mom\".",
-                subtitle = "Nickname saved for this contact.",
-                timeStr = "9:15 AM",
-                dateGroup = "Today",
-                category = "Contacts",
-                icon = Icons.Default.Person,
-                iconColor = Color(0xFF4ADE80),
-                iconBgColor = Color(0xFF143B2A),
-                pillBgColor = Color(0xFF143B2A),
-                pillTextColor = Color(0xFF4ADE80)
-            ),
-            MemoryTimelineItem(
-                id = "3",
-                title = "Shortcut \"WA\" is linked to WhatsApp.",
-                subtitle = "You created this shortcut.",
-                timeStr = "8:40 AM",
-                dateGroup = "Today",
-                category = "Shortcuts",
-                icon = Icons.Default.OpenInNew,
-                iconColor = Color(0xFFFBBF24),
-                iconBgColor = Color(0xFF382910),
-                pillBgColor = Color(0xFF382910),
-                pillTextColor = Color(0xFFFBBF24)
-            ),
-            MemoryTimelineItem(
-                id = "4",
-                title = "Reminder created: Physics test tomorrow",
-                subtitle = "2:00 PM",
-                timeStr = "8:20 AM",
-                dateGroup = "Today",
-                category = "Reminder",
-                icon = Icons.Default.Description,
-                iconColor = Color(0xFF60A5FA),
-                iconBgColor = Color(0xFF162D4A),
-                pillBgColor = Color(0xFF162D4A),
-                pillTextColor = Color(0xFF60A5FA)
-            ),
-            MemoryTimelineItem(
-                id = "5",
-                title = "You like lo-fi music while studying.",
-                subtitle = "Added to your preferences.",
-                timeStr = "7:45 AM",
-                dateGroup = "Today",
-                category = "Preference",
-                icon = Icons.Default.Favorite,
-                iconColor = Color(0xFFF472B6),
-                iconBgColor = Color(0xFF42162E),
-                pillBgColor = Color(0xFF42162E),
-                pillTextColor = Color(0xFFF472B6)
-            ),
-            MemoryTimelineItem(
-                id = "6",
-                title = "Your JEE exam is on 25 Jan 2026.",
-                subtitle = "Important date saved.",
-                timeStr = "7:30 AM",
-                dateGroup = "Today",
-                category = "Event",
-                icon = Icons.Default.CalendarToday,
-                iconColor = Color(0xFFC4B5FD),
-                iconBgColor = Color(0xFF2D1B54),
-                pillBgColor = Color(0xFF2C1E4A),
-                pillTextColor = Color(0xFFC4B5FD)
-            ),
-            MemoryTimelineItem(
-                id = "7",
-                title = "Study plan created: Physics (12 Topics)",
-                subtitle = "Plan for today.",
-                timeStr = "9:00 PM",
-                dateGroup = "Yesterday",
-                category = "Study",
-                icon = Icons.Default.CheckCircle,
-                iconColor = Color(0xFF4ADE80),
-                iconBgColor = Color(0xFF143B2A),
-                pillBgColor = Color(0xFF143B2A),
-                pillTextColor = Color(0xFF4ADE80)
-            ),
-            MemoryTimelineItem(
-                id = "8",
-                title = "You opened \"Mechanics Notes.pdf\"",
-                subtitle = "From /Documents/Study",
-                timeStr = "6:20 PM",
-                dateGroup = "Yesterday",
-                category = "Files",
-                icon = Icons.Default.Folder,
-                iconColor = Color(0xFFFBBF24),
-                iconBgColor = Color(0xFF382910),
-                pillBgColor = Color(0xFF382910),
-                pillTextColor = Color(0xFFFBBF24)
-            ),
-            MemoryTimelineItem(
-                id = "9",
-                title = "You asked for weather in Delhi.",
-                subtitle = "24°C, Clear",
-                timeStr = "5:10 PM",
-                dateGroup = "Yesterday",
-                category = "Weather",
-                icon = Icons.Default.Cloud,
-                iconColor = Color(0xFF38BDF8),
-                iconBgColor = Color(0xFF123440),
-                pillBgColor = Color(0xFF123440),
-                pillTextColor = Color(0xFF38BDF8)
+        val list = mutableListOf<MemoryTimelineItem>()
+
+        userMemories.forEachIndexed { idx, mem ->
+            list.add(
+                MemoryTimelineItem(
+                    id = "mem_$idx",
+                    title = mem.memoryKey,
+                    subtitle = mem.memoryValue,
+                    timeStr = "Saved",
+                    dateGroup = "Memories",
+                    category = if (mem.profile.isNotBlank()) mem.profile else "Study",
+                    icon = Icons.Default.Psychology,
+                    iconColor = Color(0xFFC4B5FD),
+                    iconBgColor = Color(0xFF2D1B54),
+                    pillBgColor = Color(0xFF2C1E4A),
+                    pillTextColor = Color(0xFFC4B5FD)
+                )
             )
-        )
+        }
+
+        contactAliases.forEachIndexed { idx, alias ->
+            list.add(
+                MemoryTimelineItem(
+                    id = "alias_$idx",
+                    title = "Alias '${alias.aliasName}' linked",
+                    subtitle = "Contact: ${alias.targetContactOrNumber}",
+                    timeStr = "Linked",
+                    dateGroup = "Contacts",
+                    category = "Contacts",
+                    icon = Icons.Default.Person,
+                    iconColor = Color(0xFF4ADE80),
+                    iconBgColor = Color(0xFF143B2A),
+                    pillBgColor = Color(0xFF143B2A),
+                    pillTextColor = Color(0xFF4ADE80)
+                )
+            )
+        }
+
+        appMappings.forEachIndexed { idx, map ->
+            list.add(
+                MemoryTimelineItem(
+                    id = "map_$idx",
+                    title = "Shortcut '${map.customWord}'",
+                    subtitle = "App: ${map.appIdentifier}",
+                    timeStr = "Active",
+                    dateGroup = "Shortcuts",
+                    category = "Shortcuts",
+                    icon = Icons.Default.OpenInNew,
+                    iconColor = Color(0xFFFBBF24),
+                    iconBgColor = Color(0xFF382910),
+                    pillBgColor = Color(0xFF382910),
+                    pillTextColor = Color(0xFFFBBF24)
+                )
+            )
+        }
+
+        userNotes.forEachIndexed { idx, note ->
+            list.add(
+                MemoryTimelineItem(
+                    id = "note_$idx",
+                    title = note.title,
+                    subtitle = note.content,
+                    timeStr = "Note",
+                    dateGroup = "Notes",
+                    category = "Notes",
+                    icon = Icons.Default.Description,
+                    iconColor = Color(0xFF60A5FA),
+                    iconBgColor = Color(0xFF162D4A),
+                    pillBgColor = Color(0xFF162D4A),
+                    pillTextColor = Color(0xFF60A5FA)
+                )
+            )
+        }
 
         // Filter by Search Query
         var filtered = if (searchQuery.isBlank()) list else {

@@ -79,6 +79,8 @@ import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.runtime.collectAsState
 import com.example.services.OfflineService
 
+import androidx.compose.material.icons.filled.Menu
+
 data class ChatMessage(
     val id: String = java.util.UUID.randomUUID().toString(),
     val sender: String, // "USER" or "VEDRA"
@@ -91,6 +93,7 @@ fun VedScreen(
     dbService: DatabaseService,
     voiceService: VoiceService,
     onActivateVoiceMode: () -> Unit,
+    onOpenDrawer: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -186,6 +189,15 @@ fun VedScreen(
             isThinking = false
             messages.add(ChatMessage(sender = "VEDRA", text = replyText))
 
+            // Save conversation history to SQLite DB & Drive Document automatically
+            if (!isIncognitoMode) {
+                dbService.saveChatHistory(
+                    sessionTitle = clean.take(25),
+                    userText = clean,
+                    vedResponse = replyText
+                )
+            }
+
             // Continuous Voice Conversation Loop: read response aloud and auto-listen for follow-up
             if (isVoiceInputActive) {
                 voiceService.speak(replyText) {
@@ -218,6 +230,20 @@ fun VedScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (onOpenDrawer != null) {
+                    IconButton(
+                        onClick = { onOpenDrawer() },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Menu,
+                            contentDescription = "Drawer Menu",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
                 Box(
                     modifier = Modifier
                         .size(36.dp)

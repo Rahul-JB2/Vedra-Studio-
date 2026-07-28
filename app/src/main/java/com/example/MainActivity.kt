@@ -72,6 +72,9 @@ import com.example.services.NotificationService
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import android.widget.Toast
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import com.example.ui.components.SideDrawer
@@ -254,6 +257,13 @@ fun MainAppLayout(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .background(Color(0xFF090810))
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures { change, dragAmount ->
+                        if (change.position.x < 140.dp.toPx() && dragAmount > 15f) {
+                            isDrawerOpen = true
+                        }
+                    }
+                }
         ) {
             when (activeTab) {
                 0 -> SafeTabBoundary("Home") {
@@ -292,6 +302,9 @@ fun MainAppLayout(
                         onActivateVoiceMode = {
                             hasUserInteracted = true
                             isVoiceModeActive = true
+                        },
+                        onOpenDrawer = {
+                            isDrawerOpen = true
                         }
                     )
                 }
@@ -339,16 +352,22 @@ fun MainAppLayout(
                 )
             }
 
-            // Side Drawer (Top-Left 3 horizontal lines menu)
+            // Side Drawer (Top-Left 3 horizontal lines menu & swipe gesture)
             SideDrawer(
                 isOpen = isDrawerOpen,
+                dbService = dbService,
                 onClose = { isDrawerOpen = false },
                 onSelectMenuItem = { actionKey ->
                     hasUserInteracted = true
-                    if (actionKey == "database") {
-                        activeTab = 1 // Navigate to Database & Drive Screen
-                    } else if (actionKey == "action") {
-                        activeTab = 6 // Navigate to Actions Screen
+                    when (actionKey) {
+                        "ved" -> activeTab = 2 // Navigate to Ved AI tab
+                        "database" -> activeTab = 1 // Navigate to Database & Drive tab
+                        "workspace" -> activeTab = 3 // Navigate to Study Hub / Workspace tab
+                        "automation" -> activeTab = 5 // Navigate to Actions / Automation tab
+                        "search" -> activeTab = 1 // Navigate to Search in Database
+                        "drive" -> isDriveModalOpen = true // Open Drive Manager
+                        "settings" -> activeTab = 4 // Navigate to Settings tab
+                        "pro_upgrade" -> Toast.makeText(context, "⚡ Upgraded to VEDRA PRO!", Toast.LENGTH_SHORT).show()
                     }
                 }
             )

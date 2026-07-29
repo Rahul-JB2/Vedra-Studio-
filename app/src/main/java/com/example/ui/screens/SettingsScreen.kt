@@ -27,8 +27,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import kotlinx.coroutines.launch
 import com.example.services.DatabaseService
 import com.example.services.GeminiService
+import com.example.services.GoogleDriveService
 import com.example.services.TranslationService
 import com.example.services.VoiceService
 import com.example.ui.components.CustomModal
@@ -1443,6 +1449,7 @@ fun SoundVibrationDetailScreen(dbService: DatabaseService) {
 // ==========================================
 // 7. AI SETTINGS DETAIL SCREEN
 // ==========================================
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AiSettingsDetailScreen(dbService: DatabaseService) {
     val context = LocalContext.current
@@ -1756,26 +1763,47 @@ fun AiSettingsDetailScreen(dbService: DatabaseService) {
             PreferenceSectionHeader(title = "API KEYS & CREDENTIALS")
             Spacer(modifier = Modifier.height(4.dp))
             PreferenceCard {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    // Gemini API Key
-                    Column {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(text = "Gemini API Key", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                var isGeminiKeyRevealed by remember { mutableStateOf(false) }
+                var isOpenAiKeyRevealed by remember { mutableStateOf(false) }
+                var isOtherKeyRevealed by remember { mutableStateOf(false) }
+
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Surface(
+                        color = Color(0xFF1E1B2C),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, Color(0xFF3B2E58))
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(imageVector = Icons.Default.Lock, contentDescription = null, tint = Color(0xFFA78BFA), modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (geminiApiKey.isBlank()) "Default Built-in" else "Custom Key",
-                                color = if (geminiApiKey.isBlank()) Color(0xFF10B981) else Color(0xFFA78BFA),
+                                text = "Keys are masked. Tap 'SAVE KEY' to store. Long-Press 'SAVE KEY' button to reveal key.",
+                                color = Color(0xFFD1D5DB),
                                 fontSize = 11.sp
                             )
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+
+                    // Gemini API Key
+                    Column {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "Gemini API Key", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text(
+                                text = if (isGeminiKeyRevealed) "👁️ UNMASKED" else if (geminiApiKey.isBlank()) "Default Built-in" else "Custom Key Saved",
+                                color = if (isGeminiKeyRevealed) Color(0xFFF59E0B) else if (geminiApiKey.isBlank()) Color(0xFF10B981) else Color(0xFFA78BFA),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
                         OutlinedTextField(
                             value = geminiApiKey,
-                            onValueChange = {
-                                geminiApiKey = it
-                                dbService.setSetting("gemini_api_key", it)
-                                dbService.setSetting("api_key", it)
-                            },
-                            placeholder = { Text("Leave blank to use default Gemini Key", color = Color.Gray, fontSize = 11.sp) },
+                            onValueChange = { geminiApiKey = it },
+                            visualTransformation = if (isGeminiKeyRevealed) VisualTransformation.None else PasswordVisualTransformation(),
+                            placeholder = { Text("Enter Gemini API Key", color = Color.Gray, fontSize = 11.sp) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -1785,18 +1813,53 @@ fun AiSettingsDetailScreen(dbService: DatabaseService) {
                                 unfocusedTextColor = Color.White
                             )
                         )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Surface(
+                            color = Color(0xFF6D28D9),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .combinedClickable(
+                                    onClick = {
+                                        dbService.setSetting("gemini_api_key", geminiApiKey)
+                                        dbService.setSetting("api_key", geminiApiKey)
+                                        Toast.makeText(context, "✅ Gemini API Key Saved!", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onLongClick = {
+                                        isGeminiKeyRevealed = !isGeminiKeyRevealed
+                                        val msg = if (isGeminiKeyRevealed) "👁️ Gemini API Key Unmasked!" else "🔒 Gemini API Key Hidden!"
+                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                        ) {
+                            Box(modifier = Modifier.padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = if (isGeminiKeyRevealed) "SAVE KEY (HOLD TO HIDE KEY)" else "SAVE KEY (LONG PRESS TO SEE KEY)",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
 
                     // OpenAI API Key
                     Column {
-                        Text(text = "OpenAI API Key (GPT-4o)", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "OpenAI API Key (GPT-4o)", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text(
+                                text = if (isOpenAiKeyRevealed) "👁️ UNMASKED" else if (openAiApiKey.isBlank()) "None" else "Saved",
+                                color = if (isOpenAiKeyRevealed) Color(0xFFF59E0B) else Color(0xFFA78BFA),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
                         OutlinedTextField(
                             value = openAiApiKey,
-                            onValueChange = {
-                                openAiApiKey = it
-                                dbService.setSetting("openai_api_key", it)
-                            },
+                            onValueChange = { openAiApiKey = it },
+                            visualTransformation = if (isOpenAiKeyRevealed) VisualTransformation.None else PasswordVisualTransformation(),
                             placeholder = { Text("sk-proj-...", color = Color.Gray, fontSize = 11.sp) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
@@ -1807,18 +1870,53 @@ fun AiSettingsDetailScreen(dbService: DatabaseService) {
                                 unfocusedTextColor = Color.White
                             )
                         )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Surface(
+                            color = Color(0xFF1E1B2C),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, Color(0xFF8B5CF6)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .combinedClickable(
+                                    onClick = {
+                                        dbService.setSetting("openai_api_key", openAiApiKey)
+                                        Toast.makeText(context, "✅ OpenAI API Key Saved!", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onLongClick = {
+                                        isOpenAiKeyRevealed = !isOpenAiKeyRevealed
+                                        val msg = if (isOpenAiKeyRevealed) "👁️ OpenAI Key Unmasked!" else "🔒 OpenAI Key Hidden!"
+                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                        ) {
+                            Box(modifier = Modifier.padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = if (isOpenAiKeyRevealed) "SAVE OPENAI KEY (HOLD TO HIDE)" else "SAVE OPENAI KEY (LONG PRESS TO SEE)",
+                                    color = Color(0xFFA78BFA),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
 
                     // DeepSeek / Claude API Key
                     Column {
-                        Text(text = "DeepSeek / Claude API Key", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "DeepSeek / Claude API Key", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text(
+                                text = if (isOtherKeyRevealed) "👁️ UNMASKED" else if (otherAiApiKey.isBlank()) "None" else "Saved",
+                                color = if (isOtherKeyRevealed) Color(0xFFF59E0B) else Color(0xFFA78BFA),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
                         OutlinedTextField(
                             value = otherAiApiKey,
-                            onValueChange = {
-                                otherAiApiKey = it
-                                dbService.setSetting("other_api_key", it)
-                            },
+                            onValueChange = { otherAiApiKey = it },
+                            visualTransformation = if (isOtherKeyRevealed) VisualTransformation.None else PasswordVisualTransformation(),
                             placeholder = { Text("sk-... / sk-ant-...", color = Color.Gray, fontSize = 11.sp) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
@@ -1829,6 +1927,35 @@ fun AiSettingsDetailScreen(dbService: DatabaseService) {
                                 unfocusedTextColor = Color.White
                             )
                         )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Surface(
+                            color = Color(0xFF1E1B2C),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, Color(0xFF8B5CF6)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .combinedClickable(
+                                    onClick = {
+                                        dbService.setSetting("other_api_key", otherAiApiKey)
+                                        Toast.makeText(context, "✅ Claude/DeepSeek API Key Saved!", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onLongClick = {
+                                        isOtherKeyRevealed = !isOtherKeyRevealed
+                                        val msg = if (isOtherKeyRevealed) "👁️ Key Unmasked!" else "🔒 Key Hidden!"
+                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                        ) {
+                            Box(modifier = Modifier.padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = if (isOtherKeyRevealed) "SAVE KEY (HOLD TO HIDE)" else "SAVE KEY (LONG PRESS TO SEE)",
+                                    color = Color(0xFFA78BFA),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -2005,31 +2132,264 @@ fun WidgetsDetailScreen(dbService: DatabaseService) {
 @Composable
 fun DriveBackupDetailScreen(dbService: DatabaseService) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    var isConnected by remember { mutableStateOf(GoogleDriveService.isConnected(dbService)) }
+    var connectedEmail by remember { mutableStateOf(GoogleDriveService.getConnectedEmail(dbService)) }
+    var lastSyncTime by remember { mutableStateOf(GoogleDriveService.getLastSyncTime(dbService)) }
+    var isOperating by remember { mutableStateOf(false) }
+    var operationStatus by remember { mutableStateOf("") }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(Color(0xFF07060F)).padding(horizontal = 16.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // --- 1. GOOGLE DRIVE ACCOUNT & LOGO ---
         item {
-            PreferenceSectionHeader(title = "GOOGLE DRIVE BACKUP")
+            PreferenceSectionHeader(title = "GOOGLE DRIVE BACKUP & VEDrive STORAGE")
             Spacer(modifier = Modifier.height(4.dp))
             PreferenceCard {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(text = "Sync your study notes, memory items and settings to Google Drive.", color = Color(0xFF9CA3AF), fontSize = 12.sp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Phone Google Drive Logo Styling
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(0xFF1E1B2C),
+                            border = BorderStroke(2.dp, Color(0xFF4285F4)),
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.AddToDrive,
+                                    contentDescription = "Google Drive Logo",
+                                    tint = Color(0xFF34A853),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = "Google Drive VEDrive", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text(text = if (isConnected) "Connected: $connectedEmail" else "Not connected to Google Drive", color = if (isConnected) Color(0xFF10B981) else Color(0xFF9CA3AF), fontSize = 11.sp)
+                        }
+                        Surface(
+                            color = if (isConnected) Color(0xFF272042) else Color(0xFF4285F4),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+                                if (isConnected) {
+                                    GoogleDriveService.disconnectAccount(dbService)
+                                    isConnected = false
+                                    Toast.makeText(context, "Disconnected Google Drive", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    GoogleDriveService.connectAccount(dbService, "rk70502025@gmail.com")
+                                    isConnected = true
+                                    connectedEmail = "rk70502025@gmail.com"
+                                    Toast.makeText(context, "Connected to Google Drive ($connectedEmail)", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        ) {
+                            Text(
+                                text = if (isConnected) "Disconnect" else "Add Drive",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
 
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "Last Synced to VEDrive:", color = Color.Gray, fontSize = 11.sp)
+                        Text(text = lastSyncTime, color = Color(0xFFA78BFA), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+
+        // --- 2. VEDrive FOLDER STRUCTURE DIAGRAM ---
+        item {
+            PreferenceSectionHeader(title = "VEDrive STRUCTURE & FOLDERS")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "All VEDRA data is stored on Drive & Local Storage in 5 structured folders:",
+                        color = Color(0xFFD1D5DB),
+                        fontSize = 11.sp
+                    )
+
+                    // Folder Tree Display
+                    Surface(
+                        color = Color(0xFF120E22),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, Color(0xFF2A2045)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(imageVector = Icons.Default.Folder, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = "VEDrive", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text(text = "  (Main Root Folder)", color = Color.Gray, fontSize = 10.sp)
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 16.dp)) {
+                                Icon(imageVector = Icons.Default.FolderZip, contentDescription = null, tint = Color(0xFF3B82F6), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = "VEChat/", color = Color(0xFF93C5FD), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(text = "→ All Offline & Online Chat History JSON", color = Color.Gray, fontSize = 10.sp)
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 16.dp)) {
+                                Icon(imageVector = Icons.Default.Lock, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = "VEDSecret/", color = Color(0xFFFCA5A5), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(text = "→ Encrypted API Keys & Credentials JSON", color = Color.Gray, fontSize = 10.sp)
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 16.dp)) {
+                                Icon(imageVector = Icons.Default.Psychology, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = "VETrain/", color = Color(0xFF6EE7B7), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(text = "→ Native AI Training Data & Habits JSON", color = Color.Gray, fontSize = 10.sp)
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 16.dp)) {
+                                Icon(imageVector = Icons.Default.InsertDriveFile, contentDescription = null, tint = Color(0xFFA78BFA), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = "VEDx/", color = Color(0xFFD8B4FE), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(text = "→ Extra Settings, Notes & App Mappings JSON", color = Color.Gray, fontSize = 10.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- 3. EXPORT & IMPORT ACTION BUTTONS ---
+        item {
+            PreferenceSectionHeader(title = "BACKUP & RESTORE OPERATIONS")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
+                    if (operationStatus.isNotBlank()) {
+                        Surface(
+                            color = Color(0xFF1E1838),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Color(0xFF6D28D9))
+                        ) {
+                            Text(
+                                text = operationStatus,
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                    }
+
+                    // MASTER SAVE ALL DATA TO VEDrive
                     Button(
                         onClick = {
-                            Toast.makeText(context, "Backup synced to Google Drive successfully!", Toast.LENGTH_SHORT).show()
+                            if (isOperating) return@Button
+                            isOperating = true
+                            operationStatus = "⏳ Syncing all VEDRA data to VEDrive..."
+                            scope.launch {
+                                val res = GoogleDriveService.exportAllVedDriveData(context, dbService)
+                                operationStatus = res
+                                isOperating = false
+                                lastSyncTime = GoogleDriveService.getLastSyncTime(dbService)
+                            }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6D28D9)),
                         shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isOperating
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(imageVector = Icons.Default.CloudSync, contentDescription = "Sync", tint = Color.White, modifier = Modifier.size(18.dp))
+                            Icon(imageVector = Icons.Default.CloudUpload, contentDescription = "Sync", tint = Color.White, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(text = "BACKUP DATA NOW", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text(text = "SAVE ALL VEDRA DATA TO DRIVE (5 FOLDERS)", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+
+                    // MASTER RESTORE ALL DATA FROM VEDrive
+                    Button(
+                        onClick = {
+                            if (isOperating) return@Button
+                            isOperating = true
+                            operationStatus = "⏳ Restoring all VEDRA data from VEDrive..."
+                            scope.launch {
+                                val res = GoogleDriveService.importAllVedDriveData(context, dbService)
+                                operationStatus = res
+                                isOperating = false
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E1B2C)),
+                        border = BorderStroke(1.dp, Color(0xFF8B5CF6)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isOperating
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.CloudDownload, contentDescription = "Restore", tint = Color(0xFFA78BFA), modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = "RESTORE ALL VEDRA DATA FROM DRIVE", color = Color(0xFFA78BFA), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF272042)))
+
+                    // CHAT HISTORY EXPORT JSON ONLY
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                if (isOperating) return@Button
+                                isOperating = true
+                                scope.launch {
+                                    val (file, count) = GoogleDriveService.exportChatHistoryToJson(context, dbService)
+                                    operationStatus = "✅ Exported $count chat sessions to JSON:\n${file.absolutePath}"
+                                    isOperating = false
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E1B2C)),
+                            border = BorderStroke(1.dp, Color(0xFF3B82F6)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            enabled = !isOperating
+                        ) {
+                            Text(text = "EXPORT CHAT JSON", color = Color(0xFF60A5FA), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                if (isOperating) return@Button
+                                isOperating = true
+                                scope.launch {
+                                    val result = GoogleDriveService.importChatHistoryFromJson(context, dbService)
+                                    operationStatus = result
+                                    isOperating = false
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E1B2C)),
+                            border = BorderStroke(1.dp, Color(0xFF10B981)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            enabled = !isOperating
+                        ) {
+                            Text(text = "IMPORT CHAT JSON", color = Color(0xFF34D399), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

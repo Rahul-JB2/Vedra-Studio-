@@ -155,9 +155,10 @@ object GeminiService {
         }
 
         val resolvedModel = when {
-            modelName.contains("Pro", ignoreCase = true) -> "gemini-1.5-pro"
-            modelName.contains("2.5", ignoreCase = true) -> "gemini-2.5-flash"
-            else -> "gemini-1.5-flash"
+            modelName.contains("Pro", ignoreCase = true) || modelName.contains("3.1-pro", ignoreCase = true) -> "gemini-3.1-pro-preview"
+            modelName.contains("Lite", ignoreCase = true) -> "gemini-3.1-flash-lite-preview"
+            modelName.contains("Flash", ignoreCase = true) || modelName.contains("3.5", ignoreCase = true) -> "gemini-3.5-flash"
+            else -> "gemini-3.5-flash"
         }
 
         try {
@@ -199,7 +200,13 @@ object GeminiService {
                     }
                 } else {
                     val errBody = response.body?.string() ?: ""
-                    return "⚠️ Gemini API Error (${response.code}): ${response.message}. Check your API key in Settings > AI Settings."
+                    var errDetail = ""
+                    try {
+                        val errObj = JSONObject(errBody).optJSONObject("error")
+                        val msg = errObj?.optString("message")
+                        if (!msg.isNullOrBlank()) errDetail = ": $msg"
+                    } catch (_: Exception) {}
+                    return "⚠️ Gemini API Error (${response.code})$errDetail. Please check your API key in Settings > AI Settings."
                 }
             }
         } catch (e: Exception) {

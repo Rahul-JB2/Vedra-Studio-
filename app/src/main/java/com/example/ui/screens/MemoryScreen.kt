@@ -55,6 +55,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -106,6 +107,10 @@ fun MemoryScreen(
     val appMappings = remember { mutableStateListOf<AppMapping>() }
     val userNotes = remember { mutableStateListOf<NoteItem>() }
 
+    // Collect Room Database conversation context and user interaction patterns reactively
+    val roomContexts by dbService.aiContextRepository.allContextsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+    val roomPatterns by dbService.aiContextRepository.topPatternsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+
     // Modal state for Memory
     var isAddModalOpen by remember { mutableStateOf(false) }
     var isDriveModalOpen by remember { mutableStateOf(false) }
@@ -131,8 +136,8 @@ fun MemoryScreen(
         refreshAll()
     }
 
-    // Dynamic timeline list combining memories, aliases, shortcuts, and notes from actual database
-    val timelineItems = remember(userMemories.size, contactAliases.size, appMappings.size, userNotes.size, searchQuery, selectedFilterPill) {
+    // Dynamic timeline list combining memories, aliases, shortcuts, notes, and Room database context & patterns
+    val timelineItems = remember(userMemories.size, contactAliases.size, appMappings.size, userNotes.size, roomContexts, roomPatterns, searchQuery, selectedFilterPill) {
         val list = mutableListOf<MemoryTimelineItem>()
 
         userMemories.forEachIndexed { idx, mem ->
@@ -203,6 +208,44 @@ fun MemoryScreen(
                     iconBgColor = Color(0xFF162D4A),
                     pillBgColor = Color(0xFF162D4A),
                     pillTextColor = Color(0xFF60A5FA)
+                )
+            )
+        }
+
+        // Room Database Conversation Contexts
+        roomContexts.forEachIndexed { idx, ctx ->
+            list.add(
+                MemoryTimelineItem(
+                    id = "room_ctx_$idx",
+                    title = "Learned: \"${ctx.userPrompt}\"",
+                    subtitle = "${ctx.aiEngine} • Keywords: ${if (ctx.keywords.isNotBlank()) ctx.keywords else "General"} • Response: ${ctx.aiResponse.take(60)}...",
+                    timeStr = "Room Log",
+                    dateGroup = "Room Context",
+                    category = "AI Context",
+                    icon = Icons.Default.Psychology,
+                    iconColor = Color(0xFFEC4899),
+                    iconBgColor = Color(0xFF3F1D2E),
+                    pillBgColor = Color(0xFF3F1D2E),
+                    pillTextColor = Color(0xFFF472B6)
+                )
+            )
+        }
+
+        // Room Database User Interaction Patterns
+        roomPatterns.forEachIndexed { idx, pat ->
+            list.add(
+                MemoryTimelineItem(
+                    id = "room_pat_$idx",
+                    title = "Pattern: ${pat.targetKey} (${pat.frequencyCount}x)",
+                    subtitle = "Action: ${pat.actionType} ${if (pat.contextNote.isNotBlank()) "• " + pat.contextNote else ""}",
+                    timeStr = "Pattern",
+                    dateGroup = "Interaction Patterns",
+                    category = "Patterns",
+                    icon = Icons.Default.Tune,
+                    iconColor = Color(0xFF10B981),
+                    iconBgColor = Color(0xFF13382C),
+                    pillBgColor = Color(0xFF13382C),
+                    pillTextColor = Color(0xFF34D399)
                 )
             )
         }

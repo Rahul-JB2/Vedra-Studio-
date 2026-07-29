@@ -7,6 +7,10 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import android.net.Uri
 import java.util.Locale
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 data class AppMapping(
     val id: Long = 0,
@@ -100,6 +104,9 @@ data class DriveDocument(
 )
 
 class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+
+    val roomDb by lazy { com.example.data.room.AppRoomDatabase.getDatabase(context) }
+    val aiContextRepository by lazy { com.example.data.room.AiContextRepository(roomDb.conversationContextDao(), roomDb.userInteractionPatternDao()) }
 
     companion object {
         private const val DATABASE_NAME = "vedra_memory.db"
@@ -899,6 +906,20 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
             sb.append("User Contacts & Aliases:\n")
             aliases.forEach { sb.append("- ${it.aliasName}: ${it.targetContactOrNumber}\n") }
         }
+
+        // Room database interaction patterns and conversation summary
+        try {
+            val roomSummary = kotlinx.coroutines.runBlocking {
+                aiContextRepository.buildOfflineKnowledgeSummary()
+            }
+            if (roomSummary.isNotBlank()) {
+                sb.append("\n[Room Database Interaction Logs & Context]:\n")
+                sb.append(roomSummary)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
         return sb.toString().trim()
     }
 
@@ -1688,7 +1709,18 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
             put("ved_response", vedResponse)
             put("timestamp", System.currentTimeMillis())
         }
-        return db.insert(TABLE_CHAT_HISTORY, null, cv)
+        val insertedId = db.insert(TABLE_CHAT_HISTORY, null, cv)
+
+        // Persist to Room Database asynchronously for conversation context and pattern analysis
+        try {
+            CoroutineScope(Dispatchers.IO).launch {
+                aiContextRepository.recordConversation(userText, vedResponse, "VEDRA AI", title)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        return insertedId
     }
 
     fun getAllChatHistory(): List<ChatHistoryItem> {
@@ -1716,6 +1748,13 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
     }
 
     fun clearChatHistory(): Boolean {
+        try {
+            CoroutineScope(Dispatchers.IO).launch {
+                aiContextRepository.clearAllRoomLogs()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         return writableDatabase.delete(TABLE_CHAT_HISTORY, null, null) > 0
     }
 
@@ -1723,7 +1762,19 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
         val cleanQuery = userQuery.trim().lowercase()
         if (cleanQuery.isBlank()) return null
 
-        // 1. Check direct query match in saved chat history
+        // 1. Query local Room database conversation context first
+        try {
+            val roomLearned = kotlinx.coroutines.runBlocking {
+                aiContextRepository.getLearnedContextForPrompt(userQuery)
+            }
+            if (roomLearned != null) {
+                return roomLearned
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // 2. Fallback check direct query match in saved chat history
         val allChats = getAllChatHistory()
         for (item in allChats) {
             val itemUserText = item.userText.lowercase().trim()
@@ -1732,7 +1783,7 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
             }
         }
 
-        // 2. Keyword overlap score matching across learned chats
+        // 3. Keyword overlap score matching across learned chats
         val stopWords = setOf("a", "an", "the", "is", "are", "was", "were", "what", "how", "why", "who", "where", "can", "you", "tell", "me", "about", "for", "in", "on", "to", "with", "do", "does", "did", "please", "vedra", "ved")
         val queryKeywords = cleanQuery.split(Regex("\\W+"))
             .filter { it.length > 2 && it !in stopWords }

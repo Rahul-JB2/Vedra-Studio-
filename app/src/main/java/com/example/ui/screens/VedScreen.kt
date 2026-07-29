@@ -58,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.launch
 import com.example.services.DatabaseService
 import com.example.services.DirectActionService
 import com.example.services.GeminiService
@@ -98,13 +99,13 @@ data class ChatMessage(
     val id: String = java.util.UUID.randomUUID().toString(),
     val sender: String, // "USER" or "VEDRA"
     val text: String,
-    val time: String = "9:30 AM"
+    val time: String = formatTimestamp(System.currentTimeMillis())
 )
 
 fun formatTimestamp(ms: Long): String {
     if (ms <= 0) return "Just now"
     return try {
-        val sdf = java.text.SimpleDateFormat("MMM dd, h:mm a", java.util.Locale.getDefault())
+        val sdf = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
         sdf.format(java.util.Date(ms))
     } catch (e: Exception) {
         "Recent"
@@ -380,6 +381,11 @@ fun VedScreen(
                     isOfflineNativeMode = !isOfflineNativeMode
                     val newModeStr = if (isOfflineNativeMode) "Force Offline" else "Auto"
                     dbService.setSetting("ai_network_mode", newModeStr)
+                    coroutineScope.launch {
+                        try {
+                            dbService.aiContextRepository.recordInteractionPattern("mode_switch", if (isOfflineNativeMode) "offline_native_mode" else "cloud_gemini_mode", "Toggled in VedScreen UI")
+                        } catch (_: Exception) {}
+                    }
                     Toast.makeText(
                         context,
                         if (isOfflineNativeMode) "Switched to 🏠 Offline Native VEDRA AI Mode" else "Switched to ⚡ Cloud Gemini AI Mode",
@@ -784,27 +790,37 @@ fun ChatMessageBubble(
                     lineHeight = 20.sp
                 )
 
-                if (!isUser) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.End,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        IconButton(onClick = onCopy, modifier = Modifier.size(28.dp)) {
-                            Icon(
-                                imageVector = Icons.Default.ContentCopy,
-                                contentDescription = "Copy",
-                                tint = VedraTextMuted,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                        IconButton(onClick = onSpeak, modifier = Modifier.size(28.dp)) {
-                            Icon(
-                                imageVector = if (isSpeaking) Icons.Default.VolumeUp else Icons.Default.VolumeUp,
-                                contentDescription = if (isSpeaking) "Stop Reading" else "Read Aloud",
-                                tint = if (isSpeaking) VedraCyanAccent else VedraTextMuted,
-                                modifier = Modifier.size(16.dp)
-                            )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = message.time,
+                        color = VedraTextMuted,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Normal
+                    )
+
+                    if (!isUser) {
+                        Row(horizontalArrangement = Arrangement.End) {
+                            IconButton(onClick = onCopy, modifier = Modifier.size(24.dp)) {
+                                Icon(
+                                    imageVector = Icons.Default.ContentCopy,
+                                    contentDescription = "Copy",
+                                    tint = VedraTextMuted,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                            IconButton(onClick = onSpeak, modifier = Modifier.size(24.dp)) {
+                                Icon(
+                                    imageVector = Icons.Default.VolumeUp,
+                                    contentDescription = if (isSpeaking) "Stop Reading" else "Read Aloud",
+                                    tint = if (isSpeaking) VedraCyanAccent else VedraTextMuted,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
                         }
                     }
                 }

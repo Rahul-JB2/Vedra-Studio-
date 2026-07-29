@@ -1,4 +1,4 @@
-Name: Build Android APK
+name: Build Android APK
 
 on:
   push:
@@ -22,14 +22,6 @@ jobs:
       - name: Update Application ID Automatically
         run: |
           sed -i 's/applicationId = .*/applicationId = "com.vedra.ai"/' app/build.gradle.kts
-
-      - name: Auto-Bump Version Code and Version Name
-        run: |
-          BUILD_NUM=${{ github.run_number }}
-          # Version Code ko update karein
-          sed -i "s/versionCode = .*/versionCode = ${BUILD_NUM}/" app/build.gradle.kts
-          # Version Name ko update karein (e.g., 1.0.1, 1.0.2...)
-          sed -i "s/versionName = .*/versionName = \"1.0.${BUILD_NUM}\"/" app/build.gradle.kts
 
       - name: Generate Dummy Debug Keystore
         run: keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"

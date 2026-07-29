@@ -100,7 +100,7 @@ class MainActivity : ComponentActivity() {
         val launchTab = intent?.getIntExtra("OPEN_TAB", -1) ?: -1
 
         setContent {
-            VedraTheme {
+            VedraTheme(dbService = dbService) {
                 MainAppLayout(
                     dbService = dbService,
                     voiceService = voiceService,
@@ -140,6 +140,7 @@ fun MainAppLayout(
     var hasUserInteracted by remember { mutableStateOf(false) }
     var isDrawerOpen by remember { mutableStateOf(false) }
     var isDriveModalOpen by remember { mutableStateOf(false) }
+    var selectedChatHistoryItem by remember { mutableStateOf<com.example.services.ChatHistoryItem?>(null) }
 
     if (showPermissionOnboarding) {
         PermissionOnboardingScreen(
@@ -316,6 +317,10 @@ fun MainAppLayout(
                         },
                         onOpenDrawer = {
                             isDrawerOpen = true
+                        },
+                        selectedHistoryItem = selectedChatHistoryItem,
+                        onClearHistorySelection = {
+                            selectedChatHistoryItem = null
                         }
                     )
                 }
@@ -383,6 +388,10 @@ fun MainAppLayout(
                         "settings" -> activeTab = 4 // Navigate to Settings tab
                         "pro_upgrade" -> Toast.makeText(context, "⚡ Upgraded to VEDRA PRO!", Toast.LENGTH_SHORT).show()
                     }
+                },
+                onSelectChatHistoryItem = { chat ->
+                    selectedChatHistoryItem = chat
+                    activeTab = 2
                 }
             )
 

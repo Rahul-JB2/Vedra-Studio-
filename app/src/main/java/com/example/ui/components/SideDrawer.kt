@@ -72,7 +72,8 @@ fun SideDrawer(
     isOpen: Boolean,
     dbService: DatabaseService? = null,
     onClose: () -> Unit,
-    onSelectMenuItem: (String) -> Unit
+    onSelectMenuItem: (String) -> Unit,
+    onSelectChatHistoryItem: ((ChatHistoryItem) -> Unit)? = null
 ) {
     var activeKey by remember { mutableStateOf("database") }
 
@@ -257,6 +258,7 @@ fun SideDrawer(
                                         .border(1.dp, Color(0xFF231F36), RoundedCornerShape(10.dp))
                                         .clickable {
                                             activeKey = "ved"
+                                            onSelectChatHistoryItem?.invoke(chat)
                                             onSelectMenuItem("ved")
                                             onClose()
                                         }

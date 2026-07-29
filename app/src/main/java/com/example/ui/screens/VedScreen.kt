@@ -3,8 +3,10 @@ package com.example.ui.screens
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,13 +27,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -81,6 +87,13 @@ import com.example.services.OfflineService
 
 import androidx.compose.material.icons.filled.Menu
 
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.lazy.LazyColumn
+import com.example.services.ChatHistoryItem
+import com.example.ui.components.CustomModal
+
 data class ChatMessage(
     val id: String = java.util.UUID.randomUUID().toString(),
     val sender: String, // "USER" or "VEDRA"
@@ -88,12 +101,24 @@ data class ChatMessage(
     val time: String = "9:30 AM"
 )
 
+fun formatTimestamp(ms: Long): String {
+    if (ms <= 0) return "Just now"
+    return try {
+        val sdf = java.text.SimpleDateFormat("MMM dd, h:mm a", java.util.Locale.getDefault())
+        sdf.format(java.util.Date(ms))
+    } catch (e: Exception) {
+        "Recent"
+    }
+}
+
 @Composable
 fun VedScreen(
     dbService: DatabaseService,
     voiceService: VoiceService,
     onActivateVoiceMode: () -> Unit,
     onOpenDrawer: (() -> Unit)? = null,
+    selectedHistoryItem: ChatHistoryItem? = null,
+    onClearHistorySelection: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -103,6 +128,11 @@ fun VedScreen(
     var isVoiceInputActive by remember { mutableStateOf(false) }
     var isThinking by remember { mutableStateOf(false) }
     var isIncognitoMode by remember { mutableStateOf(false) }
+    var showHistoryModal by remember { mutableStateOf(false) }
+    var loadedHistoryTitle by remember { mutableStateOf<String?>(null) }
+    var isOfflineNativeMode by remember {
+        mutableStateOf(dbService.getSetting("ai_network_mode", "Auto") == "Force Offline")
+    }
 
     val isOnline = OfflineService.isNetworkAvailable.collectAsState().value
 
@@ -110,9 +140,31 @@ fun VedScreen(
         mutableStateListOf(
             ChatMessage(
                 sender = "VEDRA",
-                text = "Hello! I am VEDRA. How can I assist you today? You can ask me questions, give commands like \"turn on flashlight\", \"calculate 15 * 4\", or \"open whatsapp\"."
+                text = "Hello! I am VEDRA. How can I assist you today? Ask me questions or switch between ⚡ Cloud Gemini AI and 🏠 Offline Native AI above. I learn and store all conversations so I can assist you offline!"
             )
         )
+    }
+
+    // Load selected history session when user clicks on a past chat from SideDrawer or History Modal
+    LaunchedEffect(selectedHistoryItem) {
+        selectedHistoryItem?.let { item ->
+            loadedHistoryTitle = item.sessionTitle
+            messages.clear()
+            messages.add(
+                ChatMessage(
+                    sender = "USER",
+                    text = item.userText,
+                    time = formatTimestamp(item.timestamp)
+                )
+            )
+            messages.add(
+                ChatMessage(
+                    sender = "VEDRA",
+                    text = item.vedResponse,
+                    time = formatTimestamp(item.timestamp)
+                )
+            )
+        }
     }
 
     // Permission launcher for microphone
@@ -264,6 +316,23 @@ fun VedScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                // Chat History Modal Trigger Button
+                IconButton(
+                    onClick = { showHistoryModal = true },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(VedraSurface)
+                        .border(1.dp, VedraBorder, CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.History,
+                        contentDescription = "Chat History",
+                        tint = VedraPurpleSecondary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
                 // Incognito Mode Toggle
                 CustomButton(
                     text = if (isIncognitoMode) "🕶️ Incognito" else "🕶️ Off",
@@ -294,6 +363,136 @@ fun VedScreen(
                     isSecondary = !isVoiceInputActive,
                     fontSize = 12.sp
                 )
+            }
+        }
+
+        // AI Engine Mode Switch & New Chat Control Strip
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = Spacing.small),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Mode Switch Button (⚡ Cloud Gemini AI <-> 🏠 Offline VEDRA AI)
+            Surface(
+                onClick = {
+                    isOfflineNativeMode = !isOfflineNativeMode
+                    val newModeStr = if (isOfflineNativeMode) "Force Offline" else "Auto"
+                    dbService.setSetting("ai_network_mode", newModeStr)
+                    Toast.makeText(
+                        context,
+                        if (isOfflineNativeMode) "Switched to 🏠 Offline Native VEDRA AI Mode" else "Switched to ⚡ Cloud Gemini AI Mode",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                },
+                shape = RoundedCornerShape(20.dp),
+                color = if (isOfflineNativeMode) Color(0xFFF59E0B).copy(alpha = 0.18f) else VedraPurplePrimary.copy(alpha = 0.18f),
+                border = BorderStroke(1.dp, if (isOfflineNativeMode) Color(0xFFF59E0B) else VedraPurplePrimary)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isOfflineNativeMode) Icons.Default.Home else Icons.Default.AutoAwesome,
+                        contentDescription = "AI Mode",
+                        tint = if (isOfflineNativeMode) Color(0xFFF59E0B) else VedraPurpleSecondary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = if (isOfflineNativeMode) "🏠 Offline Native AI" else "⚡ Cloud Gemini AI",
+                        color = if (isOfflineNativeMode) Color(0xFFFFB74D) else VedraTextPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // New Chat Button
+                CustomButton(
+                    text = "+ New Chat",
+                    icon = Icons.Default.Add,
+                    onClick = {
+                        loadedHistoryTitle = null
+                        onClearHistorySelection?.invoke()
+                        messages.clear()
+                        messages.add(
+                            ChatMessage(
+                                sender = "VEDRA",
+                                text = "Started a new chat session. I am VEDRA! I learn and store all our conversations to answer your requests offline or online."
+                            )
+                        )
+                        Toast.makeText(context, "Started new chat session", Toast.LENGTH_SHORT).show()
+                    },
+                    fontSize = 11.5.sp
+                )
+            }
+        }
+
+        // Active Session History Banner
+        loadedHistoryTitle?.let { title ->
+            CustomCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = Spacing.small),
+                containerColor = Color(0xFF1B162E),
+                borderColor = Color(0xFF8B5CF6)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = "Loaded History",
+                            tint = Color(0xFFA78BFA),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = "📜 Viewing Saved Session History",
+                                color = Color(0xFFA78BFA),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = title,
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    CustomButton(
+                        text = "New Chat",
+                        onClick = {
+                            loadedHistoryTitle = null
+                            onClearHistorySelection?.invoke()
+                            messages.clear()
+                            messages.add(
+                                ChatMessage(
+                                    sender = "VEDRA",
+                                    text = "Hello! I am VEDRA. How can I assist you today? You can ask me questions, give commands like \"turn on flashlight\", \"calculate 15 * 4\", or \"open whatsapp\"."
+                                )
+                            )
+                        },
+                        fontSize = 11.sp
+                    )
+                }
             }
         }
 
@@ -383,7 +582,14 @@ fun VedScreen(
         ) { msg ->
             ChatMessageBubble(
                 message = msg,
-                onSpeak = { voiceService.speak(msg.text) },
+                isSpeaking = voiceService.isSpeaking.value,
+                onSpeak = {
+                    if (voiceService.isSpeaking.value) {
+                        voiceService.stopSpeaking()
+                    } else {
+                        voiceService.speak(msg.text)
+                    }
+                },
                 onCopy = { UtilityService.writeToClipboard(context, msg.text) }
             )
         }
@@ -471,6 +677,33 @@ fun VedScreen(
                 modifier = Modifier.weight(1f)
             )
         }
+
+        // Chat History Dialog Modal
+        if (showHistoryModal) {
+            VedChatHistoryModal(
+                visible = showHistoryModal,
+                dbService = dbService,
+                onSelectHistory = { chatItem ->
+                    loadedHistoryTitle = chatItem.sessionTitle
+                    messages.clear()
+                    messages.add(
+                        ChatMessage(
+                            sender = "USER",
+                            text = chatItem.userText,
+                            time = formatTimestamp(chatItem.timestamp)
+                        )
+                    )
+                    messages.add(
+                        ChatMessage(
+                            sender = "VEDRA",
+                            text = chatItem.vedResponse,
+                            time = formatTimestamp(chatItem.timestamp)
+                        )
+                    )
+                },
+                onDismissRequest = { showHistoryModal = false }
+            )
+        }
     }
 }
 
@@ -496,6 +729,7 @@ fun computeDynamicQuickReplies(lastVedraMsgText: String?): List<String> {
 @Composable
 fun ChatMessageBubble(
     message: ChatMessage,
+    isSpeaking: Boolean = false,
     onSpeak: () -> Unit,
     onCopy: () -> Unit
 ) {
@@ -566,11 +800,134 @@ fun ChatMessageBubble(
                         }
                         IconButton(onClick = onSpeak, modifier = Modifier.size(28.dp)) {
                             Icon(
-                                imageVector = Icons.Default.VolumeUp,
-                                contentDescription = "Read Aloud",
-                                tint = VedraTextMuted,
+                                imageVector = if (isSpeaking) Icons.Default.VolumeUp else Icons.Default.VolumeUp,
+                                contentDescription = if (isSpeaking) "Stop Reading" else "Read Aloud",
+                                tint = if (isSpeaking) VedraCyanAccent else VedraTextMuted,
                                 modifier = Modifier.size(16.dp)
                             )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun VedChatHistoryModal(
+    visible: Boolean,
+    dbService: DatabaseService,
+    onSelectHistory: (ChatHistoryItem) -> Unit,
+    onDismissRequest: () -> Unit
+) {
+    if (!visible) return
+
+    val historyList = remember {
+        mutableStateListOf<ChatHistoryItem>().apply { addAll(dbService.getAllChatHistory()) }
+    }
+
+    CustomModal(
+        visible = visible,
+        title = "📜 Chat History",
+        onDismissRequest = onDismissRequest
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(380.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${historyList.size} Saved Conversations",
+                    color = VedraTextSecondary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                if (historyList.isNotEmpty()) {
+                    CustomButton(
+                        text = "Clear All",
+                        onClick = {
+                            dbService.clearChatHistory()
+                            historyList.clear()
+                        },
+                        isSecondary = true,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            if (historyList.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No saved chat history yet.",
+                        color = VedraTextMuted,
+                        fontSize = 13.sp
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(historyList) { item ->
+                        CustomCard(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onSelectHistory(item)
+                                    onDismissRequest()
+                                },
+                            containerColor = VedraSurface,
+                            borderColor = VedraBorder
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(10.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = item.sessionTitle,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = formatTimestamp(item.timestamp),
+                                        color = VedraTextMuted,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Q: ${item.userText}",
+                                    color = VedraCyanAccent,
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "A: ${item.vedResponse}",
+                                    color = VedraTextSecondary,
+                                    fontSize = 11.sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }

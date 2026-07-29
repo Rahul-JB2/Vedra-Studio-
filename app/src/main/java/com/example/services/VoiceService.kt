@@ -16,13 +16,20 @@ class VoiceService(private val context: Context) : TextToSpeech.OnInitListener {
     private var tts: TextToSpeech? = TextToSpeech(context, this)
     private var speechRecognizer: SpeechRecognizer? = null
 
+    val isTtsReady = mutableStateOf(false)
     val isListening = mutableStateOf(false)
     val isSpeaking = mutableStateOf(false)
+    val isMuted = mutableStateOf(false)
     val isContinuousMode = mutableStateOf(false)
     val isPaused = mutableStateOf(false)
     val lastRecognizedText = mutableStateOf("")
 
+    val speechPitch = mutableStateOf(1.0f)
+    val speechRate = mutableStateOf(1.0f)
+    val currentLanguage = mutableStateOf(Locale.US)
+
     private var currentOnComplete: (() -> Unit)? = null
+    private var lastUtteranceId: String = ""
 
     init {
         if (SpeechRecognizer.isRecognitionAvailable(context)) {
@@ -32,56 +39,171 @@ class VoiceService(private val context: Context) : TextToSpeech.OnInitListener {
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
-            tts?.language = Locale.US
+            isTtsReady.value = true
+            tts?.language = currentLanguage.value
+            tts?.setPitch(speechPitch.value)
+            tts?.setSpeechRate(speechRate.value)
+
             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {
                     isSpeaking.value = true
                 }
 
                 override fun onDone(utteranceId: String?) {
-                    isSpeaking.value = false
-                    val cb = currentOnComplete
-                    currentOnComplete = null
-                    cb?.invoke()
+                    if (utteranceId == lastUtteranceId) {
+                        isSpeaking.value = false
+                        val cb = currentOnComplete
+                        currentOnComplete = null
+                        cb?.invoke()
+                    }
                 }
 
                 @Deprecated("Deprecated in Java")
                 override fun onError(utteranceId: String?) {
-                    isSpeaking.value = false
-                    val cb = currentOnComplete
-                    currentOnComplete = null
-                    cb?.invoke()
+                    if (utteranceId == lastUtteranceId) {
+                        isSpeaking.value = false
+                        val cb = currentOnComplete
+                        currentOnComplete = null
+                        cb?.invoke()
+                    }
                 }
             })
+        } else {
+            isTtsReady.value = false
         }
     }
 
-    fun setLocale(locale: Locale) {
-        tts?.language = locale
+    fun cleanTextForSpeech(rawText: String): String {
+        if (rawText.isBlank()) return ""
+
+        var cleaned = rawText
+            // Remove ACTION and IMAGE tags like [ACTION: CALL, contact: "Mom"]
+            .replace(Regex("\\[ACTION:[^\\]]+\\]"), "")
+            .replace(Regex("\\[IMAGE:[^\\]]+\\]"), "")
+            .replace(Regex("\\[REPLY:[^\\]]+\\]"), "")
+
+        // Replace triple backtick code blocks with simple description
+        cleaned = cleaned.replace(Regex("```[\\s\\S]*?```"), "Code snippet skipped.")
+
+        // Clean inline code backticks
+        cleaned = cleaned.replace(Regex("`([^`]+)`"), "$1")
+
+        // Clean URLs
+        cleaned = cleaned.replace(Regex("https?://\\S+"), "link")
+
+        // Clean Markdown styling
+        cleaned = cleaned
+            .replace(Regex("\\*\\*([^*]+)\\*\\*"), "$1") // Bold **
+            .replace(Regex("\\*([^*]+)\\*"), "$1")       // Italic *
+            .replace(Regex("__([^_]+)__"), "$1")         // Bold __
+            .replace(Regex("_([^_]+)_"), "$1")           // Italic _
+            .replace(Regex("~~([^~]+)~~"), "$1")         // Strikethrough
+            .replace(Regex("(?m)^#+\\s*"), "")           // Headers
+            .replace(Regex("(?m)^[*\\-]\\s+"), "")       // Bullet points
+            .replace(Regex("(?m)^\\d+\\.\\s+"), "")      // Numbered lists
+
+        // Normalize spaces and line breaks
+        cleaned = cleaned.replace(Regex("\\n+"), ". ")
+        cleaned = cleaned.replace(Regex("\\s+"), " ")
+
+        return cleaned.trim()
+    }
+
+    fun setLocale(locale: Locale): Boolean {
+        currentLanguage.value = locale
+        val result = tts?.setLanguage(locale)
+        return result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED
     }
 
     fun setPitchAndRate(pitch: Float, rate: Float) {
-        tts?.setPitch(pitch)
-        tts?.setSpeechRate(rate)
+        speechPitch.value = pitch.coerceIn(0.5f, 2.0f)
+        speechRate.value = rate.coerceIn(0.5f, 2.0f)
+        tts?.setPitch(speechPitch.value)
+        tts?.setSpeechRate(speechRate.value)
     }
 
-    fun speak(text: String, onComplete: (() -> Unit)? = null) {
-        if (text.isBlank()) {
+    fun toggleMute(): Boolean {
+        isMuted.value = !isMuted.value
+        if (isMuted.value) {
+            stopSpeaking()
+        }
+        return isMuted.value
+    }
+
+    fun syncSettings(dbService: DatabaseService) {
+        val speed = dbService.getSetting("voice_speed", "1.0").toFloatOrNull() ?: 1.0f
+        val pitch = dbService.getSetting("voice_pitch", "1.0").toFloatOrNull() ?: 1.0f
+        val langStr = dbService.getSetting("pref_app_language", "English (India)")
+        
+        speechPitch.value = pitch.coerceIn(0.5f, 2.0f)
+        speechRate.value = speed.coerceIn(0.5f, 2.0f)
+        
+        val locale = when {
+            langStr.contains("Hindi", ignoreCase = true) -> Locale("hi", "IN")
+            langStr.contains("Hinglish", ignoreCase = true) -> Locale("hi", "IN")
+            langStr.contains("Spanish", ignoreCase = true) -> Locale("es", "ES")
+            langStr.contains("French", ignoreCase = true) -> Locale("fr", "FR")
+            langStr.contains("Bengali", ignoreCase = true) -> Locale("bn", "IN")
+            langStr.contains("Marathi", ignoreCase = true) -> Locale("mr", "IN")
+            langStr.contains("Tamil", ignoreCase = true) -> Locale("ta", "IN")
+            langStr.contains("Telugu", ignoreCase = true) -> Locale("te", "IN")
+            else -> Locale("en", "IN")
+        }
+        currentLanguage.value = locale
+
+        tts?.setPitch(speechPitch.value)
+        tts?.setSpeechRate(speechRate.value)
+        tts?.language = currentLanguage.value
+    }
+
+    fun speak(text: String, dbService: DatabaseService? = null, onComplete: (() -> Unit)? = null) {
+        if (dbService != null) {
+            syncSettings(dbService)
+        }
+        if (isMuted.value || text.isBlank()) {
             onComplete?.invoke()
             return
         }
+
+        val cleanedText = cleanTextForSpeech(text)
+        if (cleanedText.isBlank()) {
+            onComplete?.invoke()
+            return
+        }
+
         stopListening()
+        stopSpeaking()
+
         isSpeaking.value = true
         currentOnComplete = onComplete
-        val params = Bundle().apply {
-            putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "VEDRA_TTS_${System.currentTimeMillis()}")
+
+        // Split long text into manageable sentence chunks for smooth playback
+        val chunks = cleanedText.split(Regex("(?<=[.!?])\\s+")).filter { it.isNotBlank() }
+        if (chunks.isEmpty()) {
+            isSpeaking.value = false
+            onComplete?.invoke()
+            return
         }
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "VEDRA_TTS_${System.currentTimeMillis()}")
+
+        val baseUtteranceId = "VED_TTS_${System.currentTimeMillis()}"
+        lastUtteranceId = "${baseUtteranceId}_${chunks.size - 1}"
+
+        for (index in chunks.indices) {
+            val chunkUtteranceId = "${baseUtteranceId}_$index"
+            val queueMode = if (index == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
+
+            val params = Bundle().apply {
+                putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, chunkUtteranceId)
+            }
+
+            tts?.speak(chunks[index], queueMode, params, chunkUtteranceId)
+        }
     }
 
     fun stopSpeaking() {
         tts?.stop()
         isSpeaking.value = false
+        currentOnComplete = null
     }
 
     fun startListening(onResult: (String) -> Unit, onError: (String) -> Unit) {
@@ -155,3 +277,4 @@ class VoiceService(private val context: Context) : TextToSpeech.OnInitListener {
         tts?.shutdown()
     }
 }
+

@@ -40,10 +40,25 @@ object GeminiService {
         dbService: DatabaseService? = null,
         context: Context? = null
     ): String = withContext(Dispatchers.IO) {
+        // Check feature toggles from DB settings
+        val geminiIntelligenceEnabled = dbService?.getSetting("setting_feature_gemini_intelligence", "true") != "false"
+        val geminiChatbotEnabled = dbService?.getSetting("setting_feature_gemini_chatbot", "true") != "false"
+
+        // If Gemini Intelligence or Chatbot is disabled in Settings, force Offline Native VEDRA AI
+        if (!geminiIntelligenceEnabled || !geminiChatbotEnabled) {
+            return@withContext generateFallbackResponse(prompt, contextSummary, dbService)
+        }
+
         // Read configuration settings from DB if available
         val networkMode = dbService?.getSetting("ai_network_mode", "Auto") ?: "Auto"
         val provider = dbService?.getSetting("ai_provider", "Gemini AI") ?: "Gemini AI"
-        val selectedModel = dbService?.getSetting("ai_model", "Gemini 3.5 Flash") ?: "Gemini 3.5 Flash"
+        var selectedModel = dbService?.getSetting("ai_model", "Gemini 3.5 Flash") ?: "Gemini 3.5 Flash"
+
+        // High Order Thinking mode override
+        val highOrderThinking = dbService?.getSetting("setting_feature_high_order_thinking", "false") == "true"
+        if (highOrderThinking && provider.contains("Gemini", ignoreCase = true)) {
+            selectedModel = "gemini-3.1-pro-preview"
+        }
 
         val geminiKey = dbService?.getSetting("gemini_api_key", "")
             ?.takeIf { it.isNotBlank() }
@@ -64,30 +79,30 @@ object GeminiService {
         }
 
         if (!shouldRunOnline || provider.contains("Native", ignoreCase = true) || provider.contains("Offline", ignoreCase = true)) {
-            return@withContext generateFallbackResponse(prompt, contextSummary)
+            return@withContext generateFallbackResponse(prompt, contextSummary, dbService)
         }
 
         // Run online provider
         return@withContext when {
             provider.contains("Gemini", ignoreCase = true) -> {
-                callGeminiApi(prompt, contextSummary, geminiKey, selectedModel)
+                callGeminiApi(prompt, contextSummary, geminiKey, selectedModel, dbService)
             }
             provider.contains("OpenAI", ignoreCase = true) -> {
                 if (openAiKey.isNullOrBlank()) {
                     "⚠️ OpenAI API Key is missing. Please enter your OpenAI API key in Settings > AI Settings, or switch provider to Gemini."
                 } else {
-                    callOpenAiApi(prompt, contextSummary, openAiKey, selectedModel)
+                    callOpenAiApi(prompt, contextSummary, openAiKey, selectedModel, dbService)
                 }
             }
             provider.contains("DeepSeek", ignoreCase = true) || provider.contains("Claude", ignoreCase = true) -> {
                 if (otherAiKey.isNullOrBlank()) {
                     "⚠️ DeepSeek / Claude API Key is missing. Please enter your API key in Settings > AI Settings, or switch provider."
                 } else {
-                    callDeepSeekApi(prompt, contextSummary, otherAiKey, selectedModel)
+                    callDeepSeekApi(prompt, contextSummary, otherAiKey, selectedModel, dbService)
                 }
             }
             else -> {
-                callGeminiApi(prompt, contextSummary, geminiKey, selectedModel)
+                callGeminiApi(prompt, contextSummary, geminiKey, selectedModel, dbService)
             }
         }
     }
@@ -100,13 +115,16 @@ object GeminiService {
         }
     }
 
-    private fun buildSystemInstruction(contextSummary: String): String {
+    private fun buildSystemInstruction(contextSummary: String, dbService: DatabaseService? = null): String {
+        val appLanguage = dbService?.getSetting("pref_app_language", "English (India)") ?: "English (India)"
+        val responseTone = dbService?.getSetting("ai_tone", "Short & Direct") ?: "Short & Direct"
+
         val sb = StringBuilder()
         sb.append("""
-            # SYSTEM INSTRUCTION: VEDRA AI ENGINE (v2.5 Multi-Model)
-            You are VEDRA, an ultra-responsive, highly intelligent AI Assistant and Study Companion built for mobile device integration and competitive exam preparation (JEE & Boards).
-            - Tone: Natural, confident, direct, grounded, and concise.
-            - Language: English (or Hinglish/Hindi if explicitly spoken/written by user).
+            # SYSTEM INSTRUCTION: VEDRA AI ENGINE
+            You are VEDRA, an ultra-responsive, highly intelligent AI Assistant and Study Companion built for mobile device integration.
+            - Preferred Language: **$appLanguage**. (CRITICAL: Respond primarily in $appLanguage. If Hindi or Hinglish, use clean natural conversational phrasing).
+            - Response Style / Tone: **$responseTone**.
 
             RESPONSE RULES:
             1. Bottom-Line-Up-Front (BLUF): Put core answer or formula in VERY FIRST sentence.
@@ -127,23 +145,24 @@ object GeminiService {
         prompt: String,
         contextSummary: String,
         apiKey: String?,
-        modelName: String
+        modelName: String,
+        dbService: DatabaseService? = null
     ): String {
         val keyToUse = if (!apiKey.isNullOrBlank() && apiKey != "MY_GEMINI_API_KEY") apiKey else getBuildConfigGeminiKey()
 
         if (keyToUse.isNullOrBlank() || keyToUse == "MY_GEMINI_API_KEY") {
-            return generateFallbackResponse(prompt, contextSummary)
+            return "⚠️ Gemini API Key is missing or set to default placeholder. Please enter your Gemini API key in Settings > AI Settings (or Settings > AI Engine) to enable live AI responses."
         }
 
         val resolvedModel = when {
-            modelName.contains("Pro", ignoreCase = true) -> "gemini-3.1-pro-preview"
-            modelName.contains("Flash", ignoreCase = true) -> "gemini-3.5-flash"
-            else -> "gemini-3.5-flash"
+            modelName.contains("Pro", ignoreCase = true) -> "gemini-1.5-pro"
+            modelName.contains("2.5", ignoreCase = true) -> "gemini-2.5-flash"
+            else -> "gemini-1.5-flash"
         }
 
         try {
             val url = "https://generativelanguage.googleapis.com/v1beta/models/$resolvedModel:generateContent?key=$keyToUse"
-            val systemInstructionText = buildSystemInstruction(contextSummary)
+            val systemInstructionText = buildSystemInstruction(contextSummary, dbService)
             val fullPrompt = "$systemInstructionText\n\nUser query: $prompt"
 
             val jsonBody = JSONObject().apply {
@@ -178,10 +197,13 @@ object GeminiService {
                             }
                         }
                     }
+                } else {
+                    val errBody = response.body?.string() ?: ""
+                    return "⚠️ Gemini API Error (${response.code}): ${response.message}. Check your API key in Settings > AI Settings."
                 }
             }
         } catch (e: Exception) {
-            // Fallback gracefully on network error or key failure
+            return "⚠️ Connection Error: Unable to reach Gemini API (${e.localizedMessage ?: "Network error"}). Check internet or switch to Offline Mode in Settings."
         }
 
         return generateFallbackResponse(prompt, contextSummary)
@@ -191,7 +213,8 @@ object GeminiService {
         prompt: String,
         contextSummary: String,
         apiKey: String,
-        modelName: String
+        modelName: String,
+        dbService: DatabaseService? = null
     ): String {
         try {
             val resolvedModel = when {
@@ -201,7 +224,7 @@ object GeminiService {
             }
 
             val url = "https://api.openai.com/v1/chat/completions"
-            val systemText = buildSystemInstruction(contextSummary)
+            val systemText = buildSystemInstruction(contextSummary, dbService)
 
             val jsonBody = JSONObject().apply {
                 put("model", resolvedModel)
@@ -251,11 +274,12 @@ object GeminiService {
         prompt: String,
         contextSummary: String,
         apiKey: String,
-        modelName: String
+        modelName: String,
+        dbService: DatabaseService? = null
     ): String {
         try {
             val url = "https://api.deepseek.com/chat/completions"
-            val systemText = buildSystemInstruction(contextSummary)
+            val systemText = buildSystemInstruction(contextSummary, dbService)
 
             val jsonBody = JSONObject().apply {
                 put("model", "deepseek-chat")
@@ -300,8 +324,18 @@ object GeminiService {
         return generateFallbackResponse(prompt, contextSummary)
     }
 
-    fun generateFallbackResponse(prompt: String, contextSummary: String = ""): String {
-        val lower = prompt.lowercase()
+    fun generateFallbackResponse(
+        prompt: String,
+        contextSummary: String = "",
+        dbService: DatabaseService? = null
+    ): String {
+        // 1. Check if VEDRA has learned an answer from past stored conversations
+        val learned = dbService?.findLearnedResponse(prompt)
+        if (learned != null) {
+            return learned
+        }
+
+        val lower = prompt.lowercase().trim()
         return when {
             contextSummary.isNotBlank() && (lower.contains("who am i") || lower.contains("my name") || lower.contains("my profile") || lower.contains("my memory")) ->
                 "Here is your saved profile context in memory:\n$contextSummary"
@@ -310,9 +344,9 @@ object GeminiService {
             lower.contains("glucose") ->
                 "The chemical formula for glucose is C₆H₁₂O₆."
             lower.contains("hello") || lower.contains("hi") || lower.contains("hey") ->
-                if (contextSummary.isNotBlank()) "Hello! I am VEDRA. I have your saved context loaded. How can I help you today?" else "Hello! I am VEDRA, your AI assistant. How can I assist you today?"
+                if (contextSummary.isNotBlank()) "Hello! I am VEDRA [Offline Native AI]. I have your saved learned memory loaded. How can I assist you today?" else "Hello! I am VEDRA [Offline Native AI]. How can I assist you today?"
             lower.contains("who are you") || lower.contains("what is your name") ->
-                "I am VEDRA (or VED for short), your personal AI assistant."
+                "I am VEDRA, your personal Offline Native AI Assistant. I learn and store all our conversations to answer you offline!"
             lower.contains("time") ->
                 "You can check current system time on your status bar or ask me for timer & reminders."
             lower.contains("study") || lower.contains("jee") || lower.contains("exam") ->
@@ -320,7 +354,7 @@ object GeminiService {
             lower.contains("weather") ->
                 "The weather today is pleasant with clear skies and mild temperatures."
             else ->
-                "I analyzed your prompt: \"$prompt\". [Native Offline Engine Mode] I can launch apps, set reminders, solve math formulas, toggle flashlight, search local documents, and control system volume."
+                "I analyzed your request: \"$prompt\" [Offline Native VEDRA AI Engine]. I have stored this conversation in local database memory so I can recall it later. As an offline system engine, I can launch apps, set reminders, solve math formulas, toggle flashlight, search local documents, and manage system controls."
         }
     }
 }

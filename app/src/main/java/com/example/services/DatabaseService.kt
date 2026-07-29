@@ -488,7 +488,7 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
             CustomPlugin(
                 name = "IoT Lab Sensor",
                 endpointUrl = "https://example.com/api/v1/sensor/temperature",
-                headersJson = """{"Authorization": "Bearer token123"}""",
+                headersJson = """{"Authorization": "Bearer YOUR_API_TOKEN"}""",
                 triggerWord = "iot sensor"
             )
         )
@@ -1622,8 +1622,11 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
 
     fun getAllHabits(): List<StudyHabit> = getAllStudyHabits()
 
+    val settingsVersion = androidx.compose.runtime.mutableIntStateOf(0)
+
     fun setSetting(key: String, value: String) {
         addOrUpdateMemory("setting_$key", value, "System", 0L)
+        settingsVersion.intValue += 1
     }
 
     fun getSetting(key: String, defaultValue: String): String {
@@ -1714,6 +1717,53 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
 
     fun clearChatHistory(): Boolean {
         return writableDatabase.delete(TABLE_CHAT_HISTORY, null, null) > 0
+    }
+
+    fun findLearnedResponse(userQuery: String): String? {
+        val cleanQuery = userQuery.trim().lowercase()
+        if (cleanQuery.isBlank()) return null
+
+        // 1. Check direct query match in saved chat history
+        val allChats = getAllChatHistory()
+        for (item in allChats) {
+            val itemUserText = item.userText.lowercase().trim()
+            if (cleanQuery == itemUserText || (cleanQuery.length > 5 && (cleanQuery.contains(itemUserText) || itemUserText.contains(cleanQuery)))) {
+                return "🧠 [Learned from previous conversation]:\n${item.vedResponse}"
+            }
+        }
+
+        // 2. Keyword overlap score matching across learned chats
+        val stopWords = setOf("a", "an", "the", "is", "are", "was", "were", "what", "how", "why", "who", "where", "can", "you", "tell", "me", "about", "for", "in", "on", "to", "with", "do", "does", "did", "please", "vedra", "ved")
+        val queryKeywords = cleanQuery.split(Regex("\\W+"))
+            .filter { it.length > 2 && it !in stopWords }
+
+        if (queryKeywords.isNotEmpty()) {
+            var bestMatchResponse: String? = null
+            var maxScore = 0
+
+            for (item in allChats) {
+                val itemUserText = item.userText.lowercase()
+                val itemTitle = item.sessionTitle.lowercase()
+
+                var score = 0
+                for (kw in queryKeywords) {
+                    if (itemUserText.contains(kw) || itemTitle.contains(kw)) {
+                        score += 1
+                    }
+                }
+
+                if (score > maxScore && (score >= 2 || (queryKeywords.size == 1 && score == 1))) {
+                    maxScore = score
+                    bestMatchResponse = item.vedResponse
+                }
+            }
+
+            if (bestMatchResponse != null) {
+                return "🧠 [Learned from previous conversation]:\n$bestMatchResponse"
+            }
+        }
+
+        return null
     }
 }
 

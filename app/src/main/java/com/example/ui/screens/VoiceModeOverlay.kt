@@ -212,13 +212,12 @@ fun VoiceModeOverlay(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 CustomButton(
-                    text = if (isMuted) "Unmute" else "Mute",
-                    icon = if (isMuted) Icons.Default.MicOff else Icons.Default.Mic,
+                    text = if (voiceService.isMuted.value) "Unmute TTS" else "Mute TTS",
+                    icon = if (voiceService.isMuted.value) Icons.Default.MicOff else Icons.Default.Mic,
                     onClick = {
-                        isMuted = !isMuted
-                        if (isMuted) voiceService.stopListening()
+                        voiceService.toggleMute()
                     },
-                    isSecondary = !isMuted
+                    isSecondary = !voiceService.isMuted.value
                 )
 
                 CustomButton(

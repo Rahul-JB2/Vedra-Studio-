@@ -49,27 +49,50 @@ object ContactsService {
         }
     }
 
-    fun makeCall(context: Context, target: String): String {
+    private fun resolveDisplayLabel(context: Context, targetNumber: String, contactName: String = ""): String {
+        val digits = targetNumber.filter { it.isDigit() || it == '+' }
+        val recipientNumber = if (digits.isNotEmpty()) digits else targetNumber
+
+        val foundContact = if (contactName.isBlank()) findContactByName(context, targetNumber) else null
+        val resolvedName = when {
+            contactName.isNotBlank() -> contactName
+            foundContact != null -> foundContact.name
+            else -> null
+        }
+
+        return if (!resolvedName.isNullOrBlank() && resolvedName.lowercase().trim() != recipientNumber.lowercase().trim()) {
+            "$resolvedName ($recipientNumber)"
+        } else {
+            recipientNumber
+        }
+    }
+
+    fun makeCall(context: Context, target: String, contactName: String = ""): String {
         return try {
             val digits = target.filter { it.isDigit() || it == '+' }
-            val uri = if (digits.isNotEmpty()) Uri.parse("tel:$digits") else Uri.parse("tel:$target")
+            val recipientNumber = if (digits.isNotEmpty()) digits else target
+            val uri = Uri.parse("tel:$recipientNumber")
             val intent = Intent(Intent.ACTION_DIAL, uri).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
-            "Initiating call to $target..."
+
+            val displayLabel = resolveDisplayLabel(context, target, contactName)
+            "Initiating call to $displayLabel..."
         } catch (e: Exception) {
             "Unable to open dialer: ${e.localizedMessage}"
         }
     }
 
-    fun sendSMS(context: Context, target: String, messageText: String): String {
+    fun sendSMS(context: Context, target: String, messageText: String, contactName: String = ""): String {
         val digits = target.filter { it.isDigit() || it == '+' }
         val recipientNumber = if (digits.isNotEmpty()) digits else target
 
         if (recipientNumber.isBlank()) {
             return "Invalid contact or phone number for SMS."
         }
+
+        val displayLabel = resolveDisplayLabel(context, target, contactName)
 
         val hasPermission = ContextCompat.checkSelfPermission(
             context,
@@ -91,17 +114,19 @@ object ContactsService {
                 } else {
                     smsManager.sendTextMessage(recipientNumber, null, messageText, null, null)
                 }
-                "SMS sent directly to $target: '$messageText'"
+
+                // SMS sent directly in background via SmsManager
+                "SMS sent directly to $displayLabel: '$messageText'"
             } catch (e: Exception) {
                 openSmsComposer(context, recipientNumber, messageText)
-                "Opened SMS composer for $target: ${e.localizedMessage}"
+                "Opened SMS composer for $displayLabel: ${e.localizedMessage}"
             }
         } else {
             openSmsComposer(context, recipientNumber, messageText)
             return if (messageText.isBlank()) {
-                "Opening SMS composer for $target..."
+                "Opening SMS composer for $displayLabel..."
             } else {
-                "Opened SMS composer for $target with message: '$messageText'"
+                "Opened SMS composer for $displayLabel with message: '$messageText'. (Grant SMS permission to VED for direct background sending)"
             }
         }
     }
@@ -110,16 +135,19 @@ object ContactsService {
         try {
             val uri = Uri.parse("smsto:$number")
             val intent = Intent(Intent.ACTION_SENDTO, uri).apply {
-                putExtra("sms_body", messageText)
+                if (messageText.isNotBlank()) {
+                    putExtra("sms_body", messageText)
+                }
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
         } catch (_: Exception) {}
     }
 
-    fun sendWhatsApp(context: Context, target: String, messageText: String): String {
+    fun sendWhatsApp(context: Context, target: String, messageText: String, contactName: String = ""): String {
         val digits = target.filter { it.isDigit() || it == '+' }
         val recipientNumber = if (digits.isNotEmpty()) digits else target
+        val displayLabel = resolveDisplayLabel(context, target, contactName)
 
         val pm = context.packageManager
         val isWaInstalled = pm.getLaunchIntentForPackage("com.whatsapp") != null || pm.getLaunchIntentForPackage("com.whatsapp.w4b") != null
@@ -154,9 +182,9 @@ object ContactsService {
         return try {
             context.startActivity(waIntent)
             if (messageText.isNotBlank()) {
-                "Opening WhatsApp chat for $target with message: '$messageText'..."
+                "Opened WhatsApp chat for $displayLabel with pre-typed message: '$messageText'. Tap the green Send arrow in WhatsApp to send! 💬"
             } else {
-                "Opening WhatsApp chat for $target..."
+                "Opened WhatsApp chat for $displayLabel... 💬"
             }
         } catch (e: Exception) {
             "Failed to open WhatsApp: ${e.localizedMessage}"

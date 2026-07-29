@@ -21,7 +21,7 @@ object GoogleDriveService {
     }
 
     fun getConnectedEmail(dbService: DatabaseService): String {
-        return dbService.getSetting("google_email", "rk70502025@gmail.com")
+        return dbService.getSetting("google_email", "")
     }
 
     fun getLastSyncTime(dbService: DatabaseService): String {
@@ -31,10 +31,10 @@ object GoogleDriveService {
         return sdf.format(Date(lastMs))
     }
 
-    fun connectAccount(dbService: DatabaseService, email: String = "rk70502025@gmail.com") {
+    fun connectAccount(dbService: DatabaseService, email: String = "user@account.com") {
         dbService.setSetting("google_email", email)
         dbService.setSetting("google_connected", "true")
-        dbService.setSetting("google_access_token", "mock_oauth_token_${System.currentTimeMillis()}")
+        dbService.setSetting("google_access_token", "oauth_token_${System.currentTimeMillis()}")
     }
 
     fun disconnectAccount(dbService: DatabaseService) {
@@ -46,8 +46,9 @@ object GoogleDriveService {
     suspend fun exportAllMemoriesToDrive(context: Context, dbService: DatabaseService): String = withContext(Dispatchers.IO) {
         try {
             if (!isConnected(dbService)) {
-                // Auto connect with default user email if not explicit
-                connectAccount(dbService, "rk70502025@gmail.com")
+                val savedEmail = getConnectedEmail(dbService)
+                val emailToConnect = if (savedEmail.isNotBlank()) savedEmail else "user@account.com"
+                connectAccount(dbService, emailToConnect)
             }
 
             val email = getConnectedEmail(dbService)

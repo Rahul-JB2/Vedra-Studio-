@@ -320,7 +320,8 @@ object UtilityService {
                 // 2. Query Contact or dial directly
                 val contactInfo = ContactsService.findContactByName(context, resolvedTarget)
                 val dialTarget = contactInfo?.phoneNumber ?: resolvedTarget
-                val msg = ContactsService.makeCall(context, dialTarget)
+                val contactName = contactInfo?.name ?: if (resolvedTarget != dialTarget) resolvedTarget else nameOrAlias
+                val msg = ContactsService.makeCall(context, dialTarget, contactName)
                 return UtilityResult(true, msg, "CALL")
             }
         }
@@ -377,8 +378,9 @@ object UtilityService {
                 val resolvedTarget = dbService.resolveAlias(targetName) ?: targetName
                 val contactInfo = ContactsService.findContactByName(context, resolvedTarget)
                 val finalNum = contactInfo?.phoneNumber ?: resolvedTarget
+                val contactName = contactInfo?.name ?: if (resolvedTarget != finalNum) resolvedTarget else targetName
 
-                val msg = ContactsService.sendWhatsApp(context, finalNum, waMsg)
+                val msg = ContactsService.sendWhatsApp(context, finalNum, waMsg, contactName)
                 return UtilityResult(true, msg, "WHATSAPP")
             }
         }
@@ -427,8 +429,9 @@ object UtilityService {
                 val resolvedTarget = dbService.resolveAlias(targetName) ?: targetName
                 val contactInfo = ContactsService.findContactByName(context, resolvedTarget)
                 val finalNum = contactInfo?.phoneNumber ?: resolvedTarget
+                val contactName = contactInfo?.name ?: if (resolvedTarget != finalNum) resolvedTarget else targetName
 
-                val msg = ContactsService.sendSMS(context, finalNum, smsMsg)
+                val msg = ContactsService.sendSMS(context, finalNum, smsMsg, contactName)
                 return UtilityResult(true, msg, "SMS")
             }
         }

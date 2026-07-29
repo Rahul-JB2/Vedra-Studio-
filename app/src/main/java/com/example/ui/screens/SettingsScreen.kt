@@ -32,6 +32,14 @@ import com.example.services.GeminiService
 import com.example.services.TranslationService
 import com.example.services.VoiceService
 import com.example.ui.components.CustomModal
+import com.example.ui.theme.VedraBackground
+import com.example.ui.theme.VedraBorder
+import com.example.ui.theme.VedraPurplePrimary
+import com.example.ui.theme.VedraSurface
+import com.example.ui.theme.VedraSurfaceVariant
+import com.example.ui.theme.VedraTextMuted
+import com.example.ui.theme.VedraTextPrimary
+import com.example.ui.theme.VedraTextSecondary
 
 // ==========================================
 // MAIN SETTINGS SCREEN ENTRY POINT
@@ -41,6 +49,7 @@ fun SettingsScreen(
     dbService: DatabaseService,
     voiceService: VoiceService
 ) {
+    val settingsVer = dbService.settingsVersion.intValue
     val context = LocalContext.current
     var activeSubScreen by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
@@ -86,13 +95,13 @@ fun SettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF07060F))
+                .background(VedraBackground)
         ) {
             // Subscreen Header with Back Button
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF07060F))
+                    .background(VedraBackground)
                     .padding(horizontal = 12.dp, vertical = 12.dp)
             ) {
                 IconButton(
@@ -104,7 +113,7 @@ fun SettingsScreen(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
-                        tint = Color.White,
+                        tint = VedraTextPrimary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -115,14 +124,14 @@ fun SettingsScreen(
                 ) {
                     Text(
                         text = screenTitle,
-                        color = Color.White,
+                        color = VedraTextPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 17.sp
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = screenSubtitle,
-                        color = Color(0xFF9CA3AF),
+                        color = VedraTextSecondary,
                         fontSize = 11.5.sp
                     )
                 }
@@ -132,7 +141,7 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(Color(0xFF1E1B2C))
+                    .background(VedraBorder)
             )
 
             // Subscreen Content
@@ -160,7 +169,7 @@ fun SettingsScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF07060F))
+            .background(VedraBackground)
             .padding(horizontal = 16.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -1443,6 +1452,11 @@ fun AiSettingsDetailScreen(dbService: DatabaseService) {
     var selectedModel by remember { mutableStateOf(dbService.getSetting("ai_model", "Gemini 3.5 Flash")) }
     var responseTone by remember { mutableStateOf(dbService.getSetting("ai_tone", "Short & Direct")) }
 
+    var geminiIntelligence by remember { mutableStateOf(dbService.getSetting("setting_feature_gemini_intelligence", "true") != "false") }
+    var geminiChatbot by remember { mutableStateOf(dbService.getSetting("setting_feature_gemini_chatbot", "true") != "false") }
+    var voiceConversation by remember { mutableStateOf(dbService.getSetting("setting_feature_voice_conversation", "true") != "false") }
+    var highOrderThinking by remember { mutableStateOf(dbService.getSetting("setting_feature_high_order_thinking", "false") == "true") }
+
     var geminiApiKey by remember { mutableStateOf(dbService.getSetting("gemini_api_key", dbService.getSetting("api_key", ""))) }
     var openAiApiKey by remember { mutableStateOf(dbService.getSetting("openai_api_key", "")) }
     var otherAiApiKey by remember { mutableStateOf(dbService.getSetting("other_api_key", "")) }
@@ -1569,7 +1583,138 @@ fun AiSettingsDetailScreen(dbService: DatabaseService) {
             }
         }
 
-        // --- 3. AI PROVIDER & MODEL ---
+        // --- 3. FEATURE TOGGLES & CAPABILITIES ---
+        item {
+            PreferenceSectionHeader(title = "AI CAPABILITIES & FEATURE TOGGLES")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    // 1. Gemini Intelligence
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            PreferenceIconBox(icon = Icons.Default.AutoAwesome)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(text = "Gemini Intelligence", color = VedraTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Text(text = "Enable Cloud Gemini intelligence for general analysis and tasks", color = VedraTextSecondary, fontSize = 11.5.sp)
+                            }
+                        }
+                        Switch(
+                            checked = geminiIntelligence,
+                            onCheckedChange = {
+                                geminiIntelligence = it
+                                dbService.setSetting("setting_feature_gemini_intelligence", it.toString())
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = VedraPurplePrimary,
+                                uncheckedThumbColor = VedraTextMuted,
+                                uncheckedTrackColor = VedraSurfaceVariant
+                            )
+                        )
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(VedraBorder))
+
+                    // 2. Gemini Chatbot
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            PreferenceIconBox(icon = Icons.Default.Forum)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(text = "Gemini Chatbot", color = VedraTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Text(text = "Enable Cloud Gemini conversation mode in chat interface", color = VedraTextSecondary, fontSize = 11.5.sp)
+                            }
+                        }
+                        Switch(
+                            checked = geminiChatbot,
+                            onCheckedChange = {
+                                geminiChatbot = it
+                                dbService.setSetting("setting_feature_gemini_chatbot", it.toString())
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = VedraPurplePrimary,
+                                uncheckedThumbColor = VedraTextMuted,
+                                uncheckedTrackColor = VedraSurfaceVariant
+                            )
+                        )
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(VedraBorder))
+
+                    // 3. Voice Conversation
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            PreferenceIconBox(icon = Icons.Default.RecordVoiceOver)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(text = "Voice Conversation", color = VedraTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Text(text = "Enable real-time voice conversations and spoken AI responses", color = VedraTextSecondary, fontSize = 11.5.sp)
+                            }
+                        }
+                        Switch(
+                            checked = voiceConversation,
+                            onCheckedChange = {
+                                voiceConversation = it
+                                dbService.setSetting("setting_feature_voice_conversation", it.toString())
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = VedraPurplePrimary,
+                                uncheckedThumbColor = VedraTextMuted,
+                                uncheckedTrackColor = VedraSurfaceVariant
+                            )
+                        )
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(VedraBorder))
+
+                    // 4. High Order Thinking
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            PreferenceIconBox(icon = Icons.Default.Psychology)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(text = "High Order Thinking", color = VedraTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Text(text = "Enable deep analytical reasoning mode (gemini-3.1-pro-preview)", color = VedraTextSecondary, fontSize = 11.5.sp)
+                            }
+                        }
+                        Switch(
+                            checked = highOrderThinking,
+                            onCheckedChange = {
+                                highOrderThinking = it
+                                dbService.setSetting("setting_feature_high_order_thinking", it.toString())
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = VedraPurplePrimary,
+                                uncheckedThumbColor = VedraTextMuted,
+                                uncheckedTrackColor = VedraSurfaceVariant
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // --- 4. AI PROVIDER & MODEL ---
         item {
             PreferenceSectionHeader(title = "AI PROVIDER & REASONING MODEL")
             Spacer(modifier = Modifier.height(4.dp))
@@ -1700,7 +1845,7 @@ fun AiSettingsDetailScreen(dbService: DatabaseService) {
                 provider = it
                 dbService.setSetting("ai_provider", it)
                 val defaultModel = when {
-                    it.contains("Gemini") -> "Gemini 3.5 Flash"
+                    it.contains("Gemini") -> "Gemini 1.5 Flash"
                     it.contains("OpenAI") -> "gpt-4o-mini"
                     it.contains("DeepSeek") || it.contains("Claude") -> "deepseek-chat"
                     else -> "Vedra Local Engine"
@@ -1716,7 +1861,7 @@ fun AiSettingsDetailScreen(dbService: DatabaseService) {
 
     if (showModelModal) {
         val availableModels = when {
-            provider.contains("Gemini") -> listOf("Gemini 3.5 Flash", "Gemini 3.1 Pro", "Gemini 2.5 Flash")
+            provider.contains("Gemini") -> listOf("Gemini 1.5 Flash", "Gemini 1.5 Pro", "Gemini 2.5 Flash")
             provider.contains("OpenAI") -> listOf("gpt-4o-mini", "gpt-4o")
             provider.contains("DeepSeek") || provider.contains("Claude") -> listOf("deepseek-chat", "claude-3-5-sonnet")
             else -> listOf("Vedra Local Engine", "Rule-Based Offline Assistant")
@@ -1970,8 +2115,8 @@ private fun PreferenceCard(content: @Composable () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF110E1C))
-            .border(1.dp, Color(0xFF1E1B2C), RoundedCornerShape(16.dp))
+            .background(VedraSurface)
+            .border(1.dp, VedraBorder, RoundedCornerShape(16.dp))
             .padding(14.dp)
     ) {
         content()
@@ -1984,13 +2129,13 @@ private fun PreferenceIconBox(icon: ImageVector) {
         modifier = Modifier
             .size(38.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF231B38)),
+            .background(VedraSurfaceVariant),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = Color(0xFFA78BFA),
+            tint = VedraPurplePrimary,
             modifier = Modifier.size(20.dp)
         )
     }
@@ -2001,8 +2146,8 @@ private fun DropdownPill(text: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(Color(0xFF191526))
-            .border(1.dp, Color(0xFF2E2744), RoundedCornerShape(10.dp))
+            .background(VedraSurfaceVariant)
+            .border(1.dp, VedraBorder, RoundedCornerShape(10.dp))
             .clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
@@ -2012,14 +2157,14 @@ private fun DropdownPill(text: String, onClick: () -> Unit) {
         ) {
             Text(
                 text = text,
-                color = Color.White,
+                color = VedraTextPrimary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium
             )
             Icon(
                 imageVector = Icons.Default.KeyboardArrowDown,
                 contentDescription = "Dropdown",
-                tint = Color(0xFF9CA3AF),
+                tint = VedraTextSecondary,
                 modifier = Modifier.size(16.dp)
             )
         }
@@ -2036,8 +2181,8 @@ private fun SegmentedToggleTwo(
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(Color(0xFF191526))
-            .border(1.dp, Color(0xFF2E2744), RoundedCornerShape(10.dp))
+            .background(VedraSurfaceVariant)
+            .border(1.dp, VedraBorder, RoundedCornerShape(10.dp))
             .padding(3.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2045,14 +2190,14 @@ private fun SegmentedToggleTwo(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(if (isOpt1Selected) Color(0xFF6D28D9) else Color.Transparent)
+                    .background(if (isOpt1Selected) VedraPurplePrimary else Color.Transparent)
                     .clickable { onSelect(option1) }
                     .padding(horizontal = 14.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = option1,
-                    color = if (isOpt1Selected) Color.White else Color(0xFF9CA3AF),
+                    color = if (isOpt1Selected) Color.White else VedraTextSecondary,
                     fontSize = 12.sp,
                     fontWeight = if (isOpt1Selected) FontWeight.Bold else FontWeight.Medium
                 )
@@ -2062,14 +2207,14 @@ private fun SegmentedToggleTwo(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(if (isOpt2Selected) Color(0xFF6D28D9) else Color.Transparent)
+                    .background(if (isOpt2Selected) VedraPurplePrimary else Color.Transparent)
                     .clickable { onSelect(option2) }
                     .padding(horizontal = 14.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = option2,
-                    color = if (isOpt2Selected) Color.White else Color(0xFF9CA3AF),
+                    color = if (isOpt2Selected) Color.White else VedraTextSecondary,
                     fontSize = 12.sp,
                     fontWeight = if (isOpt2Selected) FontWeight.Bold else FontWeight.Medium
                 )
@@ -2090,10 +2235,10 @@ private fun ThemeOptionRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(if (isSelected) Color(0xFF1B142B) else Color(0xFF131020))
+            .background(if (isSelected) VedraSurfaceVariant else VedraSurface)
             .border(
                 1.dp,
-                if (isSelected) Color(0xFF7C3AED) else Color(0xFF231F33),
+                if (isSelected) VedraPurplePrimary else VedraBorder,
                 RoundedCornerShape(12.dp)
             )
             .clickable { onClick() }

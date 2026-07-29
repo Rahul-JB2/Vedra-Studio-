@@ -89,7 +89,8 @@ object DirectActionService {
                 val resolvedTarget = dbService.resolveAlias(target) ?: target
                 val contactInfo = ContactsService.findContactByName(context, resolvedTarget)
                 val phone = contactInfo?.phoneNumber ?: resolvedTarget
-                val msg = ContactsService.makeCall(context, phone)
+                val contactName = contactInfo?.name ?: if (resolvedTarget != phone) resolvedTarget else target
+                val msg = ContactsService.makeCall(context, phone, contactName)
                 return UtilityResult(true, msg, "CALL")
             }
         }
@@ -146,7 +147,8 @@ object DirectActionService {
                 val resolvedTarget = dbService.resolveAlias(targetName) ?: targetName
                 val contactInfo = ContactsService.findContactByName(context, resolvedTarget)
                 val phone = contactInfo?.phoneNumber ?: resolvedTarget
-                val msg = ContactsService.sendWhatsApp(context, phone, waMsg)
+                val contactName = contactInfo?.name ?: if (resolvedTarget != phone) resolvedTarget else targetName
+                val msg = ContactsService.sendWhatsApp(context, phone, waMsg, contactName)
                 return UtilityResult(true, msg, "WHATSAPP")
             }
         }
@@ -195,7 +197,8 @@ object DirectActionService {
                 val resolvedTarget = dbService.resolveAlias(targetName) ?: targetName
                 val contactInfo = ContactsService.findContactByName(context, resolvedTarget)
                 val phone = contactInfo?.phoneNumber ?: resolvedTarget
-                val msg = ContactsService.sendSMS(context, phone, smsMsg)
+                val contactName = contactInfo?.name ?: if (resolvedTarget != phone) resolvedTarget else targetName
+                val msg = ContactsService.sendSMS(context, phone, smsMsg, contactName)
                 return UtilityResult(true, msg, "SMS")
             }
         }

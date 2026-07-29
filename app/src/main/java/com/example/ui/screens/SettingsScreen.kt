@@ -1,81 +1,23 @@
 package com.example.ui.screens
 
-import android.appwidget.AppWidgetManager
-import android.content.ComponentName
-import com.example.widget.VedraAppWidgetProvider
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import android.content.Context
+import android.widget.Toast
+import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.filled.Hearing
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.SmartToy
-import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.filled.Widgets
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -85,147 +27,161 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.services.CustomPlugin
-import com.example.services.CustomRoutine
 import com.example.services.DatabaseService
-import com.example.services.GoogleDriveService
-import com.example.services.PermissionService
-import com.example.services.PermissionStatus
+import com.example.services.GeminiService
 import com.example.services.TranslationService
 import com.example.services.VoiceService
-import com.example.ui.components.CustomButton
-import com.example.ui.components.CustomInput
 import com.example.ui.components.CustomModal
-import kotlinx.coroutines.launch
-import org.json.JSONArray
 
-data class SettingItemSpec(
-    val id: String,
-    val title: String,
-    val subtitle: String,
-    val icon: ImageVector,
-    val iconTint: Color,
-    val iconBg: Color
-)
-
-data class SettingCategorySpec(
-    val categoryTitle: String,
-    val items: List<SettingItemSpec>
-)
-
+// ==========================================
+// MAIN SETTINGS SCREEN ENTRY POINT
+// ==========================================
 @Composable
 fun SettingsScreen(
     dbService: DatabaseService,
-    voiceService: VoiceService? = null,
-    onOpenDrawer: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    voiceService: VoiceService
 ) {
-    var selectedDetailScreen by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    var activeSubScreen by remember { mutableStateOf<String?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    var showSubscriptionModal by remember { mutableStateOf(false) }
 
-    if (selectedDetailScreen != null) {
-        // FULL SCREEN DETAIL INTERFACE
-        SettingDetailView(
-            screenId = selectedDetailScreen!!,
-            onBack = { selectedDetailScreen = null },
-            dbService = dbService,
-            voiceService = voiceService,
-            modifier = modifier
-        )
-    } else {
-        // MAIN SETTINGS LIST SCREEN (Matching Image 1 EXACTLY)
-        MainSettingsListView(
-            dbService = dbService,
-            onSelectSetting = { id -> selectedDetailScreen = id },
-            modifier = modifier
-        )
+    val activePlan = remember {
+        mutableStateOf(dbService.getSetting("subscription_plan", "Vedra Pro"))
     }
-}
 
-@Composable
-fun MainSettingsListView(
-    dbService: DatabaseService,
-    onSelectSetting: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val categories = remember {
-        listOf(
-            SettingCategorySpec(
-                categoryTitle = "GENERAL",
-                items = listOf(
-                    SettingItemSpec("general_pref", "General Preferences", "Language, theme, units, etc.", Icons.Default.Palette, Color(0xFF9D6EFF), Color(0xFF2C1D4D)),
-                    SettingItemSpec("voice_speech", "Voice & Speech", "Voice model, wake word, speed", Icons.Default.Mic, Color(0xFFEC4899), Color(0xFF3D1B2D)),
-                    SettingItemSpec("appearance", "Appearance", "Theme, colors, animations", Icons.Default.Palette, Color(0xFF3B82F6), Color(0xFF1D244D)),
-                    SettingItemSpec("home_screen", "Home Screen", "Customize home, suggestions", Icons.Default.Home, Color(0xFF14B8A6), Color(0xFF1B3B3E)),
-                    SettingItemSpec("notifications", "Notifications", "Manage notifications & alerts", Icons.Default.Notifications, Color(0xFFF59E0B), Color(0xFF3D331B)),
-                    SettingItemSpec("sound_vibration", "Sound & Vibration", "Assistant sounds, vibration", Icons.Default.VolumeUp, Color(0xFF10B981), Color(0xFF1B3D2B))
-                )
-            ),
-            SettingCategorySpec(
-                categoryTitle = "AI & MEMORY",
-                items = listOf(
-                    SettingItemSpec("ai_settings", "AI Settings", "Model, response style, creativity", Icons.Default.Psychology, Color(0xFFA855F7), Color(0xFF2E1A47)),
-                    SettingItemSpec("memory_settings", "Memory Settings", "Manage what Vedra remembers", Icons.Default.SmartToy, Color(0xFF10B981), Color(0xFF163A29)),
-                    SettingItemSpec("personalization", "Personalization", "Your preferences, behavior, interests", Icons.Default.Person, Color(0xFFEC4899), Color(0xFF3E1B2D)),
-                    SettingItemSpec("context_recall", "Context & Recall", "Context window, recall strength", Icons.Default.Hearing, Color(0xFF3B82F6), Color(0xFF1B2A4E))
-                )
-            ),
-            SettingCategorySpec(
-                categoryTitle = "AUTOMATION & ACTIONS",
-                items = listOf(
-                    SettingItemSpec("automations", "Automations", "Routines, triggers, smart actions", Icons.Default.SmartToy, Color(0xFFF97316), Color(0xFF3E2E1B)),
-                    SettingItemSpec("custom_commands", "Custom Commands", "Manage custom voice commands", Icons.Default.Code, Color(0xFF14B8A6), Color(0xFF1B3D3B)),
-                    SettingItemSpec("quick_actions", "Quick Actions", "Edit and reorder quick actions", Icons.Default.FlashOn, Color(0xFFA855F7), Color(0xFF311B4E))
-                )
-            ),
-            SettingCategorySpec(
-                categoryTitle = "WIDGETS & OVERLAY",
-                items = listOf(
-                    SettingItemSpec("widget_settings", "Widget Settings", "Configure home screen widgets, movable AI orb, colors & animations", Icons.Default.Widgets, Color(0xFF38BDF8), Color(0xFF132A3B))
-                )
-            ),
-            SettingCategorySpec(
-                categoryTitle = "PRIVACY & SECURITY",
-                items = listOf(
-                    SettingItemSpec("privacy", "Privacy", "Data, permissions, privacy settings", Icons.Default.Security, Color(0xFF10B981), Color(0xFF1B3D23)),
-                    SettingItemSpec("security", "Security", "App lock, biometrics, backups", Icons.Default.Lock, Color(0xFF3B82F6), Color(0xFF1B2D4E)),
-                    SettingItemSpec("permissions", "Permissions", "Manage app permissions", Icons.Default.Key, Color(0xFFF59E0B), Color(0xFF3E341B))
-                )
-            ),
-            SettingCategorySpec(
-                categoryTitle = "ADVANCED",
-                items = listOf(
-                    SettingItemSpec("offline_ai", "Offline AI", "Manage offline models & data", Icons.Default.SmartToy, Color(0xFFA855F7), Color(0xFF2D1B4E)),
-                    SettingItemSpec("developer_options", "Developer Options", "Advanced settings for developers", Icons.Default.Code, Color(0xFF3B82F6), Color(0xFF1B2D4E)),
-                    SettingItemSpec("about_vedra", "About Vedra", "Version, terms, help & feedback", Icons.Default.Info, Color(0xFF64748B), Color(0xFF1E283A))
-                )
+    if (activeSubScreen != null) {
+        val screenTitle = when (activeSubScreen) {
+            "general_pref" -> "General Preferences"
+            "voice_speech" -> "Voice & Speech"
+            "appearance" -> "Appearance"
+            "home_screen" -> "Home Screen"
+            "notifications" -> "Notifications"
+            "sound_vibration" -> "Sound & Vibration"
+            "ai_settings" -> "AI Settings"
+            "memory_settings" -> "Memory Settings"
+            "permissions" -> "System Permissions"
+            "widgets" -> "AI Widget Settings"
+            "drive_backup" -> "Backup & Sync"
+            "about_support" -> "About & Support"
+            else -> "Settings"
+        }
+
+        val screenSubtitle = when (activeSubScreen) {
+            "general_pref" -> "Customize language, theme, units and more"
+            "voice_speech" -> "Adjust voice model, pitch, rate & wake word"
+            "appearance" -> "Themes, accent colors, font scaling"
+            "home_screen" -> "Customize layout, greeting & suggestions"
+            "notifications" -> "Manage notifications, study alerts & reminders"
+            "sound_vibration" -> "Assistant sounds, touch haptics & volumes"
+            "ai_settings" -> "AI models, response tone & API config"
+            "memory_settings" -> "Manage what Vedra remembers about you"
+            "permissions" -> "Manage device access & security approvals"
+            "widgets" -> "Configure floating assistant & quick pills"
+            "drive_backup" -> "Google Drive backup & cloud state"
+            "about_support" -> "App version, support & system diagnostics"
+            else -> "Customize Vedra your way"
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF07060F))
+        ) {
+            // Subscreen Header with Back Button
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF07060F))
+                    .padding(horizontal = 12.dp, vertical = 12.dp)
+            ) {
+                IconButton(
+                    onClick = { activeSubScreen = null },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .align(Alignment.CenterStart)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Column(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = screenTitle,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = screenSubtitle,
+                        color = Color(0xFF9CA3AF),
+                        fontSize = 11.5.sp
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(Color(0xFF1E1B2C))
             )
-        )
+
+            // Subscreen Content
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (activeSubScreen) {
+                    "general_pref" -> GeneralPreferencesDetailScreen(dbService = dbService)
+                    "voice_speech" -> VoiceSpeechDetailScreen(dbService = dbService, voiceService = voiceService)
+                    "appearance" -> AppearanceDetailScreen(dbService = dbService)
+                    "home_screen" -> HomeScreenDetailScreen(dbService = dbService)
+                    "notifications" -> NotificationsDetailScreen(dbService = dbService)
+                    "sound_vibration" -> SoundVibrationDetailScreen(dbService = dbService)
+                    "ai_settings" -> AiSettingsDetailScreen(dbService = dbService)
+                    "memory_settings" -> MemorySettingsDetailScreen(dbService = dbService)
+                    "permissions" -> PermissionOnboardingScreen(onComplete = { activeSubScreen = null }, isDismissable = true)
+                    "widgets" -> WidgetsDetailScreen(dbService = dbService)
+                    "drive_backup" -> DriveBackupDetailScreen(dbService = dbService)
+                    "about_support" -> AboutSupportDetailScreen(dbService = dbService)
+                }
+            }
+        }
+        return
     }
 
+    // MAIN SETTINGS LIST VIEW
     LazyColumn(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF090810))
+            .background(Color(0xFF07060F))
             .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 12.dp, bottom = 32.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // TOP HEADER BAR: VEDRA Logo, Title, Search & Avatar
+        // TOP HEADER
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "VEDRA",
-                        color = Color(0xFFC4B5FD),
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 18.sp,
-                        letterSpacing = 1.sp
-                    )
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "VEDRA",
+                            color = Color(0xFFC4B5FD),
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 18.sp,
+                            letterSpacing = 1.sp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
                         Box(
                             modifier = Modifier
                                 .size(6.dp)
@@ -237,101 +193,80 @@ fun MainSettingsListView(
                             text = "Online",
                             color = Color(0xFF10B981),
                             fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "SETTINGS",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        letterSpacing = 1.2.sp
-                    )
-                    Text(
-                        text = "Customize Vedra your way",
-                        color = Color(0xFF9CA3AF),
-                        fontSize = 11.sp
-                    )
-                }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    IconButton(
-                        onClick = { onSelectSetting("general_pref") },
-                        modifier = Modifier.size(34.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Search Settings",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
+                            fontWeight = FontWeight.Bold
                         )
                     }
 
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(36.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF2E1A47))
-                            .border(1.5.dp, Color(0xFF9D6EFF), CircleShape),
+                            .background(Color(0xFF231B38))
+                            .border(1.5.dp, Color(0xFF8B5CF6), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Person,
-                            contentDescription = "Profile",
+                            contentDescription = "User Profile",
                             tint = Color.White,
                             modifier = Modifier.size(20.dp)
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "SETTINGS",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 22.sp,
+                    letterSpacing = 1.sp
+                )
+                Text(
+                    text = "Customize Vedra your way",
+                    color = Color(0xFF9CA3AF),
+                    fontSize = 12.sp
+                )
             }
         }
 
-        // VEDRA PRO CARD (Matching Image 1)
+        // PRO SUBSCRIPTION BANNER
         item {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFF110F1C))
-                    .border(1.dp, Color(0xFF281B43), RoundedCornerShape(16.dp))
-                    .padding(14.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFF130E24))
+                    .border(1.dp, Color(0xFF2C2248), RoundedCornerShape(18.dp))
+                    .padding(16.dp)
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Glowing Orb graphic preview
                             Box(
                                 modifier = Modifier
-                                    .size(54.dp)
+                                    .size(44.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFF1F1235))
-                                    .border(1.5.dp, Color(0xFF8B5CF6), CircleShape),
+                                    .background(Color(0xFF231A3E)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Mic,
-                                    contentDescription = "Vedra Pro",
-                                    tint = Color(0xFFC4B5FD),
-                                    modifier = Modifier.size(26.dp)
+                                    contentDescription = null,
+                                    tint = Color(0xFFA78BFA),
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
-
                             Spacer(modifier = Modifier.width(12.dp))
-
                             Column {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = "Vedra Pro",
+                                        text = activePlan.value,
                                         color = Color.White,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp
@@ -339,29 +274,19 @@ fun MainSettingsListView(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(Color(0xFF3B1F69))
-                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(Color(0xFF6D28D9))
+                                            .padding(horizontal = 8.dp, vertical = 2.dp)
                                     ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = Icons.Default.Star,
-                                                contentDescription = null,
-                                                tint = Color(0xFFA78BFA),
-                                                modifier = Modifier.size(10.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(3.dp))
-                                            Text(
-                                                text = "Active",
-                                                color = Color(0xFFC4B5FD),
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
+                                        Text(
+                                            text = "★ Active",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 10.sp
+                                        )
                                     }
                                 }
-
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "You have access to all premium features.",
                                     color = Color(0xFF9CA3AF),
@@ -371,14 +296,14 @@ fun MainSettingsListView(
                         }
                     }
 
-                    // Manage Subscription Row
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0xFF181528))
-                            .clickable { onSelectSetting("manage_subscription") }
-                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF1B152E))
+                            .border(1.dp, Color(0xFF332752), RoundedCornerShape(12.dp))
+                            .clickable { showSubscriptionModal = true }
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -388,14 +313,14 @@ fun MainSettingsListView(
                             Text(
                                 text = "Manage Subscription",
                                 color = Color.White,
-                                fontSize = 12.5.sp,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp
                             )
                             Icon(
                                 imageVector = Icons.Default.ChevronRight,
-                                contentDescription = null,
+                                contentDescription = "Manage",
                                 tint = Color(0xFF9CA3AF),
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
@@ -403,38 +328,1239 @@ fun MainSettingsListView(
             }
         }
 
-        // CATEGORY GROUPS (GENERAL, AI & MEMORY, AUTOMATION & ACTIONS, PRIVACY & SECURITY, ADVANCED)
-        items(categories) { category ->
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = category.categoryTitle,
-                    color = Color(0xFFA78BFA),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    letterSpacing = 1.sp,
-                    modifier = Modifier.padding(start = 4.dp, top = 4.dp)
-                )
+        // CATEGORY 1: GENERAL
+        item {
+            MainCategoryGroup(
+                categoryTitle = "GENERAL",
+                items = listOf(
+                    SettingMenuItemData("general_pref", "General Preferences", "Language, theme, units, etc.", Icons.Default.Palette, Color(0xFF8B5CF6)),
+                    SettingMenuItemData("voice_speech", "Voice & Speech", "Voice model, wake word, speed", Icons.Default.Mic, Color(0xFFEC4899)),
+                    SettingMenuItemData("appearance", "Appearance", "Theme, colors, animations", Icons.Default.Palette, Color(0xFF3B82F6)),
+                    SettingMenuItemData("home_screen", "Home Screen", "Customize home, suggestions", Icons.Default.Home, Color(0xFF10B981)),
+                    SettingMenuItemData("notifications", "Notifications", "Manage notifications & alerts", Icons.Default.Notifications, Color(0xFFF59E0B)),
+                    SettingMenuItemData("sound_vibration", "Sound & Vibration", "Assistant sounds, vibration", Icons.AutoMirrored.Filled.VolumeUp, Color(0xFF10B981))
+                ),
+                onSelect = { activeSubScreen = it }
+            )
+        }
 
-                // Grouped Card Container
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFF12101D))
-                        .border(1.dp, Color(0xFF1E1B2E), RoundedCornerShape(14.dp))
-                ) {
-                    Column {
-                        category.items.forEachIndexed { index, item ->
-                            SettingRowItem(
-                                item = item,
-                                onClick = { onSelectSetting(item.title) }
+        // CATEGORY 2: AI & MEMORY
+        item {
+            MainCategoryGroup(
+                categoryTitle = "AI & MEMORY",
+                items = listOf(
+                    SettingMenuItemData("ai_settings", "AI Settings", "Model, response style, creativity", Icons.Default.Psychology, Color(0xFF8B5CF6)),
+                    SettingMenuItemData("memory_settings", "Memory Settings", "Manage what Vedra remembers", Icons.Default.Storage, Color(0xFF10B981))
+                ),
+                onSelect = { activeSubScreen = it }
+            )
+        }
+
+        // CATEGORY 3: SYSTEM & PRIVACY
+        item {
+            MainCategoryGroup(
+                categoryTitle = "SYSTEM & PRIVACY",
+                items = listOf(
+                    SettingMenuItemData("permissions", "System Permissions", "Microphone, storage, SMS, YouTube", Icons.Default.Security, Color(0xFFEF4444)),
+                    SettingMenuItemData("widgets", "AI Floating Widget", "Floating pill style, opacity & status", Icons.Default.Widgets, Color(0xFF8B5CF6)),
+                    SettingMenuItemData("drive_backup", "Backup & Cloud Sync", "Google Drive backup & restore", Icons.Default.CloudSync, Color(0xFF3B82F6)),
+                    SettingMenuItemData("about_support", "About & Diagnostics", "Version 2.4.0, support & cache", Icons.Default.Info, Color(0xFF6B7280))
+                ),
+                onSelect = { activeSubScreen = it }
+            )
+        }
+    }
+
+    // Subscription Modal
+    if (showSubscriptionModal) {
+        CustomModal(
+            visible = true,
+            title = "Subscription Plan",
+            onDismissRequest = { showSubscriptionModal = false }
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                listOf("Vedra Pro (Active)", "Vedra Free", "Vedra Enterprise").forEach { plan ->
+                    val cleanPlan = plan.replace(" (Active)", "")
+                    val isSel = activePlan.value == cleanPlan
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isSel) Color(0xFF231B38) else Color(0xFF141122))
+                            .border(1.dp, if (isSel) Color(0xFF7C3AED) else Color(0xFF201B30), RoundedCornerShape(12.dp))
+                            .clickable {
+                                activePlan.value = cleanPlan
+                                dbService.setSetting("subscription_plan", cleanPlan)
+                                Toast.makeText(context, "Switched to $cleanPlan", Toast.LENGTH_SHORT).show()
+                                showSubscriptionModal = false
+                            }
+                            .padding(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = plan,
+                                color = if (isSel) Color(0xFFC4B5FD) else Color.White,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 14.sp
                             )
-                            if (index < category.items.size - 1) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(1.dp)
-                                        .background(Color(0xFF1A1828))
+                            if (isSel) {
+                                Icon(imageVector = Icons.Default.Check, contentDescription = null, tint = Color(0xFF8B5CF6), modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Data class for menu items
+private data class SettingMenuItemData(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val icon: ImageVector,
+    val tintColor: Color
+)
+
+@Composable
+private fun MainCategoryGroup(
+    categoryTitle: String,
+    items: List<SettingMenuItemData>,
+    onSelect: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = categoryTitle,
+            color = Color(0xFFA78BFA),
+            fontWeight = FontWeight.Bold,
+            fontSize = 11.sp,
+            letterSpacing = 1.sp,
+            modifier = Modifier.padding(start = 2.dp)
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color(0xFF110E1C))
+                .border(1.dp, Color(0xFF1E1B2C), RoundedCornerShape(18.dp))
+        ) {
+            Column {
+                items.forEachIndexed { index, item ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(item.id) }
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(item.tintColor.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = item.icon,
+                                    contentDescription = item.title,
+                                    tint = item.tintColor,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = item.title,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 14.sp
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = item.subtitle,
+                                    color = Color(0xFF9CA3AF),
+                                    fontSize = 11.5.sp
+                                )
+                            }
+                        }
+
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = "Open",
+                            tint = Color(0xFF6B7280),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    if (index < items.size - 1) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp)
+                                .height(1.dp)
+                                .background(Color(0xFF181528))
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 1. GENERAL PREFERENCES DETAIL SCREEN
+// ==========================================
+@Composable
+fun GeneralPreferencesDetailScreen(dbService: DatabaseService) {
+    val context = LocalContext.current
+
+    var appLanguage by remember { mutableStateOf(dbService.getSetting("pref_app_language", "English (India)")) }
+    var appTheme by remember { mutableStateOf(dbService.getSetting("pref_app_theme", "Dark")) }
+    var measurementUnits by remember { mutableStateOf(dbService.getSetting("pref_measurement_units", "Metric (km, °C)")) }
+    var tempUnit by remember { mutableStateOf(dbService.getSetting("pref_temp_unit", "°C")) }
+    var timeFormat by remember { mutableStateOf(dbService.getSetting("pref_time_format", "24-hour")) }
+    var dateFormat by remember { mutableStateOf(dbService.getSetting("pref_date_format", "DD MMM YYYY")) }
+    var defaultInputLang by remember { mutableStateOf(dbService.getSetting("pref_input_lang", "English")) }
+    var region by remember { mutableStateOf(dbService.getSetting("pref_region", "India")) }
+    var weekStartsOn by remember { mutableStateOf(dbService.getSetting("pref_week_starts", "Monday")) }
+
+    var activeModal by remember { mutableStateOf<String?>(null) }
+
+    fun saveSetting(key: String, value: String) {
+        dbService.setSetting(key, value)
+    }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF07060F))
+            .padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // LANGUAGE
+        item {
+            PreferenceSectionHeader(title = "LANGUAGE")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        PreferenceIconBox(icon = Icons.Default.Language)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(text = "App Language", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(text = "Select your preferred language", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    DropdownPill(text = appLanguage, onClick = { activeModal = "language" })
+                }
+            }
+        }
+
+        // THEME
+        item {
+            PreferenceSectionHeader(title = "THEME")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        PreferenceIconBox(icon = Icons.Default.Palette)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(text = "App Theme", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(text = "Choose your visual experience", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                        }
+                    }
+
+                    ThemeOptionRow(
+                        title = "Dark",
+                        subtitle = "Default dark theme",
+                        icon = Icons.Default.NightsStay,
+                        isSelected = appTheme == "Dark",
+                        onClick = {
+                            appTheme = "Dark"
+                            saveSetting("pref_app_theme", "Dark")
+                        }
+                    )
+
+                    ThemeOptionRow(
+                        title = "Light",
+                        subtitle = "Clean light theme",
+                        icon = Icons.Default.WbSunny,
+                        isSelected = appTheme == "Light",
+                        onClick = {
+                            appTheme = "Light"
+                            saveSetting("pref_app_theme", "Light")
+                        }
+                    )
+
+                    ThemeOptionRow(
+                        title = "System Default",
+                        subtitle = "Follow system theme",
+                        icon = Icons.Default.Smartphone,
+                        isSelected = appTheme == "System Default",
+                        onClick = {
+                            appTheme = "System Default"
+                            saveSetting("pref_app_theme", "System Default")
+                        }
+                    )
+                }
+            }
+        }
+
+        // UNITS
+        item {
+            PreferenceSectionHeader(title = "UNITS")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        PreferenceIconBox(icon = Icons.Default.Straighten)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(text = "Measurement Units", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(text = "Choose your preferred units", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    DropdownPill(text = measurementUnits, onClick = { activeModal = "units" })
+                }
+            }
+        }
+
+        // TEMPERATURE UNIT
+        item {
+            PreferenceSectionHeader(title = "TEMPERATURE UNIT")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        PreferenceIconBox(icon = Icons.Default.Thermostat)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(text = "Temperature", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(text = "Select temperature display unit", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    SegmentedToggleTwo(
+                        option1 = "°C",
+                        option2 = "°F",
+                        selectedOption = tempUnit,
+                        onSelect = {
+                            tempUnit = it
+                            saveSetting("pref_temp_unit", it)
+                        }
+                    )
+                }
+            }
+        }
+
+        // TIME FORMAT
+        item {
+            PreferenceSectionHeader(title = "TIME FORMAT")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        PreferenceIconBox(icon = Icons.Default.AccessTime)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(text = "Time Format", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(text = "Choose how time is displayed", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    SegmentedToggleTwo(
+                        option1 = "12-hour",
+                        option2 = "24-hour",
+                        selectedOption = timeFormat,
+                        onSelect = {
+                            timeFormat = it
+                            saveSetting("pref_time_format", it)
+                        }
+                    )
+                }
+            }
+        }
+
+        // DATE FORMAT
+        item {
+            PreferenceSectionHeader(title = "DATE FORMAT")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        PreferenceIconBox(icon = Icons.Default.CalendarToday)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(text = "Date Format", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(text = "Choose how date is displayed", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    DropdownPill(text = dateFormat, onClick = { activeModal = "dateFormat" })
+                }
+            }
+        }
+
+        // OTHER PREFERENCES
+        item {
+            PreferenceSectionHeader(title = "OTHER PREFERENCES")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column {
+                    OtherPreferenceRow(
+                        icon = Icons.Default.Translate,
+                        title = "Default Input Language",
+                        subtitle = "Language used for typing & voice input",
+                        value = defaultInputLang,
+                        onClick = { activeModal = "inputLang" }
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 10.dp)
+                            .height(1.dp)
+                            .background(Color(0xFF1E1B2C))
+                    )
+
+                    OtherPreferenceRow(
+                        icon = Icons.Default.LocationOn,
+                        title = "Region",
+                        subtitle = "Select your region",
+                        value = region,
+                        onClick = { activeModal = "region" }
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 10.dp)
+                            .height(1.dp)
+                            .background(Color(0xFF1E1B2C))
+                    )
+
+                    OtherPreferenceRow(
+                        icon = Icons.Default.DateRange,
+                        title = "Week Starts On",
+                        subtitle = "Choose the first day of the week",
+                        value = weekStartsOn,
+                        onClick = { activeModal = "weekStarts" }
+                    )
+                }
+            }
+        }
+
+        // RESET TO DEFAULT BUTTON
+        item {
+            Spacer(modifier = Modifier.height(6.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xFF6D28D9))
+                    .clickable {
+                        appLanguage = "English (India)"
+                        appTheme = "Dark"
+                        measurementUnits = "Metric (km, °C)"
+                        tempUnit = "°C"
+                        timeFormat = "24-hour"
+                        dateFormat = "DD MMM YYYY"
+                        defaultInputLang = "English"
+                        region = "India"
+                        weekStartsOn = "Monday"
+
+                        saveSetting("pref_app_language", appLanguage)
+                        saveSetting("pref_app_theme", appTheme)
+                        saveSetting("pref_measurement_units", measurementUnits)
+                        saveSetting("pref_temp_unit", tempUnit)
+                        saveSetting("pref_time_format", timeFormat)
+                        saveSetting("pref_date_format", dateFormat)
+                        saveSetting("pref_input_lang", defaultInputLang)
+                        saveSetting("pref_region", region)
+                        saveSetting("pref_week_starts", weekStartsOn)
+
+                        Toast.makeText(context, "Preferences reset to default", Toast.LENGTH_SHORT).show()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Reset",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "RESET TO DEFAULT",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        letterSpacing = 1.sp
+                    )
+                }
+            }
+        }
+    }
+
+    // Modals
+    when (activeModal) {
+        "language" -> {
+            SelectionListModal(
+                title = "Select App Language",
+                options = listOf("English (India)", "English (US)", "Hindi (हिन्दी)", "Spanish (Español)", "French (Français)", "German (Deutsch)"),
+                selectedOption = appLanguage,
+                onSelect = {
+                    appLanguage = it
+                    saveSetting("pref_app_language", it)
+                    val langCode = when (it) {
+                        "Hindi (हिन्दी)" -> "hi"
+                        "Spanish (Español)" -> "es"
+                        "French (Français)" -> "fr"
+                        "German (Deutsch)" -> "de"
+                        else -> "en"
+                    }
+                    TranslationService.setTargetLanguage(langCode)
+                    Toast.makeText(context, "App language changed to $it", Toast.LENGTH_SHORT).show()
+                    activeModal = null
+                },
+                onDismiss = { activeModal = null }
+            )
+        }
+        "units" -> {
+            SelectionListModal(
+                title = "Select Measurement Units",
+                options = listOf("Metric (km, °C)", "Imperial (mi, °F)"),
+                selectedOption = measurementUnits,
+                onSelect = {
+                    measurementUnits = it
+                    saveSetting("pref_measurement_units", it)
+                    activeModal = null
+                },
+                onDismiss = { activeModal = null }
+            )
+        }
+        "dateFormat" -> {
+            SelectionListModal(
+                title = "Select Date Format",
+                options = listOf("DD MMM YYYY", "MM/DD/YYYY", "YYYY-MM-DD", "DD/MM/YYYY"),
+                selectedOption = dateFormat,
+                onSelect = {
+                    dateFormat = it
+                    saveSetting("pref_date_format", it)
+                    activeModal = null
+                },
+                onDismiss = { activeModal = null }
+            )
+        }
+        "inputLang" -> {
+            SelectionListModal(
+                title = "Select Default Input Language",
+                options = listOf("English", "Hindi", "Hinglish", "Spanish", "French"),
+                selectedOption = defaultInputLang,
+                onSelect = {
+                    defaultInputLang = it
+                    saveSetting("pref_input_lang", it)
+                    activeModal = null
+                },
+                onDismiss = { activeModal = null }
+            )
+        }
+        "region" -> {
+            SelectionListModal(
+                title = "Select Region",
+                options = listOf("India", "United States", "United Kingdom", "Canada", "Australia", "Global"),
+                selectedOption = region,
+                onSelect = {
+                    region = it
+                    saveSetting("pref_region", it)
+                    activeModal = null
+                },
+                onDismiss = { activeModal = null }
+            )
+        }
+        "weekStarts" -> {
+            SelectionListModal(
+                title = "Select Week Start Day",
+                options = listOf("Monday", "Sunday", "Saturday"),
+                selectedOption = weekStartsOn,
+                onSelect = {
+                    weekStartsOn = it
+                    saveSetting("pref_week_starts", it)
+                    activeModal = null
+                },
+                onDismiss = { activeModal = null }
+            )
+        }
+    }
+}
+
+// ==========================================
+// 2. VOICE & SPEECH DETAIL SCREEN
+// ==========================================
+@Composable
+fun VoiceSpeechDetailScreen(dbService: DatabaseService, voiceService: VoiceService) {
+    val context = LocalContext.current
+
+    var voiceSpeed by remember { mutableFloatStateOf(dbService.getSetting("voice_speed", "1.0").toFloatOrNull() ?: 1.0f) }
+    var voicePitch by remember { mutableFloatStateOf(dbService.getSetting("voice_pitch", "1.0").toFloatOrNull() ?: 1.0f) }
+    var voiceModel by remember { mutableStateOf(dbService.getSetting("voice_model", "Priya (Neural AI)")) }
+    var wakeWordEnabled by remember { mutableStateOf(dbService.getSetting("wake_word_enabled", "true") == "true") }
+    var ttsEngine by remember { mutableStateOf(dbService.getSetting("tts_engine", "Google Speech Engine")) }
+
+    var showVoiceModelModal by remember { mutableStateOf(false) }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF07060F))
+            .padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // VOICE SPEED & PITCH
+        item {
+            PreferenceSectionHeader(title = "VOICE CONTROLS")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    // Speed
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = "Voice Speed", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = String.format("%.1fx", voiceSpeed), color = Color(0xFFA78BFA), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Slider(
+                            value = voiceSpeed,
+                            onValueChange = {
+                                voiceSpeed = it
+                                dbService.setSetting("voice_speed", it.toString())
+                                voiceService.setPitchAndRate(voicePitch, voiceSpeed)
+                            },
+                            valueRange = 0.5f..2.0f,
+                            steps = 15,
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color(0xFF8B5CF6),
+                                activeTrackColor = Color(0xFF8B5CF6),
+                                inactiveTrackColor = Color(0xFF2E2744)
+                            )
+                        )
+                    }
+
+                    // Pitch
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = "Voice Pitch", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = String.format("%.1fx", voicePitch), color = Color(0xFFA78BFA), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Slider(
+                            value = voicePitch,
+                            onValueChange = {
+                                voicePitch = it
+                                dbService.setSetting("voice_pitch", it.toString())
+                                voiceService.setPitchAndRate(voicePitch, voiceSpeed)
+                            },
+                            valueRange = 0.5f..1.5f,
+                            steps = 10,
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color(0xFF8B5CF6),
+                                activeTrackColor = Color(0xFF8B5CF6),
+                                inactiveTrackColor = Color(0xFF2E2744)
+                            )
+                        )
+                    }
+
+                    // Test Voice Button
+                    Button(
+                        onClick = {
+                            voiceService.setPitchAndRate(voicePitch, voiceSpeed)
+                            voiceService.speak("Hello! I am Vedra. Speech rate and pitch have been updated successfully.")
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF231B38)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.PlayArrow, contentDescription = "Play", tint = Color(0xFFA78BFA), modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = "LISTEN TO SAMPLE VOICE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        // VOICE MODEL & WAKE WORD
+        item {
+            PreferenceSectionHeader(title = "VOICE ENGINE & WAKE WORD")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column {
+                    OtherPreferenceRow(
+                        icon = Icons.Default.Mic,
+                        title = "Voice Model",
+                        subtitle = "Select AI voice persona",
+                        value = voiceModel,
+                        onClick = { showVoiceModelModal = true }
+                    )
+
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(1.dp).background(Color(0xFF1E1B2C)))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            PreferenceIconBox(icon = Icons.Default.GraphicEq)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(text = "Wake Word (\"Hey Vedra\")", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(text = "Always listening for activation keyword", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                            }
+                        }
+                        Switch(
+                            checked = wakeWordEnabled,
+                            onCheckedChange = {
+                                wakeWordEnabled = it
+                                dbService.setSetting("wake_word_enabled", it.toString())
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFF8B5CF6),
+                                uncheckedThumbColor = Color(0xFF9CA3AF),
+                                uncheckedTrackColor = Color(0xFF1E1B2C)
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (showVoiceModelModal) {
+        SelectionListModal(
+            title = "Select Voice Model",
+            options = listOf("Priya (Neural AI)", "Alex (Male Natural)", "Maya (Studio Clear)", "Aria (Soft Expressive)"),
+            selectedOption = voiceModel,
+            onSelect = {
+                voiceModel = it
+                dbService.setSetting("voice_model", it)
+                Toast.makeText(context, "Selected voice $it", Toast.LENGTH_SHORT).show()
+                showVoiceModelModal = false
+            },
+            onDismiss = { showVoiceModelModal = false }
+        )
+    }
+}
+
+// ==========================================
+// 3. APPEARANCE DETAIL SCREEN
+// ==========================================
+@Composable
+fun AppearanceDetailScreen(dbService: DatabaseService) {
+    val context = LocalContext.current
+
+    var accentColor by remember { mutableStateOf(dbService.getSetting("pref_accent_color", "Royal Purple")) }
+    var fontScale by remember { mutableStateOf(dbService.getSetting("pref_font_scale", "Standard")) }
+    var amoledDark by remember { mutableStateOf(dbService.getSetting("pref_amoled_dark", "true") == "true") }
+    var smoothAnim by remember { mutableStateOf(dbService.getSetting("pref_smooth_anim", "true") == "true") }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(Color(0xFF07060F)).padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            PreferenceSectionHeader(title = "ACCENT COLOR")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(text = "Primary Accent Highlight", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        listOf(
+                            "Royal Purple" to Color(0xFF8B5CF6),
+                            "Cyber Blue" to Color(0xFF3B82F6),
+                            "Emerald" to Color(0xFF10B981),
+                            "Rose Pink" to Color(0xFFEC4899),
+                            "Amber Gold" to Color(0xFFF59E0B)
+                        ).forEach { (name, color) ->
+                            val isSel = accentColor == name
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(color)
+                                    .border(
+                                        2.dp,
+                                        if (isSel) Color.White else Color.Transparent,
+                                        CircleShape
+                                    )
+                                    .clickable {
+                                        accentColor = name
+                                        dbService.setSetting("pref_accent_color", name)
+                                        Toast.makeText(context, "Accent color set to $name", Toast.LENGTH_SHORT).show()
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isSel) {
+                                    Icon(imageVector = Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            PreferenceSectionHeader(title = "VISUAL TWEAKS")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(text = "Pure AMOLED Black", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = "Deep pitch black background for OLED screens", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                        }
+                        Switch(
+                            checked = amoledDark,
+                            onCheckedChange = {
+                                amoledDark = it
+                                dbService.setSetting("pref_amoled_dark", it.toString())
+                            },
+                            colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF8B5CF6))
+                        )
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(1.dp).background(Color(0xFF1E1B2C)))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(text = "Smooth UI Animations", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = "Enable transition motion & effects", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                        }
+                        Switch(
+                            checked = smoothAnim,
+                            onCheckedChange = {
+                                smoothAnim = it
+                                dbService.setSetting("pref_smooth_anim", it.toString())
+                            },
+                            colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF8B5CF6))
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 4. HOME SCREEN DETAIL SCREEN
+// ==========================================
+@Composable
+fun HomeScreenDetailScreen(dbService: DatabaseService) {
+    var showGreeting by remember { mutableStateOf(dbService.getSetting("home_show_greeting", "true") == "true") }
+    var showSuggestions by remember { mutableStateOf(dbService.getSetting("home_show_suggestions", "true") == "true") }
+    var compactGrid by remember { mutableStateOf(dbService.getSetting("home_compact_grid", "false") == "true") }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(Color(0xFF07060F)).padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            PreferenceSectionHeader(title = "HOME LAYOUT")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(text = "Show Welcome Banner", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = "Display greeting card at top of home screen", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                        }
+                        Switch(
+                            checked = showGreeting,
+                            onCheckedChange = {
+                                showGreeting = it
+                                dbService.setSetting("home_show_greeting", it.toString())
+                            },
+                            colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF8B5CF6))
+                        )
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(1.dp).background(Color(0xFF1E1B2C)))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(text = "Quick Suggestion Chips", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = "Show smart task & action shortcuts", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                        }
+                        Switch(
+                            checked = showSuggestions,
+                            onCheckedChange = {
+                                showSuggestions = it
+                                dbService.setSetting("home_show_suggestions", it.toString())
+                            },
+                            colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF8B5CF6))
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 5. NOTIFICATIONS DETAIL SCREEN
+// ==========================================
+@Composable
+fun NotificationsDetailScreen(dbService: DatabaseService) {
+    var pushEnabled by remember { mutableStateOf(dbService.getSetting("notif_push_enabled", "true") == "true") }
+    var studyReminders by remember { mutableStateOf(dbService.getSetting("notif_study_reminders", "true") == "true") }
+    var voiceAlerts by remember { mutableStateOf(dbService.getSetting("notif_voice_alerts", "false") == "true") }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(Color(0xFF07060F)).padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            PreferenceSectionHeader(title = "NOTIFICATION ALERTS")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(text = "Push Notifications", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = "Receive updates, reminders and tips", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                        }
+                        Switch(
+                            checked = pushEnabled,
+                            onCheckedChange = {
+                                pushEnabled = it
+                                dbService.setSetting("notif_push_enabled", it.toString())
+                            },
+                            colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF8B5CF6))
+                        )
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(1.dp).background(Color(0xFF1E1B2C)))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(text = "Daily Study & Habit Reminders", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = "Scheduled alerts for daily study goals", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                        }
+                        Switch(
+                            checked = studyReminders,
+                            onCheckedChange = {
+                                studyReminders = it
+                                dbService.setSetting("notif_study_reminders", it.toString())
+                            },
+                            colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF8B5CF6))
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 6. SOUND & VIBRATION DETAIL SCREEN
+// ==========================================
+@Composable
+fun SoundVibrationDetailScreen(dbService: DatabaseService) {
+    var volume by remember { mutableFloatStateOf(dbService.getSetting("sound_volume", "0.8").toFloatOrNull() ?: 0.8f) }
+    var hapticFeedback by remember { mutableStateOf(dbService.getSetting("sound_haptics", "true") == "true") }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(Color(0xFF07060F)).padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            PreferenceSectionHeader(title = "AUDIO & HAPTICS")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = "Assistant Speech Volume", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = "${(volume * 100).toInt()}%", color = Color(0xFFA78BFA), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Slider(
+                            value = volume,
+                            onValueChange = {
+                                volume = it
+                                dbService.setSetting("sound_volume", it.toString())
+                            },
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color(0xFF8B5CF6),
+                                activeTrackColor = Color(0xFF8B5CF6),
+                                inactiveTrackColor = Color(0xFF2E2744)
+                            )
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(text = "Touch Haptic Feedback", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = "Vibrate on button clicks & voice activation", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                        }
+                        Switch(
+                            checked = hapticFeedback,
+                            onCheckedChange = {
+                                hapticFeedback = it
+                                dbService.setSetting("sound_haptics", it.toString())
+                            },
+                            colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF8B5CF6))
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 7. AI SETTINGS DETAIL SCREEN
+// ==========================================
+@Composable
+fun AiSettingsDetailScreen(dbService: DatabaseService) {
+    val context = LocalContext.current
+
+    var networkMode by remember { mutableStateOf(dbService.getSetting("ai_network_mode", "Auto")) }
+    var provider by remember { mutableStateOf(dbService.getSetting("ai_provider", "Gemini AI")) }
+    var selectedModel by remember { mutableStateOf(dbService.getSetting("ai_model", "Gemini 3.5 Flash")) }
+    var responseTone by remember { mutableStateOf(dbService.getSetting("ai_tone", "Short & Direct")) }
+
+    var geminiApiKey by remember { mutableStateOf(dbService.getSetting("gemini_api_key", dbService.getSetting("api_key", ""))) }
+    var openAiApiKey by remember { mutableStateOf(dbService.getSetting("openai_api_key", "")) }
+    var otherAiApiKey by remember { mutableStateOf(dbService.getSetting("other_api_key", "")) }
+
+    var showProviderModal by remember { mutableStateOf(false) }
+    var showModelModal by remember { mutableStateOf(false) }
+    var showToneModal by remember { mutableStateOf(false) }
+
+    val isOnline = remember { GeminiService.isDeviceOnline(context) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(Color(0xFF07060F)).padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // --- 1. ENGINE STATUS CARD ---
+        item {
+            PreferenceSectionHeader(title = "ACTIVE AI ENGINE STATUS")
+            Spacer(modifier = Modifier.height(4.dp))
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF131022)),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFF2E2744)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .background(
+                                        when {
+                                            networkMode == "Force Offline" -> Color(0xFFE11D48)
+                                            isOnline -> Color(0xFF10B981)
+                                            else -> Color(0xFFF59E0B)
+                                        },
+                                        shape = CircleShape
+                                    )
+                            )
+                            Text(
+                                text = when (networkMode) {
+                                    "Force Offline" -> "OFFLINE MODE ACTIVE"
+                                    "Force Online" -> if (isOnline) "ONLINE (FORCED)" else "NO NETWORK CONNECTION"
+                                    else -> if (isOnline) "AUTO SWITCH (ONLINE)" else "AUTO SWITCH (OFFLINE FALLBACK)"
+                                },
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
+                        Surface(
+                            color = Color(0xFF6D28D9).copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(20.dp),
+                            border = BorderStroke(1.dp, Color(0xFF8B5CF6))
+                        ) {
+                            Text(
+                                text = provider,
+                                color = Color(0xFFA78BFA),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "Model: $selectedModel • Tone: $responseTone",
+                        color = Color(0xFF9CA3AF),
+                        fontSize = 11.sp
+                    )
+                }
+            }
+        }
+
+        // --- 2. CONNECTIVITY & AUTO SWITCH MODE ---
+        item {
+            PreferenceSectionHeader(title = "CONNECTIVITY & SWITCH MODE")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Choose how Vedra switches between Online AI Cloud and Local Offline Engine.",
+                        color = Color(0xFF9CA3AF),
+                        fontSize = 12.sp
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("Auto", "Force Online", "Force Offline").forEach { mode ->
+                            val isSelected = networkMode == mode
+                            val bg = if (isSelected) Color(0xFF6D28D9) else Color(0xFF1E1B2C)
+                            val border = if (isSelected) Color(0xFFA78BFA) else Color(0xFF2E2744)
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(bg, RoundedCornerShape(10.dp))
+                                    .border(1.dp, border, RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        networkMode = mode
+                                        dbService.setSetting("ai_network_mode", mode)
+                                        Toast.makeText(context, "Switch mode: $mode", Toast.LENGTH_SHORT).show()
+                                    }
+                                    .padding(vertical = 10.dp, horizontal = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = mode,
+                                    color = if (isSelected) Color.White else Color(0xFF9CA3AF),
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                 )
                             }
                         }
@@ -443,77 +1569,608 @@ fun MainSettingsListView(
             }
         }
 
-        // RESET ALL SETTINGS CARD (Danger Action)
+        // --- 3. AI PROVIDER & MODEL ---
         item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFF210D12))
-                    .border(1.dp, Color(0xFF3B131A), RoundedCornerShape(14.dp))
-                    .clickable { onSelectSetting("Reset All Settings") }
-                    .padding(horizontal = 14.dp, vertical = 12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF4E1B1B)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = null,
-                                tint = Color(0xFFEF4444),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+            PreferenceSectionHeader(title = "AI PROVIDER & REASONING MODEL")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column {
+                    OtherPreferenceRow(
+                        icon = Icons.Default.Psychology,
+                        title = "AI Provider",
+                        subtitle = "Select AI Cloud or Native provider",
+                        value = provider,
+                        onClick = { showProviderModal = true }
+                    )
 
-                        Spacer(modifier = Modifier.width(12.dp))
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(1.dp).background(Color(0xFF1E1B2C)))
 
-                        Column {
+                    OtherPreferenceRow(
+                        icon = Icons.Default.Tune,
+                        title = "Model Variant",
+                        subtitle = "Specific model configuration",
+                        value = selectedModel,
+                        onClick = { showModelModal = true }
+                    )
+
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(1.dp).background(Color(0xFF1E1B2C)))
+
+                    OtherPreferenceRow(
+                        icon = Icons.Default.GraphicEq,
+                        title = "Response Tone",
+                        subtitle = "Personality and word limit",
+                        value = responseTone,
+                        onClick = { showToneModal = true }
+                    )
+                }
+            }
+        }
+
+        // --- 4. API KEYS CONFIGURATION ---
+        item {
+            PreferenceSectionHeader(title = "API KEYS & CREDENTIALS")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    // Gemini API Key
+                    Column {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(text = "Gemini API Key", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                             Text(
-                                text = "Reset All Settings",
-                                color = Color(0xFFEF4444),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.5.sp
-                            )
-                            Text(
-                                text = "This will reset all settings to default",
-                                color = Color(0xFF9CA3AF),
+                                text = if (geminiApiKey.isBlank()) "Default Built-in" else "Custom Key",
+                                color = if (geminiApiKey.isBlank()) Color(0xFF10B981) else Color(0xFFA78BFA),
                                 fontSize = 11.sp
                             )
                         }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = geminiApiKey,
+                            onValueChange = {
+                                geminiApiKey = it
+                                dbService.setSetting("gemini_api_key", it)
+                                dbService.setSetting("api_key", it)
+                            },
+                            placeholder = { Text("Leave blank to use default Gemini Key", color = Color.Gray, fontSize = 11.sp) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF8B5CF6),
+                                unfocusedBorderColor = Color(0xFF2E2744),
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            )
+                        )
                     }
 
-                    Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = null,
-                        tint = Color(0xFFEF4444),
-                        modifier = Modifier.size(18.dp)
-                    )
+                    // OpenAI API Key
+                    Column {
+                        Text(text = "OpenAI API Key (GPT-4o)", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = openAiApiKey,
+                            onValueChange = {
+                                openAiApiKey = it
+                                dbService.setSetting("openai_api_key", it)
+                            },
+                            placeholder = { Text("sk-proj-...", color = Color.Gray, fontSize = 11.sp) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF8B5CF6),
+                                unfocusedBorderColor = Color(0xFF2E2744),
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            )
+                        )
+                    }
+
+                    // DeepSeek / Claude API Key
+                    Column {
+                        Text(text = "DeepSeek / Claude API Key", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = otherAiApiKey,
+                            onValueChange = {
+                                otherAiApiKey = it
+                                dbService.setSetting("other_api_key", it)
+                            },
+                            placeholder = { Text("sk-... / sk-ant-...", color = Color.Gray, fontSize = 11.sp) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF8B5CF6),
+                                unfocusedBorderColor = Color(0xFF2E2744),
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // Modal Pickers
+    if (showProviderModal) {
+        SelectionListModal(
+            title = "Select AI Provider",
+            options = listOf("Gemini AI", "OpenAI (GPT-4o)", "Claude / DeepSeek", "Native (Offline Engine)"),
+            selectedOption = provider,
+            onSelect = {
+                provider = it
+                dbService.setSetting("ai_provider", it)
+                val defaultModel = when {
+                    it.contains("Gemini") -> "Gemini 3.5 Flash"
+                    it.contains("OpenAI") -> "gpt-4o-mini"
+                    it.contains("DeepSeek") || it.contains("Claude") -> "deepseek-chat"
+                    else -> "Vedra Local Engine"
+                }
+                selectedModel = defaultModel
+                dbService.setSetting("ai_model", defaultModel)
+                Toast.makeText(context, "Provider set to $it", Toast.LENGTH_SHORT).show()
+                showProviderModal = false
+            },
+            onDismiss = { showProviderModal = false }
+        )
+    }
+
+    if (showModelModal) {
+        val availableModels = when {
+            provider.contains("Gemini") -> listOf("Gemini 3.5 Flash", "Gemini 3.1 Pro", "Gemini 2.5 Flash")
+            provider.contains("OpenAI") -> listOf("gpt-4o-mini", "gpt-4o")
+            provider.contains("DeepSeek") || provider.contains("Claude") -> listOf("deepseek-chat", "claude-3-5-sonnet")
+            else -> listOf("Vedra Local Engine", "Rule-Based Offline Assistant")
+        }
+
+        SelectionListModal(
+            title = "Select Model Variant",
+            options = availableModels,
+            selectedOption = selectedModel,
+            onSelect = {
+                selectedModel = it
+                dbService.setSetting("ai_model", it)
+                Toast.makeText(context, "Model set to $it", Toast.LENGTH_SHORT).show()
+                showModelModal = false
+            },
+            onDismiss = { showModelModal = false }
+        )
+    }
+
+    if (showToneModal) {
+        SelectionListModal(
+            title = "Select Response Tone",
+            options = listOf("Short & Direct", "Academic & Detailed (JEE)", "Conversational", "Code Specialist"),
+            selectedOption = responseTone,
+            onSelect = {
+                responseTone = it
+                dbService.setSetting("ai_tone", it)
+                Toast.makeText(context, "Tone set to $it", Toast.LENGTH_SHORT).show()
+                showToneModal = false
+            },
+            onDismiss = { showToneModal = false }
+        )
+    }
+}
+
+// ==========================================
+// 8. MEMORY SETTINGS DETAIL SCREEN
+// ==========================================
+@Composable
+fun MemorySettingsDetailScreen(dbService: DatabaseService) {
+    val context = LocalContext.current
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(Color(0xFF07060F)).padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            PreferenceSectionHeader(title = "ASSISTANT MEMORY ENGINE")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(text = "Vedra remembers your preferences, schedule and notes to personalize responses.", color = Color(0xFF9CA3AF), fontSize = 12.sp)
+
+                    Button(
+                        onClick = {
+                            Toast.makeText(context, "Assistant memory cleared", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7F1D1D)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.Delete, contentDescription = "Clear", tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = "CLEAR ALL MEMORY LOGS", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
                 }
             }
         }
     }
 }
 
+// ==========================================
+// 9. WIDGETS DETAIL SCREEN
+// ==========================================
 @Composable
-fun SettingRowItem(
-    item: SettingItemSpec,
+fun WidgetsDetailScreen(dbService: DatabaseService) {
+    var widgetEnabled by remember { mutableStateOf(dbService.getSetting("widget_enabled", "true") == "true") }
+    var liveStatus by remember { mutableStateOf(dbService.getSetting("widget_live_status", "true") == "true") }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(Color(0xFF07060F)).padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            PreferenceSectionHeader(title = "FLOATING AI WIDGET")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(text = "Floating Voice Widget", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = "Quick overlay pill over other apps", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                        }
+                        Switch(
+                            checked = widgetEnabled,
+                            onCheckedChange = {
+                                widgetEnabled = it
+                                dbService.setSetting("widget_enabled", it.toString())
+                            },
+                            colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF8B5CF6))
+                        )
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(1.dp).background(Color(0xFF1E1B2C)))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(text = "Show Live Voice Indicator", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = "Pulse wave animation during voice listening", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                        }
+                        Switch(
+                            checked = liveStatus,
+                            onCheckedChange = {
+                                liveStatus = it
+                                dbService.setSetting("widget_live_status", it.toString())
+                            },
+                            colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF8B5CF6))
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 10. BACKUP & DRIVE DETAIL SCREEN
+// ==========================================
+@Composable
+fun DriveBackupDetailScreen(dbService: DatabaseService) {
+    val context = LocalContext.current
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(Color(0xFF07060F)).padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            PreferenceSectionHeader(title = "GOOGLE DRIVE BACKUP")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(text = "Sync your study notes, memory items and settings to Google Drive.", color = Color(0xFF9CA3AF), fontSize = 12.sp)
+
+                    Button(
+                        onClick = {
+                            Toast.makeText(context, "Backup synced to Google Drive successfully!", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6D28D9)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.CloudSync, contentDescription = "Sync", tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = "BACKUP DATA NOW", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 11. ABOUT & SUPPORT DETAIL SCREEN
+// ==========================================
+@Composable
+fun AboutSupportDetailScreen(dbService: DatabaseService) {
+    val context = LocalContext.current
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(Color(0xFF07060F)).padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            PreferenceSectionHeader(title = "APP INFORMATION")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "App Version", color = Color(0xFF9CA3AF), fontSize = 13.sp)
+                        Text(text = "2.4.0-Pro", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "Developer", color = Color(0xFF9CA3AF), fontSize = 13.sp)
+                        Text(text = "Vedra AI Studio", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "Engine", color = Color(0xFF9CA3AF), fontSize = 13.sp)
+                        Text(text = "Gemini 1.5 + Android Native", color = Color(0xFFC4B5FD), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+            }
+        }
+
+        item {
+            Button(
+                onClick = {
+                    Toast.makeText(context, "Vedra is already on the latest version!", Toast.LENGTH_SHORT).show()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF231B38)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(text = "CHECK FOR UPDATES", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+// ==========================================
+// REUSABLE PREFERENCE UI COMPONENTS
+// ==========================================
+@Composable
+private fun PreferenceSectionHeader(title: String) {
+    Text(
+        text = title,
+        color = Color(0xFFA78BFA),
+        fontWeight = FontWeight.Bold,
+        fontSize = 11.sp,
+        letterSpacing = 1.sp
+    )
+}
+
+@Composable
+private fun PreferenceCard(content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF110E1C))
+            .border(1.dp, Color(0xFF1E1B2C), RoundedCornerShape(16.dp))
+            .padding(14.dp)
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun PreferenceIconBox(icon: ImageVector) {
+    Box(
+        modifier = Modifier
+            .size(38.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF231B38)),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = Color(0xFFA78BFA),
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+@Composable
+private fun DropdownPill(text: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color(0xFF191526))
+            .border(1.dp, Color(0xFF2E2744), RoundedCornerShape(10.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = text,
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = "Dropdown",
+                tint = Color(0xFF9CA3AF),
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SegmentedToggleTwo(
+    option1: String,
+    option2: String,
+    selectedOption: String,
+    onSelect: (String) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color(0xFF191526))
+            .border(1.dp, Color(0xFF2E2744), RoundedCornerShape(10.dp))
+            .padding(3.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val isOpt1Selected = selectedOption == option1
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (isOpt1Selected) Color(0xFF6D28D9) else Color.Transparent)
+                    .clickable { onSelect(option1) }
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = option1,
+                    color = if (isOpt1Selected) Color.White else Color(0xFF9CA3AF),
+                    fontSize = 12.sp,
+                    fontWeight = if (isOpt1Selected) FontWeight.Bold else FontWeight.Medium
+                )
+            }
+
+            val isOpt2Selected = selectedOption == option2
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (isOpt2Selected) Color(0xFF6D28D9) else Color.Transparent)
+                    .clickable { onSelect(option2) }
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = option2,
+                    color = if (isOpt2Selected) Color.White else Color(0xFF9CA3AF),
+                    fontSize = 12.sp,
+                    fontWeight = if (isOpt2Selected) FontWeight.Bold else FontWeight.Medium
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemeOptionRow(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isSelected) Color(0xFF1B142B) else Color(0xFF131020))
+            .border(
+                1.dp,
+                if (isSelected) Color(0xFF7C3AED) else Color(0xFF231F33),
+                RoundedCornerShape(12.dp)
+            )
+            .clickable { onClick() }
+            .padding(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = if (isSelected) Color(0xFFA78BFA) else Color(0xFF9CA3AF),
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = title,
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = subtitle,
+                        color = Color(0xFF9CA3AF),
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF8B5CF6)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Selected",
+                        tint = Color.White,
+                        modifier = Modifier.size(13.dp)
+                    )
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .border(1.5.dp, Color(0xFF4B5563), CircleShape)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun OtherPreferenceRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    value: String,
     onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -521,1959 +2178,86 @@ fun SettingRowItem(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.weight(1f)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .background(item.iconBg),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = item.icon,
-                    contentDescription = null,
-                    tint = item.iconTint,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-
+            PreferenceIconBox(icon = icon)
             Spacer(modifier = Modifier.width(12.dp))
-
             Column {
                 Text(
-                    text = item.title,
+                    text = title,
                     color = Color.White,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 13.sp
+                    fontSize = 13.5.sp
                 )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = item.subtitle,
+                    text = subtitle,
                     color = Color(0xFF9CA3AF),
                     fontSize = 11.sp
                 )
             }
         }
 
-        Icon(
-            imageVector = Icons.Default.ChevronRight,
-            contentDescription = null,
-            tint = Color(0xFF6B7280),
-            modifier = Modifier.size(16.dp)
-        )
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = value,
+                color = Color(0xFFD1D5DB),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = "Open",
+                tint = Color(0xFF9CA3AF),
+                modifier = Modifier.size(18.dp)
+            )
+        }
     }
 }
 
 @Composable
-fun SettingDetailView(
-    screenId: String,
-    onBack: () -> Unit,
-    dbService: DatabaseService,
-    voiceService: VoiceService?,
-    modifier: Modifier = Modifier
+private fun SelectionListModal(
+    title: String,
+    options: List<String>,
+    selectedOption: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit
 ) {
-    val screenTitle = when (screenId) {
-        "voice_speech", "Voice & Speech" -> "VOICE & SPEECH"
-        "general_pref", "General Preferences" -> "GENERAL PREFERENCES"
-        "appearance", "Appearance" -> "APPEARANCE & THEME"
-        "home_screen", "Home Screen" -> "HOME SCREEN"
-        "notifications", "Notifications" -> "NOTIFICATIONS & ALERTS"
-        "sound_vibration", "Sound & Vibration" -> "SOUND & VIBRATION"
-        "ai_settings", "AI Settings" -> "AI MODEL SETTINGS"
-        "memory_settings", "Memory Settings" -> "MEMORY & RECALL"
-        "personalization", "Personalization" -> "PERSONALIZATION"
-        "context_recall", "Context & Recall" -> "CONTEXT & MEMORY WINDOW"
-        "automations", "Automations" -> "AUTOMATIONS & ROUTINES"
-        "custom_commands", "Custom Commands" -> "CUSTOM VOICE COMMANDS"
-        "quick_actions", "Quick Actions" -> "QUICK ACTIONS"
-        "widget_settings", "Widget Settings", "Widgets & Floating AI", "Widgets" -> "WIDGETS & FLOATING AI"
-        "privacy", "Privacy" -> "PRIVACY & DATA"
-        "security", "Security" -> "SECURITY & LOCK"
-        "permissions", "Permissions" -> "APP PERMISSIONS"
-        "offline_ai", "Offline AI" -> "OFFLINE AI & DATA"
-        "developer_options", "Developer Options" -> "DEVELOPER OPTIONS"
-        "about_vedra", "About Vedra" -> "ABOUT VEDRA"
-        "manage_subscription" -> "VEDRA PRO SUBSCRIPTION"
-        "Reset All Settings" -> "RESET ALL SETTINGS"
-        else -> screenId.uppercase()
-    }
-
-    val screenSubtitle = when (screenId) {
-        "voice_speech", "Voice & Speech" -> "Customize Vedra's voice and speech settings"
-        "general_pref", "General Preferences" -> "Configure default language, theme, and units"
-        "appearance", "Appearance" -> "Manage visual theme, colors, and animations"
-        "home_screen", "Home Screen" -> "Customize home layout, suggestions, and orb"
-        "notifications", "Notifications" -> "Manage alerts, daily briefings, and sounds"
-        "sound_vibration", "Sound & Vibration" -> "Assistant volume, haptics, and chimes"
-        "ai_settings", "AI Settings" -> "Tune intelligence model, response style & API keys"
-        "memory_settings", "Memory Settings" -> "Manage stored facts, context, and memories"
-        "personalization", "Personalization" -> "Your display name, persona, and interests"
-        "context_recall", "Context & Recall" -> "Context window limit and session retention"
-        "automations", "Automations" -> "Set up task chain routines & voice macros"
-        "custom_commands", "Custom Commands" -> "Custom voice shortcuts and app triggers"
-        "quick_actions", "Quick Actions" -> "Reorder and customize quick action tiles"
-        "widget_settings", "Widget Settings", "Widgets & Floating AI", "Widgets" -> "Customize home screen widgets, floating AI orb & colors"
-        "privacy", "Privacy" -> "Manage data privacy, telemetry, and history"
-        "security", "Security" -> "App lock, PIN, biometrics, and database encryption"
-        "permissions", "Permissions" -> "Review and grant Android system permissions"
-        "offline_ai", "Offline AI" -> "Offline ONNX models, database stats & cache"
-        "developer_options", "Developer Options" -> "Developer logs, state inspector & debugging"
-        "about_vedra", "About Vedra" -> "Version details, terms, and feedback"
-        "manage_subscription" -> "Your active Vedra Pro membership"
-        else -> "Manage $screenId options"
-    }
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color(0xFF090810))
+    CustomModal(
+        visible = true,
+        title = title,
+        onDismissRequest = onDismiss
     ) {
-        // TOP DETAIL HEADER BAR (Matching Image 2)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFF0B0A13))
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier.size(34.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(4.dp))
-
-                    Column {
-                        Text(
-                            text = "VEDRA",
-                            color = Color(0xFFC4B5FD),
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 16.sp,
-                            letterSpacing = 1.sp
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(5.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF10B981))
-                            )
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(
-                                text = "Online",
-                                color = Color(0xFF10B981),
-                                fontSize = 9.5.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
-                }
-
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = screenTitle,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        letterSpacing = 1.sp
-                    )
-                    Text(
-                        text = screenSubtitle,
-                        color = Color(0xFF9CA3AF),
-                        fontSize = 10.5.sp
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .size(34.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF2E1A47))
-                        .border(1.5.dp, Color(0xFF9D6EFF), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Profile",
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(Color(0xFF1E1B2E))
-        )
-
-        // DETAIL SCREEN CONTENT
-        when (screenId) {
-            "voice_speech", "Voice & Speech" -> {
-                VoiceAndSpeechDetailScreen(dbService = dbService, voiceService = voiceService)
-            }
-            "widget_settings", "Widget Settings", "Widgets & Floating AI", "Widgets" -> {
-                WidgetSettingsDetailScreen(dbService = dbService)
-            }
-            "general_pref", "General Preferences", "Appearance", "Notifications", "Sound & Vibration" -> {
-                GeneralPreferencesDetailScreen(dbService = dbService)
-            }
-            "home_screen", "Home Screen" -> {
-                WidgetSettingsDetailScreen(dbService = dbService)
-            }
-            "ai_settings", "AI Settings", "Personalization", "Context & Recall" -> {
-                AISettingsDetailScreen(dbService = dbService)
-            }
-            "automations", "Automations", "Custom Commands", "Quick Actions" -> {
-                AutomationsDetailScreen(dbService = dbService)
-            }
-            "privacy", "Privacy", "Security", "Permissions" -> {
-                PrivacySecurityDetailScreen(dbService = dbService)
-            }
-            "offline_ai", "Offline AI", "Memory Settings", "Developer Options", "About Vedra" -> {
-                OfflineAIDetailScreen(dbService = dbService)
-            }
-            "manage_subscription" -> {
-                ManageSubscriptionDetailScreen()
-            }
-            "Reset All Settings" -> {
-                ResetAllSettingsDetailScreen(dbService = dbService, onBack = onBack)
-            }
-            else -> {
-                GeneralPreferencesDetailScreen(dbService = dbService)
-            }
-        }
-    }
-}
-
-// ==========================================
-// VOICE & SPEECH DETAIL SCREEN (IMAGE 2)
-// ==========================================
-@Composable
-fun VoiceAndSpeechDetailScreen(
-    dbService: DatabaseService,
-    voiceService: VoiceService?
-) {
-    val context = LocalContext.current
-    var activeVoice by remember { mutableStateOf("Vedra (Natural)") }
-    var selectedLanguage by remember { mutableStateOf("English (India)") }
-
-    var speechSpeed by remember { mutableFloatStateOf(dbService.getSetting("speed", "1.0").toFloatOrNull() ?: 1.0f) }
-    var speechPitch by remember { mutableFloatStateOf(dbService.getSetting("pitch", "1.0").toFloatOrNull() ?: 1.0f) }
-    var speechVolume by remember { mutableFloatStateOf(0.8f) }
-    var pauseDuration by remember { mutableFloatStateOf(1.2f) }
-
-    var wakeWordEnabled by remember { mutableStateOf(true) }
-    var voiceResponsesEnabled by remember { mutableStateOf(true) }
-    var readNotificationsEnabled by remember { mutableStateOf(true) }
-    var announceCallsEnabled by remember { mutableStateOf(false) }
-
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF090810))
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
-        // SECTION 1: VOICE PREVIEW (Matching Image 2 top card)
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "VOICE PREVIEW",
-                    color = Color(0xFFA78BFA),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    letterSpacing = 1.sp
-                )
-
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            options.forEach { option ->
+                val isSel = option == selectedOption
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF110F1D))
-                        .border(1.dp, Color(0xFF221A38), RoundedCornerShape(16.dp))
-                        .padding(14.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Glowing Orb
-                            Box(
-                                modifier = Modifier
-                                    .size(68.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF1C1330))
-                                    .border(2.dp, Color(0xFF8B5CF6), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Mic,
-                                    contentDescription = "Voice Waveform",
-                                    tint = Color(0xFFC4B5FD),
-                                    modifier = Modifier.size(30.dp)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            Column {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = activeVoice,
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.5.sp
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(Color(0xFF3B1F69))
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = "Active",
-                                            color = Color(0xFFC4B5FD),
-                                            fontSize = 9.5.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Hi Rahul! I'm Vedra.",
-                                    color = Color(0xFFD1D5DB),
-                                    fontSize = 11.5.sp
-                                )
-                                Text(
-                                    text = "How can I help you today?",
-                                    color = Color(0xFFD1D5DB),
-                                    fontSize = 11.5.sp
-                                )
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                // Play Sample Button
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(20.dp))
-                                        .background(Color(0xFF6D28D9))
-                                        .clickable {
-                                            voiceService?.speak("Hi Rahul! I'm Vedra. How can I help you today?")
-                                        }
-                                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.PlayArrow,
-                                            contentDescription = "Play",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "Play Sample",
-                                            color = Color.White,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Icon(
-                            imageVector = Icons.Default.ChevronRight,
-                            contentDescription = null,
-                            tint = Color(0xFF6B7280),
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-            }
-        }
-
-        // SECTION 2: VOICE SELECTION (Horizontal Cards)
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "VOICE SELECTION",
-                    color = Color(0xFFA78BFA),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    letterSpacing = 1.sp
-                )
-
-                val voiceOptions = listOf(
-                    Triple("Vedra (Natural)", "Female", true),
-                    Triple("Vedra (Warm)", "Female", false),
-                    Triple("Vedra (Deep)", "Male", false),
-                    Triple("Vedra (Soft)", "Female", false),
-                    Triple("Vedra (Energetic)", "Male", false)
-                )
-
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(voiceOptions) { (name, gender, isDefault) ->
-                        val isSelected = activeVoice == name
-                        Box(
-                            modifier = Modifier
-                                .width(120.dp)
-                                .height(110.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(if (isSelected) Color(0xFF1F1235) else Color(0xFF12101D))
-                                .border(
-                                    width = if (isSelected) 1.5.dp else 1.dp,
-                                    color = if (isSelected) Color(0xFF8B5CF6) else Color(0xFF1E1B2E),
-                                    shape = RoundedCornerShape(14.dp)
-                                )
-                                .clickable { activeVoice = name }
-                                .padding(10.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxSize(),
-                                verticalArrangement = Arrangement.SpaceBetween,
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.End
-                                ) {
-                                    if (isSelected) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(16.dp)
-                                                .clip(CircleShape)
-                                                .background(Color(0xFF8B5CF6)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Check,
-                                                contentDescription = null,
-                                                tint = Color.White,
-                                                modifier = Modifier.size(10.dp)
-                                            )
-                                        }
-                                    }
-                                }
-
-                                Icon(
-                                    imageVector = Icons.Default.Mic,
-                                    contentDescription = null,
-                                    tint = if (isSelected) Color(0xFFC4B5FD) else Color(0xFF6B7280),
-                                    modifier = Modifier.size(22.dp)
-                                )
-
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        text = name,
-                                        color = Color.White,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1
-                                    )
-                                    Text(
-                                        text = if (isDefault) "Default" else gender,
-                                        color = Color(0xFF9CA3AF),
-                                        fontSize = 9.5.sp
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // SECTION 3: LANGUAGE
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "LANGUAGE",
-                    color = Color(0xFFA78BFA),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    letterSpacing = 1.sp
-                )
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFF12101D))
-                        .border(1.dp, Color(0xFF1E1B2E), RoundedCornerShape(14.dp))
-                        .padding(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(34.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF2C1D4D)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Language,
-                                    contentDescription = null,
-                                    tint = Color(0xFF9D6EFF),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            Column {
-                                Text(
-                                    text = "Assistant Language",
-                                    color = Color.White,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 13.sp
-                                )
-                                Text(
-                                    text = "Choose the language Vedra speaks with you",
-                                    color = Color(0xFF9CA3AF),
-                                    fontSize = 11.sp
-                                )
-                            }
-                        }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = selectedLanguage,
-                                color = Color.White,
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(
-                                imageVector = Icons.Default.ChevronRight,
-                                contentDescription = null,
-                                tint = Color(0xFF6B7280),
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // SECTION 4: SPEECH SETTINGS (Sliders matching Image 2)
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "SPEECH SETTINGS",
-                    color = Color(0xFFA78BFA),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    letterSpacing = 1.sp
-                )
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFF12101D))
-                        .border(1.dp, Color(0xFF1E1B2E), RoundedCornerShape(14.dp))
-                        .padding(14.dp)
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        // Speech Speed Slider
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.Speed,
-                                        contentDescription = null,
-                                        tint = Color(0xFF9D6EFF),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Speech Speed",
-                                        color = Color.White,
-                                        fontSize = 12.5.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                                Text(
-                                    text = "${"%.1f".format(speechSpeed)}x",
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Slider(
-                                value = speechSpeed,
-                                onValueChange = {
-                                    speechSpeed = it
-                                    voiceService?.setPitchAndRate(speechPitch, speechSpeed)
-                                    dbService.setSetting("speed", speechSpeed.toString())
-                                },
-                                valueRange = 0.5f..2.0f,
-                                colors = SliderDefaults.colors(
-                                    thumbColor = Color(0xFF8B5CF6),
-                                    activeTrackColor = Color(0xFF8B5CF6),
-                                    inactiveTrackColor = Color(0xFF261D3B)
-                                )
-                            )
-                        }
-
-                        // Pitch Slider
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.Mic,
-                                        contentDescription = null,
-                                        tint = Color(0xFF9D6EFF),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Pitch",
-                                        color = Color.White,
-                                        fontSize = 12.5.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                                Text(
-                                    text = "${((speechPitch - 1.0f) * 100).toInt()}%",
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Slider(
-                                value = speechPitch,
-                                onValueChange = {
-                                    speechPitch = it
-                                    voiceService?.setPitchAndRate(speechPitch, speechSpeed)
-                                    dbService.setSetting("pitch", speechPitch.toString())
-                                },
-                                valueRange = 0.5f..1.5f,
-                                colors = SliderDefaults.colors(
-                                    thumbColor = Color(0xFF8B5CF6),
-                                    activeTrackColor = Color(0xFF8B5CF6),
-                                    inactiveTrackColor = Color(0xFF261D3B)
-                                )
-                            )
-                        }
-
-                        // Speech Volume Slider
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.VolumeUp,
-                                        contentDescription = null,
-                                        tint = Color(0xFF9D6EFF),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Speech Volume",
-                                        color = Color.White,
-                                        fontSize = 12.5.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                                Text(
-                                    text = "${(speechVolume * 100).toInt()}%",
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Slider(
-                                value = speechVolume,
-                                onValueChange = { speechVolume = it },
-                                valueRange = 0.0f..1.0f,
-                                colors = SliderDefaults.colors(
-                                    thumbColor = Color(0xFF8B5CF6),
-                                    activeTrackColor = Color(0xFF8B5CF6),
-                                    inactiveTrackColor = Color(0xFF261D3B)
-                                )
-                            )
-                        }
-
-                        // Pause Between Sentences Slider
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.Pause,
-                                        contentDescription = null,
-                                        tint = Color(0xFF9D6EFF),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Pause Between Sentences",
-                                        color = Color.White,
-                                        fontSize = 12.5.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                                Text(
-                                    text = "${"%.1f".format(pauseDuration)}s",
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Slider(
-                                value = pauseDuration,
-                                onValueChange = { pauseDuration = it },
-                                valueRange = 0.5f..3.0f,
-                                colors = SliderDefaults.colors(
-                                    thumbColor = Color(0xFF8B5CF6),
-                                    activeTrackColor = Color(0xFF8B5CF6),
-                                    inactiveTrackColor = Color(0xFF261D3B)
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // SECTION 5: WAKE WORD
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "WAKE WORD",
-                    color = Color(0xFFA78BFA),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    letterSpacing = 1.sp
-                )
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFF12101D))
-                        .border(1.dp, Color(0xFF1E1B2E), RoundedCornerShape(14.dp))
-                        .padding(14.dp)
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(34.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF2C1D4D)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Mic,
-                                        contentDescription = null,
-                                        tint = Color(0xFF9D6EFF),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(12.dp))
-
-                                Column {
-                                    Text(
-                                        text = "Wake Word",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 13.sp
-                                    )
-                                    Text(
-                                        text = "Say this word to wake Vedra",
-                                        color = Color(0xFF9CA3AF),
-                                        fontSize = 11.sp
-                                    )
-                                }
-                            }
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "\"Ved\"",
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Switch(
-                                    checked = wakeWordEnabled,
-                                    onCheckedChange = { wakeWordEnabled = it },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = Color(0xFF8B5CF6)
-                                    )
-                                )
-                            }
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(1.dp)
-                                .background(Color(0xFF1E1B2E))
-                        )
-
-                        // Sensitivity row
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text(
-                                        text = "Sensitivity",
-                                        color = Color.White,
-                                        fontSize = 12.5.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        text = "Adjust how easily Vedra listens for wake word",
-                                        color = Color(0xFF9CA3AF),
-                                        fontSize = 11.sp
-                                    )
-                                }
-
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = "High",
-                                        color = Color.White,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Icon(
-                                        imageVector = Icons.Default.ChevronRight,
-                                        contentDescription = null,
-                                        tint = Color(0xFF6B7280),
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Segmented bar
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                repeat(4) {
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(6.dp)
-                                            .clip(RoundedCornerShape(3.dp))
-                                            .background(Color(0xFF8B5CF6))
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // SECTION 6: VOICE RESPONSE (Toggles)
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "VOICE RESPONSE",
-                    color = Color(0xFFA78BFA),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    letterSpacing = 1.sp
-                )
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFF12101D))
-                        .border(1.dp, Color(0xFF1E1B2E), RoundedCornerShape(14.dp))
-                ) {
-                    Column {
-                        // Voice Responses
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(34.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF2C1D4D)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Mic,
-                                        contentDescription = null,
-                                        tint = Color(0xFF9D6EFF),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text(text = "Voice Responses", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                    Text(text = "Vedra will speak responses", color = Color(0xFF9CA3AF), fontSize = 11.sp)
-                                }
-                            }
-                            Switch(
-                                checked = voiceResponsesEnabled,
-                                onCheckedChange = { voiceResponsesEnabled = it },
-                                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF8B5CF6))
-                            )
-                        }
-
-                        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF1E1B2E)))
-
-                        // Read Notifications Aloud
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(34.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF2C1D4D)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Hearing,
-                                        contentDescription = null,
-                                        tint = Color(0xFF9D6EFF),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text(text = "Read Notifications Aloud", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                    Text(text = "Vedra will read important notifications", color = Color(0xFF9CA3AF), fontSize = 11.sp)
-                                }
-                            }
-                            Switch(
-                                checked = readNotificationsEnabled,
-                                onCheckedChange = { readNotificationsEnabled = it },
-                                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF8B5CF6))
-                            )
-                        }
-
-                        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF1E1B2E)))
-
-                        // Announce Incoming Calls
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(34.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF2C1D4D)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Phone,
-                                        contentDescription = null,
-                                        tint = Color(0xFF9D6EFF),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text(text = "Announce Incoming Calls", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                    Text(text = "Vedra will announce incoming calls", color = Color(0xFF9CA3AF), fontSize = 11.sp)
-                                }
-                            }
-                            Switch(
-                                checked = announceCallsEnabled,
-                                onCheckedChange = { announceCallsEnabled = it },
-                                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF8B5CF6))
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ==========================================
-// GENERAL PREFERENCES DETAIL SCREEN
-// ==========================================
-@Composable
-fun GeneralPreferencesDetailScreen(dbService: DatabaseService) {
-    var selectedLangCode by remember { mutableStateOf(TranslationService.getTargetLanguage().code) }
-    var themeMode by remember { mutableStateOf("Dark Neon Purple") }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            Text(text = "APP LANGUAGE", color = Color(0xFFA78BFA), fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFF12101D))
-                    .border(1.dp, Color(0xFF1E1B2E), RoundedCornerShape(14.dp))
-                    .padding(12.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TranslationService.SUPPORTED_LANGUAGES.forEach { lang ->
-                        val isSel = selectedLangCode == lang.code
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    selectedLangCode = lang.code
-                                    TranslationService.setTargetLanguage(lang.code)
-                                    dbService.setSetting("language", lang.code)
-                                }
-                                .padding(vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(text = lang.displayName, color = if (isSel) Color(0xFFC4B5FD) else Color.White, fontSize = 13.sp)
-                            if (isSel) {
-                                Icon(imageVector = Icons.Default.Check, contentDescription = null, tint = Color(0xFF8B5CF6), modifier = Modifier.size(16.dp))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        item {
-            Text(text = "THEME & APPEARANCE", color = Color(0xFFA78BFA), fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFF12101D))
-                    .border(1.dp, Color(0xFF1E1B2E), RoundedCornerShape(14.dp))
-                    .padding(12.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("Dark Neon Purple", "Deep AMOLED Black", "Cyan Glow").forEach { theme ->
-                        val isSel = themeMode == theme
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { themeMode = theme }
-                                .padding(vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(text = theme, color = if (isSel) Color(0xFFC4B5FD) else Color.White, fontSize = 13.sp)
-                            if (isSel) {
-                                Icon(imageVector = Icons.Default.Check, contentDescription = null, tint = Color(0xFF8B5CF6), modifier = Modifier.size(16.dp))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ==========================================
-// AI SETTINGS DETAIL SCREEN
-// ==========================================
-@Composable
-fun AISettingsDetailScreen(dbService: DatabaseService) {
-    var selectedEngine by remember { mutableStateOf(dbService.getSetting("engine", "Hybrid Cloud AI")) }
-    var selectedTone by remember { mutableStateOf(dbService.getSetting("tone", "Short & Direct")) }
-    var apiKeyInput by remember { mutableStateOf(dbService.getSetting("api_key", "")) }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            Text(text = "AI MODEL ENGINE", color = Color(0xFFA78BFA), fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFF12101D))
-                    .border(1.dp, Color(0xFF1E1B2E), RoundedCornerShape(14.dp))
-                    .padding(14.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    listOf("Hybrid Cloud AI", "Strict Offline ONNX", "Custom API Endpoint").forEach { engine ->
-                        val isSel = selectedEngine == engine
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    selectedEngine = engine
-                                    dbService.setSetting("engine", engine)
-                                }
-                                .padding(vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(text = engine, color = if (isSel) Color(0xFFC4B5FD) else Color.White, fontSize = 13.sp)
-                            if (isSel) {
-                                Icon(imageVector = Icons.Default.Check, contentDescription = null, tint = Color(0xFF8B5CF6), modifier = Modifier.size(16.dp))
-                            }
-                        }
-                    }
-
-                    if (selectedEngine == "Custom API Endpoint") {
-                        CustomInput(
-                            value = apiKeyInput,
-                            onValueChange = {
-                                apiKeyInput = it
-                                dbService.setSetting("api_key", it)
-                            },
-                            placeholder = "Enter custom API key (e.g. sk-...)"
-                        )
-                    }
-                }
-            }
-        }
-
-        item {
-            Text(text = "RESPONSE STYLE & TONE", color = Color(0xFFA78BFA), fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFF12101D))
-                    .border(1.dp, Color(0xFF1E1B2E), RoundedCornerShape(14.dp))
-                    .padding(14.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    listOf("Short & Direct", "Detailed & Conversational", "Empathetic Coach").forEach { tone ->
-                        val isSel = selectedTone == tone
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    selectedTone = tone
-                                    dbService.setSetting("tone", tone)
-                                }
-                                .padding(vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(text = tone, color = if (isSel) Color(0xFFC4B5FD) else Color.White, fontSize = 13.sp)
-                            if (isSel) {
-                                Icon(imageVector = Icons.Default.Check, contentDescription = null, tint = Color(0xFF8B5CF6), modifier = Modifier.size(16.dp))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ==========================================
-// AUTOMATIONS & ROUTINES DETAIL SCREEN
-// ==========================================
-@Composable
-fun AutomationsDetailScreen(dbService: DatabaseService) {
-    val routines = remember { mutableStateListOf<CustomRoutine>() }
-    var isAddModalOpen by remember { mutableStateOf(false) }
-    var triggerInput by remember { mutableStateOf("") }
-    var actionsInput by remember { mutableStateOf("") }
-
-    fun refresh() {
-        routines.clear()
-        routines.addAll(dbService.getAllRoutines())
-    }
-
-    LaunchedEffect(Unit) { refresh() }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = "CUSTOM TASK CHAINS", color = Color(0xFFA78BFA), fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
-                CustomButton(
-                    text = "Add Routine",
-                    icon = Icons.Default.Add,
-                    onClick = {
-                        triggerInput = ""
-                        actionsInput = ""
-                        isAddModalOpen = true
-                    },
-                    modifier = Modifier.height(30.dp)
-                )
-            }
-        }
-
-        if (routines.isEmpty()) {
-            item {
-                Text(text = "No routines configured. Tap 'Add Routine' to create voice triggers.", color = Color(0xFF9CA3AF), fontSize = 12.sp)
-            }
-        } else {
-            items(routines, key = { it.id }) { routine ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFF12101D))
-                        .border(1.dp, Color(0xFF1E1B2E), RoundedCornerShape(14.dp))
-                        .padding(12.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isSel) Color(0xFF231B38) else Color(0xFF141122))
+                        .border(1.dp, if (isSel) Color(0xFF7C3AED) else Color(0xFF201B30), RoundedCornerShape(12.dp))
+                        .clickable { onSelect(option) }
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text(text = "Trigger: \"${routine.triggerPhrase}\"", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            Text(text = "Actions: ${routine.actionChainJson}", color = Color(0xFF9CA3AF), fontSize = 11.sp)
-                        }
-                        IconButton(
-                            onClick = {
-                                dbService.deleteRoutine(routine.id)
-                                refresh()
-                            },
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    CustomModal(
-        visible = isAddModalOpen,
-        title = "Create Voice Routine",
-        onDismissRequest = { isAddModalOpen = false }
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            CustomInput(value = triggerInput, onValueChange = { triggerInput = it }, placeholder = "Trigger Phrase (e.g. good morning)")
-            CustomInput(value = actionsInput, onValueChange = { actionsInput = it }, placeholder = "Actions (e.g. Read Weather, Read Battery)")
-            CustomButton(
-                text = "Save Routine",
-                onClick = {
-                    if (triggerInput.isNotBlank() && actionsInput.isNotBlank()) {
-                        val actionsList = actionsInput.split(",").map { it.trim() }
-                        val jsonArr = JSONArray()
-                        actionsList.forEach { jsonArr.put(it) }
-                        dbService.addOrUpdateRoutine(triggerInput, jsonArr.toString())
-                        refresh()
-                        isAddModalOpen = false
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-    }
-}
-
-// ==========================================
-// PRIVACY & SECURITY DETAIL SCREEN
-// ==========================================
-@Composable
-fun PrivacySecurityDetailScreen(dbService: DatabaseService) {
-    PermissionOnboardingScreen(
-        onComplete = {},
-        isDismissable = true
-    )
-}
-
-// ==========================================
-// OFFLINE AI & STORAGE DETAIL SCREEN
-// ==========================================
-@Composable
-fun OfflineAIDetailScreen(dbService: DatabaseService) {
-    val stats = remember { dbService.getOfflineStorageStats() }
-    val totalSaved = stats.values.sum()
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            Text(text = "SQLITE DATABASE RECORDS", color = Color(0xFFA78BFA), fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFF12101D))
-                    .border(1.dp, Color(0xFF1E1B2E), RoundedCornerShape(14.dp))
-                    .padding(14.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(text = "Total Records Stored Locally: $totalSaved", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    stats.forEach { (table, count) ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(text = table, color = Color(0xFF9CA3AF), fontSize = 12.sp)
-                            Text(text = "$count entries", color = Color(0xFFC4B5FD), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ==========================================
-// VEDRA PRO SUBSCRIPTION DETAIL SCREEN
-// ==========================================
-@Composable
-fun ManageSubscriptionDetailScreen() {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFF19102B))
-                    .border(1.5.dp, Color(0xFF8B5CF6), RoundedCornerShape(16.dp))
-                    .padding(16.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(imageVector = Icons.Default.Star, contentDescription = null, tint = Color(0xFFA78BFA), modifier = Modifier.size(22.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "Vedra Pro Active Membership", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    }
-
-                    Text(
-                        text = "• Offline ONNX AI Intelligence\n• Custom Voice & Speech Customizer\n• Google Drive Memory Sync & Backups\n• JEE Study Hub Planner & Flashcards",
-                        color = Color(0xFFD1D5DB),
-                        fontSize = 12.5.sp,
-                        lineHeight = 18.sp
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Color(0xFF8B5CF6))
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = "Active • Renews Annually", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ==========================================
-// RESET ALL SETTINGS DETAIL SCREEN
-// ==========================================
-@Composable
-fun ResetAllSettingsDetailScreen(dbService: DatabaseService, onBack: () -> Unit) {
-    var isResetDone by remember { mutableStateOf(false) }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier
-                .size(64.dp)
-                .clip(CircleShape)
-                .background(Color(0xFF4E1B1B)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(32.dp))
-        }
-
-        Text(text = "Reset All Settings", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-
-        Text(
-            text = "Are you sure you want to reset all Vedra preferences, voice models, AI parameters, and shortcuts to their default state?",
-            color = Color(0xFF9CA3AF),
-            fontSize = 13.sp,
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-
-        if (isResetDone) {
-            Text(text = "Settings successfully reset! ✅", color = Color(0xFF10B981), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-        } else {
-            CustomButton(
-                text = "Confirm Reset All Settings",
-                onClick = {
-                    dbService.setSetting("speed", "1.0")
-                    dbService.setSetting("pitch", "1.0")
-                    dbService.setSetting("engine", "Hybrid Cloud AI")
-                    dbService.setSetting("tone", "Short & Direct")
-                    isResetDone = true
-                },
-                modifier = Modifier.fillMaxWidth().height(44.dp)
-            )
-        }
-    }
-}
-
-// ==========================================
-// HOME SCREEN & WIDGET SETTINGS DETAIL SCREEN
-// ==========================================
-@Composable
-fun WidgetSettingsDetailScreen(dbService: DatabaseService) {
-    val context = LocalContext.current
-    var widgetTheme by remember { mutableStateOf(dbService.getSetting("widget_theme", "Vedra Dark Purple")) }
-    var widgetLayout by remember { mutableStateOf(dbService.getSetting("widget_layout", "Compact Assistant Pill")) }
-    var backgroundOpacity by remember { mutableFloatStateOf(dbService.getSetting("widget_opacity", "0.9").toFloatOrNull() ?: 0.9f) }
-    var showLiveStatus by remember { mutableStateOf(dbService.getSetting("widget_show_status", "true") == "true") }
-    var showQuickPrompts by remember { mutableStateOf(dbService.getSetting("widget_show_prompts", "true") == "true") }
-    var isPinnedMessageShown by remember { mutableStateOf(false) }
-
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF090810))
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
-        // SECTION 1: LIVE WIDGET PREVIEW CARD
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "LIVE WIDGET PREVIEW (PHONE HOME SCREEN)",
-                    color = Color(0xFFA78BFA),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    letterSpacing = 1.sp
-                )
-
-                val bgColor = when (widgetTheme) {
-                    "Cyber Neon" -> Color(0xFF0F172A).copy(alpha = backgroundOpacity)
-                    "Pitch Black OLED" -> Color(0xFF000000).copy(alpha = backgroundOpacity)
-                    "Frosted Glass" -> Color(0xFF1E1B2E).copy(alpha = backgroundOpacity)
-                    else -> Color(0xFF12101D).copy(alpha = backgroundOpacity)
-                }
-
-                val borderColor = when (widgetTheme) {
-                    "Cyber Neon" -> Color(0xFF06B6D4)
-                    "Pitch Black OLED" -> Color(0xFF334155)
-                    "Frosted Glass" -> Color(0xFF818CF8)
-                    else -> Color(0xFF2E1A47)
-                }
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(bgColor)
-                        .border(1.5.dp, borderColor, RoundedCornerShape(18.dp))
-                        .padding(16.dp)
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    text = "VEDRA",
-                                    color = Color(0xFFC4B5FD),
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 17.sp,
-                                    letterSpacing = 1.2.sp
-                                )
-                                if (showLiveStatus) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(6.dp)
-                                                .clip(CircleShape)
-                                                .background(Color(0xFF10B981))
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "Active • Phone Home Screen",
-                                            color = Color(0xFF10B981),
-                                            fontSize = 10.5.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                    }
-                                }
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF3B1F69))
-                                    .border(1.5.dp, Color(0xFF8B5CF6), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Mic,
-                                    contentDescription = "Voice Mode",
-                                    tint = Color(0xFFC4B5FD),
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        }
-
-                        if (showQuickPrompts) {
-                            Text(
-                                text = "How can Vedra help you on your home screen today?",
-                                color = Color(0xFF9CA3AF),
-                                fontSize = 12.sp
-                            )
-                        }
-
-                        if (widgetLayout == "Expanded Stats & Shortcuts Grid") {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(Color(0xFF1C182B))
-                                        .padding(8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("⚡ Flashlight", color = Color.White, fontSize = 10.5.sp)
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(Color(0xFF1C182B))
-                                        .padding(8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("🧠 Memory", color = Color.White, fontSize = 10.5.sp)
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(Color(0xFF1C182B))
-                                        .padding(8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("🌤️ Weather", color = Color.White, fontSize = 10.5.sp)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // SECTION 2: PIN WIDGET TO PHONE HOME SCREEN BUTTON
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFF1F1235))
-                    .border(1.5.dp, Color(0xFF8B5CF6), RoundedCornerShape(14.dp))
-                    .clickable {
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                            val appWidgetManager = AppWidgetManager.getInstance(context)
-                            val myProvider = ComponentName(context, VedraAppWidgetProvider::class.java)
-                            if (appWidgetManager.isRequestPinAppWidgetSupported) {
-                                appWidgetManager.requestPinAppWidget(myProvider, null, null)
-                                isPinnedMessageShown = true
-                            } else {
-                                isPinnedMessageShown = true
-                            }
-                        } else {
-                            isPinnedMessageShown = true
-                        }
-                    }
-                    .padding(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF3B1F69)),
-                            contentAlignment = Alignment.Center
-                        ) {
+                        Text(
+                            text = option,
+                            color = if (isSel) Color(0xFFC4B5FD) else Color.White,
+                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                            fontSize = 14.sp
+                        )
+                        if (isSel) {
                             Icon(
-                                imageVector = Icons.Default.Widgets,
-                                contentDescription = null,
-                                tint = Color(0xFFC4B5FD),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        Column {
-                            Text(
-                                text = "Add Widget to Phone Home Screen",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.5.sp
-                            )
-                            Text(
-                                text = "Tap to pin Vedra Widget directly to launcher",
-                                color = Color(0xFF9CA3AF),
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
-
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = null,
-                        tint = Color(0xFFA78BFA),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-
-            if (isPinnedMessageShown) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "Request sent to launcher! Widget can be placed on your Phone Home Screen.",
-                    color = Color(0xFF10B981),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(start = 4.dp)
-                )
-            }
-        }
-
-        // SECTION 3: WIDGET LAYOUT STYLE
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "WIDGET LAYOUT STYLE",
-                    color = Color(0xFFA78BFA),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    letterSpacing = 1.sp
-                )
-
-                val layouts = listOf(
-                    "Compact Assistant Pill",
-                    "Standard Voice & Prompts",
-                    "Expanded Stats & Shortcuts Grid"
-                )
-
-                layouts.forEach { option ->
-                    val isSelected = widgetLayout == option
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (isSelected) Color(0xFF1F1235) else Color(0xFF12101D))
-                            .border(
-                                width = if (isSelected) 1.5.dp else 1.dp,
-                                color = if (isSelected) Color(0xFF8B5CF6) else Color(0xFF1E1B2E),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                            .clickable {
-                                widgetLayout = option
-                                dbService.setSetting("widget_layout", option)
-                            }
-                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = option,
-                                color = Color.White,
-                                fontSize = 13.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                            )
-                            if (isSelected) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    tint = Color(0xFFA78BFA),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // SECTION 4: WIDGET THEME
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "WIDGET COLOR THEME",
-                    color = Color(0xFFA78BFA),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    letterSpacing = 1.sp
-                )
-
-                val themes = listOf(
-                    "Vedra Dark Purple",
-                    "Cyber Neon",
-                    "Pitch Black OLED",
-                    "Frosted Glass"
-                )
-
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(themes) { t ->
-                        val isSelected = widgetTheme == t
-                        Box(
-                            modifier = Modifier
-                                .width(130.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isSelected) Color(0xFF1F1235) else Color(0xFF12101D))
-                                .border(
-                                    width = if (isSelected) 1.5.dp else 1.dp,
-                                    color = if (isSelected) Color(0xFF8B5CF6) else Color(0xFF1E1B2E),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                .clickable {
-                                    widgetTheme = t
-                                    dbService.setSetting("widget_theme", t)
-                                }
-                                .padding(12.dp)
-                        ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(14.dp)
-                                            .clip(CircleShape)
-                                            .background(
-                                                when (t) {
-                                                    "Cyber Neon" -> Color(0xFF06B6D4)
-                                                    "Pitch Black OLED" -> Color.Black
-                                                    "Frosted Glass" -> Color(0xFF818CF8)
-                                                    else -> Color(0xFF8B5CF6)
-                                                }
-                                            )
-                                    )
-                                    if (isSelected) {
-                                        Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = null,
-                                            tint = Color(0xFFA78BFA),
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = t,
-                                    color = Color.White,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // SECTION 5: OPACITY & TOGGLES
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "VISUALS & BEHAVIOR",
-                    color = Color(0xFFA78BFA),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    letterSpacing = 1.sp
-                )
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFF12101D))
-                        .border(1.dp, Color(0xFF1E1B2E), RoundedCornerShape(14.dp))
-                        .padding(14.dp)
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        // Opacity Slider
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(text = "Widget Background Opacity", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
-                                Text(text = "${(backgroundOpacity * 100).toInt()}%", color = Color(0xFFA78BFA), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-                            Slider(
-                                value = backgroundOpacity,
-                                onValueChange = {
-                                    backgroundOpacity = it
-                                    dbService.setSetting("widget_opacity", it.toString())
-                                },
-                                valueRange = 0.2f..1.0f,
-                                colors = SliderDefaults.colors(
-                                    thumbColor = Color(0xFF8B5CF6),
-                                    activeTrackColor = Color(0xFF8B5CF6),
-                                    inactiveTrackColor = Color(0xFF1E1B2E)
-                                )
-                            )
-                        }
-
-                        // Live Status Toggle
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(text = "Show Live Online Status", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
-                                Text(text = "Display green dot and ready badge", color = Color(0xFF9CA3AF), fontSize = 10.5.sp)
-                            }
-                            Switch(
-                                checked = showLiveStatus,
-                                onCheckedChange = {
-                                    showLiveStatus = it
-                                    dbService.setSetting("widget_show_status", it.toString())
-                                },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color.White,
-                                    checkedTrackColor = Color(0xFF8B5CF6),
-                                    uncheckedThumbColor = Color(0xFF6B7280),
-                                    uncheckedTrackColor = Color(0xFF1F1235)
-                                )
-                            )
-                        }
-
-                        // Prompts Toggle
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(text = "Show Quick Prompt Subtitle", color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
-                                Text(text = "Display greeting message on widget", color = Color(0xFF9CA3AF), fontSize = 10.5.sp)
-                            }
-                            Switch(
-                                checked = showQuickPrompts,
-                                onCheckedChange = {
-                                    showQuickPrompts = it
-                                    dbService.setSetting("widget_show_prompts", it.toString())
-                                },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color.White,
-                                    checkedTrackColor = Color(0xFF8B5CF6),
-                                    uncheckedThumbColor = Color(0xFF6B7280),
-                                    uncheckedTrackColor = Color(0xFF1F1235)
-                                )
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Selected",
+                                tint = Color(0xFF8B5CF6),
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }

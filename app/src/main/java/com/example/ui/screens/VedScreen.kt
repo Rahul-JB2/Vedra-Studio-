@@ -170,19 +170,15 @@ fun VedScreen(
 
                 if (directAction != null && directAction.isHandled) {
                     directAction.responseMessage
-                } else if (!isOnline) {
-                    // Network unavailable -> Query local SQLite cache or local search
-                    val cached = dbService.searchCachedResponse(clean) ?: dbService.searchOfflineContent(clean)
-                    cached ?: "Offline Mode: I couldn't find '$clean' in local memory or cached responses. Reconnect to internet for full Gemini AI features."
                 } else {
-                    // Inject user profile memory & aliases context into Gemini
+                    // Inject user profile memory & aliases context into AI engine
                     val contextSummary = dbService.getUserContextSummary()
-                    val geminiReply = GeminiService.generateResponse(clean, contextSummary)
+                    val aiReply = GeminiService.generateResponse(clean, contextSummary, dbService, context)
                     // Cache response for offline use if not in Incognito Mode
                     if (!isIncognitoMode) {
-                        dbService.saveCachedResponse(clean, geminiReply)
+                        dbService.saveCachedResponse(clean, aiReply)
                     }
-                    geminiReply
+                    aiReply
                 }
             }
 

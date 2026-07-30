@@ -1,5 +1,9 @@
 package com.example.ui.screens
 
+import com.example.R
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -153,13 +157,23 @@ fun HomeScreen(
                     )
                 }
 
-                Text(
-                    text = "VEDRA",
-                    color = Color(0xFFC4B5FD),
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 22.sp,
-                    letterSpacing = 1.5.sp
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Image(
+                        painter = painterResource(id = R.drawable.app_logo),
+                        contentDescription = "VEDRA Logo",
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clip(RoundedCornerShape(7.dp))
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "VEDRA",
+                        color = Color(0xFFC4B5FD),
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 22.sp,
+                        letterSpacing = 1.5.sp
+                    )
+                }
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

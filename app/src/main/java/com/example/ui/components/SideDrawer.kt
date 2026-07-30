@@ -1,11 +1,13 @@
 package com.example.ui.components
 
+import com.example.R
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,6 +27,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AltRoute
 import androidx.compose.material.icons.filled.ChatBubbleOutline
@@ -123,25 +126,14 @@ fun SideDrawer(
                             .fillMaxWidth()
                             .padding(top = 20.dp, bottom = 18.dp, start = 4.dp)
                     ) {
-                        // Glowing stylized V logo badge
-                        Box(
+                        // Glowing VEDRA logo PNG
+                        Image(
+                            painter = painterResource(id = R.drawable.app_logo),
+                            contentDescription = "VEDRA Logo",
                             modifier = Modifier
                                 .size(38.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(
-                                    Brush.linearGradient(
-                                        listOf(Color(0xFF8B5CF6), Color(0xFF6366F1), Color(0xFF3B82F6))
-                                    )
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "V",
-                                color = Color.White,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 20.sp
-                            )
-                        }
+                                .clip(RoundedCornerShape(10.dp))
+                        )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             text = "VEDRA AI",

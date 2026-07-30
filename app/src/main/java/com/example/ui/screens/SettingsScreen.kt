@@ -2140,6 +2140,112 @@ fun DriveBackupDetailScreen(dbService: DatabaseService) {
     var isOperating by remember { mutableStateOf(false) }
     var operationStatus by remember { mutableStateOf("") }
 
+    var showAccountPickerModal by remember { mutableStateOf(false) }
+    var customAccountInput by remember { mutableStateOf("") }
+    val phoneAccounts = remember { GoogleDriveService.getAvailablePhoneAccounts(context) }
+
+    if (showAccountPickerModal) {
+    CustomModal(
+        visible = showAccountPickerModal,
+        title = "Choose Google Account",
+        subtitle = "Select a Google account on your phone or enter your email address to connect VEDrive.",
+        onDismissRequest = { showAccountPickerModal = false }
+    ) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                if (phoneAccounts.isNotEmpty()) {
+                    Text(
+                        text = "📱 Accounts Found on Phone:",
+                        color = Color(0xFFA78BFA),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                    phoneAccounts.forEach { accEmail ->
+                        Surface(
+                            color = Color(0xFF1E1A34),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, Color(0xFF3B3260)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    GoogleDriveService.connectAccount(dbService, accEmail)
+                                    isConnected = true
+                                    connectedEmail = accEmail
+                                    showAccountPickerModal = false
+                                    Toast.makeText(context, "Connected to Google Drive ($accEmail)", Toast.LENGTH_SHORT).show()
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AccountCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF60A5FA),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = accEmail, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text(text = "Google Account", color = Color.Gray, fontSize = 10.sp)
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = "Select",
+                                    tint = Color(0xFF10B981),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                    HorizontalDivider(color = Color(0xFF2A2644))
+                }
+
+                Text(
+                    text = "✉️ Enter Google Email Address:",
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 12.sp
+                )
+                OutlinedTextField(
+                    value = customAccountInput,
+                    onValueChange = { customAccountInput = it },
+                    placeholder = { Text("e.g. user@gmail.com", color = Color.Gray, fontSize = 12.sp) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = Color(0xFF8B5CF6),
+                        unfocusedBorderColor = Color(0xFF3B3260),
+                        focusedContainerColor = Color(0xFF121020),
+                        unfocusedContainerColor = Color(0xFF121020)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Button(
+                    onClick = {
+                        val input = customAccountInput.trim()
+                        if (input.isNotBlank()) {
+                            GoogleDriveService.connectAccount(dbService, input)
+                            isConnected = true
+                            connectedEmail = input
+                            showAccountPickerModal = false
+                            Toast.makeText(context, "Connected to Google Drive ($input)", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Please enter a valid Google email", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4)),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth().height(44.dp)
+                ) {
+                    Text("Connect Account", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(Color(0xFF07060F)).padding(horizontal = 16.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
@@ -2174,7 +2280,7 @@ fun DriveBackupDetailScreen(dbService: DatabaseService) {
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = "Google Drive VEDrive", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            Text(text = if (isConnected) "Connected: $connectedEmail" else "Not connected to Google Drive", color = if (isConnected) Color(0xFF10B981) else Color(0xFF9CA3AF), fontSize = 11.sp)
+                            Text(text = if (isConnected) "Connected: $connectedEmail" else "Not connected (Choose account)", color = if (isConnected) Color(0xFF10B981) else Color(0xFF9CA3AF), fontSize = 11.sp)
                         }
                         Surface(
                             color = if (isConnected) Color(0xFF272042) else Color(0xFF4285F4),
@@ -2183,12 +2289,11 @@ fun DriveBackupDetailScreen(dbService: DatabaseService) {
                                 if (isConnected) {
                                     GoogleDriveService.disconnectAccount(dbService)
                                     isConnected = false
+                                    connectedEmail = ""
                                     Toast.makeText(context, "Disconnected Google Drive", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    GoogleDriveService.connectAccount(dbService, "rk70502025@gmail.com")
-                                    isConnected = true
-                                    connectedEmail = "rk70502025@gmail.com"
-                                    Toast.makeText(context, "Connected to Google Drive ($connectedEmail)", Toast.LENGTH_SHORT).show()
+                                    customAccountInput = ""
+                                    showAccountPickerModal = true
                                 }
                             }
                         ) {
@@ -2239,6 +2344,14 @@ fun DriveBackupDetailScreen(dbService: DatabaseService) {
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(text = "VEDrive", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                 Text(text = "  (Main Root Folder)", color = Color.Gray, fontSize = 10.sp)
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 16.dp)) {
+                                Icon(imageVector = Icons.Default.CloudQueue, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = "VEDrive/", color = Color(0xFF34D399), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(text = "→ Uploaded files & folders in VEDrive Tab", color = Color.Gray, fontSize = 10.sp)
                             }
 
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 16.dp)) {

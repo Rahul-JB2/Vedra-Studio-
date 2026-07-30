@@ -1,5 +1,9 @@
 package com.example.ui.components
 
+import com.example.R
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -150,11 +154,10 @@ fun FloatingAssistantWidget(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.SmartToy,
+                Image(
+                    painter = painterResource(id = R.drawable.app_logo),
                     contentDescription = "VEDRA Floating Orb",
-                    tint = glowColor,
-                    modifier = Modifier.size(orbSize * 0.5f)
+                    modifier = Modifier.size(orbSize * 0.7f).clip(CircleShape)
                 )
             }
         } else {
@@ -180,6 +183,12 @@ fun FloatingAssistantWidget(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.app_logo),
+                                    contentDescription = "VEDRA Logo",
+                                    modifier = Modifier.size(20.dp).clip(RoundedCornerShape(5.dp))
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = "VEDRA",
                                     color = VedraPurplePrimary,

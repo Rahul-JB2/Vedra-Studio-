@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import com.example.R
+import androidx.compose.ui.res.painterResource
+
 import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -433,20 +436,13 @@ fun DatabaseScreen(
 
                             // VEDRA AI Brand Logo
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
+                                Image(
+                                    painter = painterResource(id = R.drawable.app_logo),
+                                    contentDescription = "VEDRA Logo",
                                     modifier = Modifier
-                                        .size(20.dp)
+                                        .size(24.dp)
                                         .clip(RoundedCornerShape(6.dp))
-                                        .background(Color(0xFF8B5CF6)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "V",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp
-                                    )
-                                }
+                                )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "VEDrive",

@@ -14,11 +14,13 @@ import java.util.Locale
 object GoogleDriveService {
 
     const val DRIVE_FOLDER_NAME = "VEDrive"
+    const val FOLDER_VEDRIVE_TAB = "VEDrive"
     const val FOLDER_CHAT = "VEChat"
     const val FOLDER_SECRET = "VEDSecret"
     const val FOLDER_TRAIN = "VETrain"
     const val FOLDER_EXTRA = "VEDx"
 
+    const val VEDRIVE_TAB_FILE_NAME = "vedra_uploaded_drive_files.json"
     const val CHAT_FILE_NAME = "vedra_chat_history_online_offline.json"
     const val SECRET_FILE_NAME = "vedra_encrypted_api_keys.json"
     const val TRAIN_FILE_NAME = "vedra_training_habits_data.json"
@@ -27,12 +29,25 @@ object GoogleDriveService {
     private const val CIPHER_KEY = "VEDRA_DRIVE_SECRET_2026"
 
     fun isConnected(dbService: DatabaseService): Boolean {
-        return dbService.getSetting("google_connected", "false") == "true"
+        return dbService.getSetting("google_connected", "false") == "true" && getConnectedEmail(dbService).isNotBlank()
     }
 
     fun getConnectedEmail(dbService: DatabaseService): String {
-        val saved = dbService.getSetting("google_email", "")
-        return if (saved.isNotBlank()) saved else "rk70502025@gmail.com"
+        return dbService.getSetting("google_email", "")
+    }
+
+    fun getAvailablePhoneAccounts(context: Context): List<String> {
+        val accounts = mutableListOf<String>()
+        try {
+            val am = android.accounts.AccountManager.get(context)
+            val googleAccounts = am.getAccountsByType("com.google")
+            for (acc in googleAccounts) {
+                if (!acc.name.isNullOrBlank()) {
+                    accounts.add(acc.name)
+                }
+            }
+        } catch (_: Exception) {}
+        return accounts.distinct()
     }
 
     fun getLastSyncTime(dbService: DatabaseService): String {
@@ -42,8 +57,9 @@ object GoogleDriveService {
         return sdf.format(Date(lastMs))
     }
 
-    fun connectAccount(dbService: DatabaseService, email: String = "rk70502025@gmail.com") {
-        dbService.setSetting("google_email", email)
+    fun connectAccount(dbService: DatabaseService, email: String) {
+        if (email.isBlank()) return
+        dbService.setSetting("google_email", email.trim())
         dbService.setSetting("google_connected", "true")
         dbService.setSetting("google_access_token", "drive_oauth_token_${System.currentTimeMillis()}")
     }
@@ -184,8 +200,39 @@ object GoogleDriveService {
 
             val email = getConnectedEmail(dbService)
 
-            // A) VEDrive Root Folder
-            val rootDir = getVedDriveRootDir(context)
+            // A) VEDrive Folder for VEDrive Tab Uploaded Files
+            val vedriveTabFolder = getSubFolder(context, FOLDER_VEDRIVE_TAB)
+            val vedriveTabFile = File(vedriveTabFolder, VEDRIVE_TAB_FILE_NAME)
+            val driveDocs = dbService.getAllDriveDocuments()
+            val driveFolders = dbService.getAllDriveFolders()
+            val vedriveTabObj = JSONObject().apply {
+                val docsArr = JSONArray()
+                driveDocs.forEach { doc ->
+                    docsArr.put(JSONObject().apply {
+                        put("id", doc.id)
+                        put("folderId", doc.folderId)
+                        put("title", doc.title)
+                        put("content", doc.content)
+                        put("fileType", doc.fileType)
+                        put("fileSize", doc.fileSize)
+                        put("createdAt", doc.createdAt)
+                    })
+                }
+                val foldersArr = JSONArray()
+                driveFolders.forEach { f ->
+                    foldersArr.put(JSONObject().apply {
+                        put("id", f.id)
+                        put("parentId", f.parentId)
+                        put("name", f.name)
+                        put("colorHex", f.colorHex)
+                        put("createdAt", f.createdAt)
+                    })
+                }
+                put("documents", docsArr)
+                put("folders", foldersArr)
+                put("timestamp", System.currentTimeMillis())
+            }
+            vedriveTabFile.writeText(vedriveTabObj.toString(2))
 
             // B) VEChat: Export Online & Offline Chat History
             val (chatFile, chatCount) = exportChatHistoryToJson(context, dbService)
@@ -227,6 +274,7 @@ object GoogleDriveService {
                 if (downloadsDir != null && downloadsDir.exists()) {
                     val pubVedDrive = File(downloadsDir, DRIVE_FOLDER_NAME)
                     pubVedDrive.mkdirs()
+                    File(pubVedDrive, "$FOLDER_VEDRIVE_TAB/$VEDRIVE_TAB_FILE_NAME").apply { parentFile?.mkdirs(); writeText(vedriveTabFile.readText()) }
                     File(pubVedDrive, "$FOLDER_CHAT/$CHAT_FILE_NAME").apply { parentFile?.mkdirs(); writeText(chatFile.readText()) }
                     File(pubVedDrive, "$FOLDER_SECRET/$SECRET_FILE_NAME").apply { parentFile?.mkdirs(); writeText(secretFile.readText()) }
                     File(pubVedDrive, "$FOLDER_TRAIN/$TRAIN_FILE_NAME").apply { parentFile?.mkdirs(); writeText(trainFile.readText()) }
@@ -237,7 +285,7 @@ object GoogleDriveService {
             val nowMs = System.currentTimeMillis()
             dbService.setSetting("last_drive_sync", nowMs.toString())
 
-            return@withContext "✅ VEDrive Sync Complete!\nStored $chatCount chats, encrypted credentials, training patterns, and extra files across VEDrive folders ($FOLDER_CHAT, $FOLDER_SECRET, $FOLDER_TRAIN, $FOLDER_EXTRA) for $email."
+            return@withContext "✅ VEDrive Sync Complete!\nStored VEDrive tab files, $chatCount chats, encrypted credentials, training patterns, and extra files across 5 VEDrive folders ($FOLDER_VEDRIVE_TAB, $FOLDER_CHAT, $FOLDER_SECRET, $FOLDER_TRAIN, $FOLDER_EXTRA) for $email."
         } catch (e: Exception) {
             return@withContext "❌ VEDrive Sync failed: ${e.message}"
         }
@@ -248,7 +296,44 @@ object GoogleDriveService {
         try {
             var summary = ""
 
-            // 1. Restore Chat History
+            // 1. Restore VEDrive Tab Uploaded Files & Folders
+            val vedriveFolder = getSubFolder(context, FOLDER_VEDRIVE_TAB)
+            val vedriveFile = File(vedriveFolder, VEDRIVE_TAB_FILE_NAME)
+            if (vedriveFile.exists()) {
+                try {
+                    val json = JSONObject(vedriveFile.readText())
+                    val docsArr = json.optJSONArray("documents")
+                    val foldersArr = json.optJSONArray("folders")
+                    var docCount = 0
+                    if (docsArr != null) {
+                        for (i in 0 until docsArr.length()) {
+                            val obj = docsArr.getJSONObject(i)
+                            val title = obj.optString("title", "")
+                            val content = obj.optString("content", "")
+                            val type = obj.optString("fileType", "TXT")
+                            val folderId = obj.optLong("folderId", 0L)
+                            if (title.isNotBlank()) {
+                                dbService.createDriveDocument(folderId = folderId, title = title, content = content, fileType = type)
+                                docCount++
+                            }
+                        }
+                    }
+                    if (foldersArr != null) {
+                        for (i in 0 until foldersArr.length()) {
+                            val obj = foldersArr.getJSONObject(i)
+                            val name = obj.optString("name", "")
+                            val colorHex = obj.optString("colorHex", "#8B5CF6")
+                            val parentId = obj.optLong("parentId", 0L)
+                            if (name.isNotBlank()) {
+                                dbService.createDriveFolder(name = name, colorHex = colorHex, parentId = parentId)
+                            }
+                        }
+                    }
+                    summary += "✅ Restored $docCount VEDrive Tab Uploaded Files from $FOLDER_VEDRIVE_TAB.\n"
+                } catch (_: Exception) {}
+            }
+
+            // 2. Restore Chat History
             val chatResult = importChatHistoryFromJson(context, dbService)
             summary += "$chatResult\n"
 

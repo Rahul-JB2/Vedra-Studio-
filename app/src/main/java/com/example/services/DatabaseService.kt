@@ -106,7 +106,7 @@ data class DriveDocument(
 class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     val roomDb by lazy { com.example.data.room.AppRoomDatabase.getDatabase(context) }
-    val aiContextRepository by lazy { com.example.data.room.AiContextRepository(roomDb.conversationContextDao(), roomDb.userInteractionPatternDao(), roomDb.customTextCommandDao(), roomDb.vedraUserSettingDao()) }
+    val aiContextRepository by lazy { com.example.data.room.AiContextRepository(roomDb.conversationContextDao(), roomDb.userInteractionPatternDao(), roomDb.customTextCommandDao(), roomDb.vedraUserSettingDao(), roomDb.voiceCommandMappingDao()) }
 
     companion object {
         private const val DATABASE_NAME = "vedra_memory.db"

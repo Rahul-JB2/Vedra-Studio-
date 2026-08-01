@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -92,4 +93,32 @@ interface VedraUserSettingDao {
 
     @Query("DELETE FROM vedra_user_settings")
     suspend fun clearAllSettings()
+}
+
+@Dao
+interface VoiceCommandMappingDao {
+
+    @Query("SELECT * FROM voice_command_mappings ORDER BY priority DESC, createdTimestamp DESC")
+    fun getAllVoiceCommandsFlow(): Flow<List<VoiceCommandMappingEntity>>
+
+    @Query("SELECT * FROM voice_command_mappings WHERE isEnabled = 1 ORDER BY priority DESC")
+    suspend fun getAllActiveVoiceCommands(): List<VoiceCommandMappingEntity>
+
+    @Query("SELECT * FROM voice_command_mappings WHERE LOWER(voiceTriggerPhrase) = LOWER(:phrase) AND isEnabled = 1 LIMIT 1")
+    suspend fun findMatchingVoiceCommand(phrase: String): VoiceCommandMappingEntity?
+
+    @Query("SELECT * FROM voice_command_mappings WHERE LOWER(voiceTriggerPhrase) LIKE '%' || LOWER(:query) || '%' OR LOWER(targetPackageOrAction) LIKE '%' || LOWER(:query) || '%' ORDER BY createdTimestamp DESC")
+    suspend fun searchVoiceCommands(query: String): List<VoiceCommandMappingEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertVoiceCommand(command: VoiceCommandMappingEntity): Long
+
+    @Update
+    suspend fun updateVoiceCommand(command: VoiceCommandMappingEntity)
+
+    @Query("DELETE FROM voice_command_mappings WHERE id = :id")
+    suspend fun deleteVoiceCommand(id: Long)
+
+    @Query("DELETE FROM voice_command_mappings")
+    suspend fun clearAllVoiceCommands()
 }

@@ -49,11 +49,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import com.example.ui.theme.LocalGlassmorphismTint
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -61,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.example.services.AppLauncher
+import com.example.services.AppPackageManagerHelper
 import com.example.services.BatteryStatus
 import com.example.services.DatabaseService
 import com.example.services.StorageDetails
@@ -246,7 +249,7 @@ fun HomeScreen(
                         }
 
                         IconButton(
-                            onClick = { onNavigateTab(3) }, // Settings tab
+                            onClick = { onNavigateTab(5) }, // Settings tab (index 5)
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
@@ -280,8 +283,9 @@ fun HomeScreen(
                 }
             }
 
-            // 2. Header Greeting: Good Afternoon, Rahul 👋 | VED Orb •••••
+            // 2. Header Greeting: Good Afternoon, Rahul 👋 | Ambient Light Glass Tint Badge | VED Orb •••••
             item {
+                val glassTint = LocalGlassmorphismTint.current
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -294,6 +298,40 @@ fun HomeScreen(
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold
                     )
+                    
+                    // Ambient Light Glassmorphism Sensor Chip
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .padding(top = 6.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0x188B5CF6))
+                            .border(1.dp, Color(0x35A78BFA), RoundedCornerShape(12.dp))
+                            .clickable {
+                                Toast.makeText(
+                                    context,
+                                    "Ambient Light Sensor Active: ${glassTint.ambientLux.toInt()} Lux | System Brightness: ${glassTint.systemBrightness}/255 | Tint Factor: ${String.format("%.2f", glassTint.tintIntensity)}x",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (glassTint.ambientLux < 50f) Icons.Default.NightsStay else Icons.Default.WbSunny,
+                            contentDescription = "Ambient Light Sensor",
+                            tint = if (glassTint.ambientLux < 50f) Color(0xFFC4B5FD) else Color(0xFFFBBF24),
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Ambient Glass Tint: ${glassTint.ambientLux.toInt()} Lux (${String.format("%.2f", glassTint.tintIntensity)}x)",
+                            color = Color(0xFFE2E8F0),
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(14.dp))
                     GlassyCard {
                         Row(
@@ -385,10 +423,10 @@ fun HomeScreen(
                                 onLongClick = { togglePinAction(action.id) },
                                 onClick = {
                                     when (action.id) {
-                                        "Study" -> onNavigateTab(1)
-                                        "VEDrive" -> onNavigateTab(2)
-                                        "Voice" -> onActivateVoice()
-                                        "More" -> onNavigateTab(4)
+                                        "Study", "VEHub" -> onNavigateTab(1) // VEHub
+                                        "Voice", "Ved" -> onNavigateTab(2) // Ved AI tab
+                                        "VEDrive" -> onNavigateTab(3) // VEDrive
+                                        "More", "VETools" -> onNavigateTab(4) // VETools
                                         else -> onExecuteQuickAction(action.id.lowercase())
                                     }
                                 }
@@ -449,7 +487,7 @@ fun HomeScreen(
                                 } else if (cmd.third == "scan") {
                                     onExecuteQuickAction("scan qr code")
                                 } else {
-                                    val launched = AppLauncher.tryLaunchPackage(context, cmd.third)
+                                    val launched = AppPackageManagerHelper.launchApp(context, cmd.third, cmd.first) || AppLauncher.tryLaunchPackage(context, cmd.third)
                                     if (!launched) {
                                         val res = UtilityService.parseAndExecuteLocalCommand(context, dbService, "open ${cmd.first.lowercase()}")
                                         Toast.makeText(context, res.responseMessage, Toast.LENGTH_SHORT).show()
@@ -527,53 +565,93 @@ fun HomeScreen(
                 }
             }
 
-            // 7. Suggested (Dynamic AI Suggestions generated by VED)
+            // 7. Suggested (Matching Image 1)
             item {
                 Column(modifier = Modifier.fillMaxWidth().padding(top = 24.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(start = 4.dp, bottom = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xFF070A18))
+                            .border(1.dp, Color(0xFF1E233E), RoundedCornerShape(20.dp))
+                            .padding(16.dp)
                     ) {
-                        Text(
-                            text = "Suggested",
-                            color = Color(0xFFA78BFA),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0x308B5CF6))
-                                .clickable { currentSuggestionsOffset += 2 }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Refresh",
-                                tint = Color(0xFFC4B5FD),
-                                modifier = Modifier.size(12.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "VED AI Refresh",
-                                color = Color(0xFFC4B5FD),
-                                fontSize = 10.5.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                    GlassyCard {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            activeSuggestions.forEach { suggestion ->
-                                SuggestedGlassItem(suggestion) {
-                                    onExecuteQuickAction(suggestion)
+                        Column {
+                            // Top Header
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = "Suggested",
+                                        tint = Color(0xFF818CF8),
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = "Suggested",
+                                        color = Color.White,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { currentSuggestionsOffset += 2 }
+                                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = "Refresh",
+                                        tint = Color(0xFF818CF8),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Refresh",
+                                        color = Color(0xFF818CF8),
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+
+                            // Items Row
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                item {
+                                    SuggestedPillCard(
+                                        text = "Summarize today's notes",
+                                        dotColor = Color(0xFF10B981)
+                                    ) { onExecuteQuickAction("Summarize today's notes") }
+                                }
+                                item {
+                                    SuggestedPillCard(
+                                        text = "Explain a concept",
+                                        dotColor = Color(0xFFA855F7)
+                                    ) { onExecuteQuickAction("Explain a concept") }
+                                }
+                                item {
+                                    SuggestedPillCard(
+                                        text = "Practice JEE questions",
+                                        dotColor = Color(0xFFF59E0B)
+                                    ) { onExecuteQuickAction("Practice JEE questions") }
+                                }
+                                item {
+                                    SuggestedPillCard(
+                                        text = "Scan & Solve Physics",
+                                        dotColor = Color(0xFF3B82F6)
+                                    ) { onExecuteQuickAction("Scan & Solve Physics") }
                                 }
                             }
                         }
@@ -581,66 +659,84 @@ fun HomeScreen(
                 }
             }
 
-            // 8. Quick Status
+            // 8. Quick Status (Matching Image 2)
             item {
                 Column(modifier = Modifier.fillMaxWidth().padding(top = 24.dp)) {
                     Text(
                         text = "Quick Status",
-                        color = Color(0xFFA78BFA),
-                        fontSize = 15.sp,
+                        color = Color.White,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
+                        modifier = Modifier.padding(start = 4.dp, bottom = 14.dp)
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(horizontal = 2.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        StatusGlassCard(
-                            title = "Battery",
-                            value = "${battery.percentage}%",
-                            subtitle = battery.statusText,
-                            icon = Icons.Default.BatteryChargingFull,
-                            color = if (battery.percentage > 20) Color(0xFF10B981) else Color(0xFFEF4444),
-                            modifier = Modifier.weight(1f),
-                            onClick = { refreshDashboardData(); Toast.makeText(context, "Battery: ${battery.percentage}% (${battery.statusText})", Toast.LENGTH_SHORT).show() }
-                        )
-                        StatusGlassCard(
-                            title = "Storage",
-                            value = "${storage.freeSpaceGB} GB",
-                            subtitle = "Free of ${storage.totalSpaceGB} GB",
-                            icon = Icons.Default.Storage,
-                            color = Color(0xFF3B82F6),
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                val msg = StorageWeatherService.clearAppCache(context)
-                                refreshDashboardData()
-                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                            }
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        StatusGlassCard(
-                            title = "Memory",
-                            value = "1.4 GB",
-                            subtitle = "Free RAM",
-                            icon = Icons.Default.Memory,
-                            color = Color(0xFFF59E0B),
-                            modifier = Modifier.weight(1f),
-                            onClick = { Toast.makeText(context, "Memory Optimized! 1.4 GB Free RAM", Toast.LENGTH_SHORT).show() }
-                        )
-                        StatusGlassCard(
-                            title = "Network",
-                            value = if (isOnline) "Online" else "Offline",
-                            subtitle = if (isOnline) "High Speed" else "Disconnected",
-                            icon = Icons.Default.Wifi,
-                            color = if (isOnline) Color(0xFF10B981) else Color(0xFFEF4444),
-                            modifier = Modifier.weight(1f),
-                            onClick = { Toast.makeText(context, if (isOnline) "Connected to High Speed Internet 📶" else "Offline Mode Active 📵", Toast.LENGTH_SHORT).show() }
-                        )
+                        // Card 1: Battery
+                        item {
+                            QuickStatusExactCard(
+                                title = "Battery",
+                                value = "${battery.percentage}%",
+                                statusText = battery.statusText,
+                                statusColor = if (battery.percentage > 20) Color(0xFF10B981) else Color(0xFFEF4444),
+                                icon = Icons.Default.BatteryChargingFull,
+                                iconColor = Color(0xFF10B981),
+                                onClick = {
+                                    refreshDashboardData()
+                                    Toast.makeText(context, "Battery: ${battery.percentage}% (${battery.statusText})", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+
+                        // Card 2: Storage
+                        item {
+                            QuickStatusExactCard(
+                                title = "Storage",
+                                value = "64%",
+                                statusText = "${storage.freeSpaceGB} GB free",
+                                statusColor = Color(0xFF60A5FA),
+                                icon = Icons.Default.Dns,
+                                iconColor = Color(0xFF3B82F6),
+                                onClick = {
+                                    val msg = StorageWeatherService.clearAppCache(context)
+                                    refreshDashboardData()
+                                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+
+                        // Card 3: Memory
+                        item {
+                            QuickStatusExactCard(
+                                title = "Memory",
+                                value = "3.2 GB",
+                                statusText = "Free",
+                                statusColor = Color(0xFFC084FC),
+                                icon = Icons.Default.Memory,
+                                iconColor = Color(0xFFA855F7),
+                                onClick = {
+                                    Toast.makeText(context, "Memory Cleaned! 3.2 GB Free RAM", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+
+                        // Card 4: Network
+                        item {
+                            QuickStatusExactCard(
+                                title = "Network",
+                                value = if (isOnline) "Airtel 5G" else "Offline",
+                                statusText = if (isOnline) "Connected" else "Disconnected",
+                                statusColor = if (isOnline) Color(0xFF10B981) else Color(0xFFEF4444),
+                                icon = Icons.Default.Wifi,
+                                iconColor = Color(0xFF14B8A6),
+                                onClick = {
+                                    Toast.makeText(context, if (isOnline) "Connected to Airtel 5G 📶" else "Offline Mode Active 📵", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -837,14 +933,26 @@ fun HomeScreen(
 
 @Composable
 fun GlassyCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val glassTint = LocalGlassmorphismTint.current
+    val accent = glassTint.accentColor
+    val bgAlpha = glassTint.bgAlpha
+    val borderAlpha = glassTint.borderAlpha
+    val intensity = glassTint.tintIntensity
+
+    val topBgColor = Color.White.copy(alpha = (bgAlpha * 1.1f).coerceIn(0.06f, 0.40f))
+    val bottomBgColor = accent.copy(alpha = (bgAlpha * 0.40f * intensity).coerceIn(0.02f, 0.45f))
+
+    val topBorderColor = Color.White.copy(alpha = borderAlpha.coerceIn(0.15f, 0.65f))
+    val bottomBorderColor = accent.copy(alpha = (borderAlpha * 0.60f * intensity).coerceIn(0.10f, 0.65f))
+
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(18.dp))
             .background(
                 Brush.linearGradient(
                     colors = listOf(
-                        Color(0x2BFFFFFF),
-                        Color(0x0AFFFFFF)
+                        topBgColor,
+                        bottomBgColor
                     )
                 )
             )
@@ -852,8 +960,8 @@ fun GlassyCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
                 1.dp,
                 Brush.linearGradient(
                     colors = listOf(
-                        Color(0x40FFFFFF),
-                        Color(0x10FFFFFF)
+                        topBorderColor,
+                        bottomBorderColor
                     )
                 ),
                 RoundedCornerShape(18.dp)
@@ -875,15 +983,8 @@ fun QuickActionGlassItem(
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
-    val appBitmap = remember(packageName) {
-        if (packageName != null) {
-            try {
-                val drawable = context.packageManager.getApplicationIcon(packageName)
-                drawable.toBitmap(64, 64).asImageBitmap()
-            } catch (e: Exception) {
-                null
-            }
-        } else null
+    val appBitmap = remember(packageName, label) {
+        AppPackageManagerHelper.getAppIconBitmap(context, packageName, label)
     }
 
     Column(
@@ -892,7 +993,7 @@ fun QuickActionGlassItem(
     ) {
         Box(
             modifier = Modifier
-                .size(54.dp)
+                .size(56.dp)
                 .clip(CircleShape)
                 .background(
                     Brush.linearGradient(
@@ -917,8 +1018,9 @@ fun QuickActionGlassItem(
                 Image(
                     bitmap = appBitmap,
                     contentDescription = label,
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        .size(32.dp)
+                        .fillMaxSize()
                         .clip(CircleShape)
                 )
             } else {
@@ -926,7 +1028,7 @@ fun QuickActionGlassItem(
                     imageVector = icon,
                     contentDescription = label,
                     tint = color,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(28.dp)
                 )
             }
 
@@ -963,14 +1065,9 @@ fun QuickAppIcon(
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
-    val appBitmap = remember(packageName) {
+    val appBitmap = remember(packageName, label) {
         if (packageName != "torch" && packageName != "scan") {
-            try {
-                val drawable = context.packageManager.getApplicationIcon(packageName)
-                drawable.toBitmap(64, 64).asImageBitmap()
-            } catch (e: Exception) {
-                null
-            }
+            AppPackageManagerHelper.getAppIconBitmap(context, packageName, label)
         } else null
     }
 
@@ -982,8 +1079,8 @@ fun QuickAppIcon(
     ) {
         Box(
             modifier = Modifier
-                .size(50.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .size(52.dp)
+                .clip(CircleShape)
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
@@ -1000,7 +1097,7 @@ fun QuickAppIcon(
                             Color(0x10FFFFFF)
                         )
                     ),
-                    RoundedCornerShape(14.dp)
+                    CircleShape
                 ),
             contentAlignment = Alignment.Center
         ) {
@@ -1008,9 +1105,10 @@ fun QuickAppIcon(
                 Image(
                     bitmap = appBitmap,
                     contentDescription = label,
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        .size(34.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .fillMaxSize()
+                        .clip(CircleShape)
                 )
             } else {
                 Icon(
@@ -1157,6 +1255,123 @@ fun RecentFileGlassCard(
                     fontSize = 10.sp
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun SuggestedPillCard(
+    text: String,
+    dotColor: Color,
+    onClick: () -> Unit
+) {
+    val glassTint = LocalGlassmorphismTint.current
+    val borderAlpha = glassTint.borderAlpha
+    val bgAlpha = glassTint.bgAlpha
+
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFF0E1122).copy(alpha = (0.85f + bgAlpha * 0.4f).coerceIn(0.80f, 0.98f)))
+            .border(1.dp, Color(0xFF1D223B).copy(alpha = (0.75f + borderAlpha * 0.4f).coerceIn(0.70f, 1.0f)), RoundedCornerShape(14.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(dotColor)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = text,
+            color = Color(0xFFE2E8F0),
+            fontSize = 13.5.sp,
+            fontWeight = FontWeight.Medium
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Icon(
+            imageVector = Icons.Default.ChevronRight,
+            contentDescription = "Navigate",
+            tint = Color(0xFF64748B),
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+@Composable
+fun QuickStatusExactCard(
+    title: String,
+    value: String,
+    statusText: String,
+    statusColor: Color,
+    icon: ImageVector,
+    iconColor: Color,
+    onClick: () -> Unit
+) {
+    val glassTint = LocalGlassmorphismTint.current
+    val borderAlpha = glassTint.borderAlpha
+    val intensity = glassTint.tintIntensity
+
+    val topBorder = Color(0xFF1B2038).copy(alpha = (0.70f + borderAlpha * 0.5f).coerceIn(0.65f, 1.0f))
+    val bgGradStart = Color(0xFF080B18)
+    val bgGradEnd = iconColor.copy(alpha = (0.06f * intensity).coerceIn(0.02f, 0.22f))
+
+    Box(
+        modifier = Modifier
+            .width(132.dp)
+            .height(120.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(bgGradStart, bgGradEnd)
+                )
+            )
+            .border(1.dp, topBorder, RoundedCornerShape(18.dp))
+            .clickable { onClick() }
+            .padding(14.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = iconColor,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = title,
+                    color = Color(0xFF94A3B8),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            Text(
+                text = value,
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Text(
+                text = statusText,
+                color = statusColor,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

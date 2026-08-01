@@ -6,12 +6,45 @@ class AiContextRepository(
     private val contextDao: ConversationContextDao,
     private val patternDao: UserInteractionPatternDao,
     private val commandDao: CustomTextCommandDao? = null,
-    private val settingDao: VedraUserSettingDao? = null
+    private val settingDao: VedraUserSettingDao? = null,
+    private val voiceCommandDao: VoiceCommandMappingDao? = null
 ) {
     val allContextsFlow: Flow<List<ConversationContextEntity>> = contextDao.getAllContextsFlow()
     val topPatternsFlow: Flow<List<UserInteractionPatternEntity>> = patternDao.getAllPatternsFlow()
     val allCustomCommandsFlow: Flow<List<CustomTextCommandEntity>>? = commandDao?.getAllCommandsFlow()
     val allUserSettingsFlow: Flow<List<VedraUserSettingEntity>>? = settingDao?.getAllSettingsFlow()
+    val allVoiceCommandsFlow: Flow<List<VoiceCommandMappingEntity>>? = voiceCommandDao?.getAllVoiceCommandsFlow()
+
+    suspend fun saveVoiceCommandMapping(
+        voiceTriggerPhrase: String,
+        actionType: String,
+        targetPackageOrAction: String,
+        actionParametersJson: String = "{}",
+        description: String = "",
+        priority: Int = 1
+    ): Long {
+        if (voiceCommandDao == null || voiceTriggerPhrase.isBlank()) return -1L
+        val entity = VoiceCommandMappingEntity(
+            voiceTriggerPhrase = voiceTriggerPhrase.trim().lowercase(),
+            actionType = actionType,
+            targetPackageOrAction = targetPackageOrAction.trim(),
+            actionParametersJson = actionParametersJson,
+            description = description,
+            isEnabled = true,
+            priority = priority,
+            createdTimestamp = System.currentTimeMillis()
+        )
+        return voiceCommandDao.insertVoiceCommand(entity)
+    }
+
+    suspend fun findVoiceCommandMapping(triggerPhrase: String): VoiceCommandMappingEntity? {
+        if (voiceCommandDao == null || triggerPhrase.isBlank()) return null
+        return voiceCommandDao.findMatchingVoiceCommand(triggerPhrase.trim())
+    }
+
+    suspend fun deleteVoiceCommandMapping(id: Long) {
+        voiceCommandDao?.deleteVoiceCommand(id)
+    }
 
     suspend fun saveUserSetting(key: String, value: String) {
         if (settingDao == null || key.isBlank()) return

@@ -42,3 +42,16 @@ data class VedraUserSettingEntity(
     val settingValue: String,
     val lastUpdated: Long = System.currentTimeMillis()
 )
+
+@Entity(tableName = "voice_command_mappings")
+data class VoiceCommandMappingEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val voiceTriggerPhrase: String,      // e.g. "open study notes", "take a picture", "call mom", "launch whatsapp"
+    val actionType: String,             // e.g. "LAUNCH_APP", "SYSTEM_ACTION", "AI_PROMPT", "NAVIGATION", "UTILITY"
+    val targetPackageOrAction: String,  // e.g. "com.whatsapp", "CAMERA_CAPTURE", "NAVIGATE_STUDY_HUB", "TOGGLE_FLASHLIGHT"
+    val actionParametersJson: String = "{}", // e.g. {"contact": "Mom"}
+    val description: String = "",
+    val isEnabled: Boolean = true,
+    val priority: Int = 1,
+    val createdTimestamp: Long = System.currentTimeMillis()
+)

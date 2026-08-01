@@ -25,6 +25,8 @@ class VoiceService(private val context: Context) : TextToSpeech.OnInitListener {
     val isWakeWordActive = mutableStateOf(false)
     val wakeWordStatus = mutableStateOf("Standby")
     val lastRecognizedText = mutableStateOf("")
+    val rmsDbLevel = mutableStateOf(0f)
+    val isContinuousListeningActive = mutableStateOf(false)
 
     val speechPitch = mutableStateOf(1.0f)
     val speechRate = mutableStateOf(1.0f)
@@ -273,31 +275,46 @@ class VoiceService(private val context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
-    fun startWakeWordDetection(onWakeWordTriggered: (String) -> Unit) {
+    fun startWakeWordDetection(
+        dbService: DatabaseService? = null,
+        onWakeWordTriggered: (String) -> Unit
+    ) {
         if (speechRecognizer == null) return
         stopListening()
         stopSpeaking()
 
         isWakeWordActive.value = true
-        wakeWordStatus.value = "Listening for 'Hey VEDRA'..."
+        isContinuousListeningActive.value = true
+        wakeWordStatus.value = "Continuous Listening Active ('Hey VEDRA')..."
 
-        val wakeWords = listOf("hey vedra", "vedra", "ok vedra", "hi vedra", "hey ved")
+        val wakeWords = listOf("hey vedra", "vedra", "ok vedra", "hi vedra", "hey ved", "listen vedra", "ved")
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
         }
 
         speechRecognizer?.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onReadyForSpeech(params: Bundle?) {
+                wakeWordStatus.value = "Continuous Listening Active ('Hey VEDRA')..."
+            }
+
             override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {}
+
+            override fun onRmsChanged(rmsdB: Float) {
+                rmsDbLevel.value = rmsdB.coerceIn(0f, 10f)
+            }
+
             override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {}
+            override fun onEndOfSpeech() {
+                rmsDbLevel.value = 0f
+            }
 
             override fun onError(error: Int) {
-                // Auto-restart wake word listener if still active
-                if (isWakeWordActive.value) {
+                rmsDbLevel.value = 0f
+                // Continuous Listening Service: Auto-restart on speech timeouts or transient errors
+                if (isWakeWordActive.value || isContinuousListeningActive.value) {
                     try {
                         speechRecognizer?.startListening(intent)
                     } catch (_: Exception) {}
@@ -305,12 +322,14 @@ class VoiceService(private val context: Context) : TextToSpeech.OnInitListener {
             }
 
             private fun checkMatches(matches: ArrayList<String>?) {
-                if (matches.isNullOrEmpty() || !isWakeWordActive.value) return
+                if (matches.isNullOrEmpty() || (!isWakeWordActive.value && !isContinuousListeningActive.value)) return
                 for (match in matches) {
-                    val lower = match.lowercase()
-                    if (wakeWords.any { lower.contains(it) }) {
-                        isWakeWordActive.value = false
-                        wakeWordStatus.value = "Wake Word Detected!"
+                    val lower = match.lowercase().trim()
+                    lastRecognizedText.value = match
+
+                    val isWakeWord = wakeWords.any { lower.contains(it) }
+                    if (isWakeWord) {
+                        wakeWordStatus.value = "Wake Word Recognized: '$match'"
                         stopListening()
                         onWakeWordTriggered(match)
                         break
@@ -321,7 +340,7 @@ class VoiceService(private val context: Context) : TextToSpeech.OnInitListener {
             override fun onResults(results: Bundle?) {
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 checkMatches(matches)
-                if (isWakeWordActive.value) {
+                if (isWakeWordActive.value || isContinuousListeningActive.value) {
                     try {
                         speechRecognizer?.startListening(intent)
                     } catch (_: Exception) {}
@@ -343,7 +362,9 @@ class VoiceService(private val context: Context) : TextToSpeech.OnInitListener {
 
     fun stopWakeWordDetection() {
         isWakeWordActive.value = false
+        isContinuousListeningActive.value = false
         wakeWordStatus.value = "Standby"
+        rmsDbLevel.value = 0f
         stopListening()
     }
 

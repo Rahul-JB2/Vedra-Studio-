@@ -11,6 +11,9 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -50,6 +53,7 @@ fun InstalledAppsListScreen(
     var selectedCategory by remember { mutableStateOf("All") }
     var installedApps by remember { mutableStateOf<List<AppInfoItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    var isGridView by remember { mutableStateOf(true) }
 
     val persistentShortcutsState = dbService.aiContextRepository.allCustomCommandsFlow?.collectAsState(initial = emptyList())
     val persistentShortcuts = persistentShortcutsState?.value ?: emptyList()
@@ -130,18 +134,37 @@ fun InstalledAppsListScreen(
                     )
                 }
             }
-            Box(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(Color(0xFF8B5CF6).copy(alpha = 0.2f))
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = "${filteredApps.size} showing",
-                    color = Color(0xFFC4B5FD),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(Color(0xFF8B5CF6).copy(alpha = 0.2f))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "${filteredApps.size} apps",
+                        color = Color(0xFFC4B5FD),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                IconButton(
+                    onClick = { isGridView = !isGridView },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF1F2647))
+                ) {
+                    Icon(
+                        imageVector = if (isGridView) Icons.Default.List else Icons.Default.GridView,
+                        contentDescription = "Toggle Grid/List View",
+                        tint = Color(0xFFC4B5FD),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
 
@@ -298,6 +321,27 @@ fun InstalledAppsListScreen(
                     color = Color.Gray,
                     fontSize = 13.sp
                 )
+            }
+        } else if (isGridView) {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 92.dp),
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(filteredApps, key = { it.packageName }) { app ->
+                    InstalledAppGridCardItem(
+                        app = app,
+                        dbService = dbService,
+                        onLaunch = {
+                            if (AppLauncher.tryLaunchPackage(context, app.packageName)) {
+                                Toast.makeText(context, "🚀 Launching ${app.label}...", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Unable to launch ${app.label}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    )
+                }
             }
         } else {
             LazyColumn(
@@ -466,6 +510,86 @@ fun InstalledAppCardItem(
                     Text("Open", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                 }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun InstalledAppGridCardItem(
+    app: AppInfoItem,
+    dbService: DatabaseService,
+    onLaunch: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    val iconBitmap = remember(app.icon) {
+        app.icon?.toBitmap(72, 72)?.asImageBitmap()
+    }
+
+    Box(
+        modifier = Modifier
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF13182E))
+            .border(1.dp, Color(0xFF1F2647), RoundedCornerShape(16.dp))
+            .combinedClickable(
+                onClick = onLaunch,
+                onLongClick = {
+                    scope.launch {
+                        dbService.aiContextRepository.saveCustomCommand(
+                            commandText = app.label,
+                            actionType = "LAUNCH_APP",
+                            targetPayload = app.packageName,
+                            description = "Shortcut for ${app.label}"
+                        )
+                        Toast.makeText(context, "📌 Shortcut pinned for '${app.label}'", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            )
+            .padding(10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            if (iconBitmap != null) {
+                Image(
+                    bitmap = iconBitmap,
+                    contentDescription = app.label,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF2E1A47)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Android,
+                        contentDescription = null,
+                        tint = Color(0xFFA78BFA),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = app.label,
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
         }
     }
 }

@@ -10,9 +10,10 @@ import androidx.room.RoomDatabase
         ConversationContextEntity::class,
         UserInteractionPatternEntity::class,
         CustomTextCommandEntity::class,
-        VedraUserSettingEntity::class
+        VedraUserSettingEntity::class,
+        VoiceCommandMappingEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppRoomDatabase : RoomDatabase() {
@@ -21,6 +22,7 @@ abstract class AppRoomDatabase : RoomDatabase() {
     abstract fun userInteractionPatternDao(): UserInteractionPatternDao
     abstract fun customTextCommandDao(): CustomTextCommandDao
     abstract fun vedraUserSettingDao(): VedraUserSettingDao
+    abstract fun voiceCommandMappingDao(): VoiceCommandMappingDao
 
     companion object {
         @Volatile

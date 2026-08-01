@@ -160,6 +160,68 @@ fun GeneralPreferencesDetailScreen(dbService: DatabaseService) {
             }
         }
 
+        // AMBIENT SENSOR GLASSMORPHISM
+        item {
+            PreferenceSectionHeader(title = "AMBIENT SENSOR GLASSMORPHISM")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                var ambientEnabled by remember { mutableStateOf(dbService.getSetting("pref_ambient_glass_tint", "true") == "true") }
+                val glassTint = LocalGlassmorphismTint.current
+
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            PreferenceIconBox(icon = Icons.Default.WbIncandescent)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(text = "Ambient Light Glass Tint", color = VedraTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(text = "Shifts glass translucency based on front camera light sensor", color = VedraTextSecondary, fontSize = 11.sp)
+                            }
+                        }
+                        Switch(
+                            checked = ambientEnabled,
+                            onCheckedChange = {
+                                ambientEnabled = it
+                                saveSetting("pref_ambient_glass_tint", if (it) "true" else "false")
+                            }
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0x208B5CF6))
+                            .padding(10.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Sensors,
+                                contentDescription = "Sensor Level",
+                                tint = Color(0xFFA78BFA),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Front Sensor Lux: ${glassTint.ambientLux.toInt()} lx | Brightness: ${glassTint.systemBrightness}/255 | Tint Factor: ${String.format("%.2f", glassTint.tintIntensity)}x",
+                                color = Color(0xFFE2E8F0),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         // UNITS
         item {
             PreferenceSectionHeader(title = "UNITS")

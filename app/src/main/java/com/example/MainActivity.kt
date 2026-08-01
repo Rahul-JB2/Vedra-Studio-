@@ -26,7 +26,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Folder
@@ -67,6 +70,7 @@ import com.example.ui.screens.MemoryScreen
 import com.example.ui.screens.PermissionOnboardingScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.StudyHubScreen
+import com.example.ui.screens.VedAssistantScreen
 import com.example.ui.screens.VoiceModeOverlay
 import com.example.ui.theme.VedraBackground
 import com.example.ui.theme.VedraPurplePrimary
@@ -183,16 +187,18 @@ fun MainAppLayout(
 
     // Initial launch setup
     LaunchedEffect(initialTab) {
-        if (initialTab in 0..3) {
+        if (initialTab in 0..5) {
             activeTab = initialTab
         }
     }
 
-    // 5 Main Tabs: Home, Study, VED (Center Pill), VEDrive, Settings
+    // 6 Main Tabs: Home, VEHub, Ved (Center Pill), VEDrive, VETools, Settings
     val tabs = listOf(
         TabItem("Home", Icons.Default.Home),
-        TabItem("Study", Icons.Default.School),
+        TabItem("VEHub", Icons.Default.School),
+        TabItem("Ved", Icons.Default.AutoAwesome, isCenterPill = true),
         TabItem("VEDrive", Icons.Default.Folder),
+        TabItem("VETools", Icons.Default.Build),
         TabItem("Settings", Icons.Default.Settings)
     )
 
@@ -214,11 +220,11 @@ fun MainAppLayout(
                     val tint = if (isSelected) Color(0xFFC4B5FD) else Color(0xFF6B7280)
 
                     if (tab.isCenterPill) {
-                        // Center VED Capsule/Pill Button matching screenshot
+                        // Center VED Capsule/Pill Button with special focus & glowing design
                         Box(
                             modifier = Modifier
                                 .testTag("tab_${tab.title.lowercase()}")
-                                .weight(1f)
+                                .weight(1.1f)
                                 .combinedClickable(
                                     onClick = {
                                         hasUserInteracted = true
@@ -234,19 +240,37 @@ fun MainAppLayout(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(20.dp))
-                                    .background(Color(0xFF2E1A47))
-                                    .border(1.5.dp, if (isSelected) Color(0xFFA78BFA) else Color(0xFF6D28D9), RoundedCornerShape(20.dp))
+                                    .background(
+                                        if (isSelected) androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                            listOf(Color(0xFF7C3AED), Color(0xFF06B6D4))
+                                        ) else androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                            listOf(Color(0xFF2E1A47), Color(0xFF1E1035))
+                                        )
+                                    )
+                                    .border(1.5.dp, if (isSelected) Color(0xFFA78BFA) else Color(0xFF06B6D4), RoundedCornerShape(20.dp))
                                     .padding(horizontal = 10.dp, vertical = 6.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = "VED",
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = "Ved AI",
+                                        tint = if (isSelected) Color.White else Color(0xFF06B6D4),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Ved",
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
                             }
                         }
                     } else {
@@ -261,7 +285,7 @@ fun MainAppLayout(
                                     },
                                     onLongClick = {
                                         hasUserInteracted = true
-                                        if (tab.title == "Database") {
+                                        if (tab.title == "VEDrive") {
                                             isDriveModalOpen = true
                                         }
                                     }
@@ -341,12 +365,25 @@ fun MainAppLayout(
                             }
                         )
                     }
-                    1 -> SafeTabBoundary("Study Hub") {
+                    1 -> SafeTabBoundary("VEHub") {
                         StudyHubScreen(
                             dbService = dbService
                         )
                     }
-                    2 -> SafeTabBoundary("VEDrive") {
+                    2 -> SafeTabBoundary("Ved") {
+                        VedAssistantScreen(
+                            dbService = dbService,
+                            voiceService = voiceService,
+                            onActivateVoice = {
+                                hasUserInteracted = true
+                                isVoiceModeActive = true
+                            },
+                            onOpenDrawer = {
+                                isDrawerOpen = true
+                            }
+                        )
+                    }
+                    3 -> SafeTabBoundary("VEDrive") {
                         DatabaseScreen(
                             dbService = dbService,
                             onOpenDrawer = {
@@ -354,18 +391,18 @@ fun MainAppLayout(
                             }
                         )
                     }
-                    3 -> SafeTabBoundary("Settings") {
-                        SettingsScreen(
-                            dbService = dbService,
-                            voiceService = voiceService
-                        )
-                    }
-                    4 -> SafeTabBoundary("Actions") {
+                    4 -> SafeTabBoundary("VETools") {
                         ActionsScreen(
                             onExecuteAction = { command ->
                                 hasUserInteracted = true
                                 UtilityService.parseAndExecuteLocalCommand(context, dbService, command)
                             }
+                        )
+                    }
+                    5 -> SafeTabBoundary("Settings") {
+                        SettingsScreen(
+                            dbService = dbService,
+                            voiceService = voiceService
                         )
                     }
                 }
@@ -402,14 +439,13 @@ fun MainAppLayout(
                 onSelectMenuItem = { actionKey ->
                     hasUserInteracted = true
                     when (actionKey) {
-                        "ved" -> activeTab = 0 // Removed Ved tab, fallback to home
+                        "ved" -> activeTab = 2 // Navigate to Ved tab
                         "app_launcher" -> isInstalledAppsScreenOpen = true // Open Installed Apps List Screen
-                        "database" -> activeTab = 2 // Navigate to Database & Drive tab
-                        "workspace" -> activeTab = 1 // Navigate to Study Hub / Workspace tab
-                        "automation" -> activeTab = 4 // Navigate to Actions / Automation tab
-                        "search" -> activeTab = 2 // Navigate to Search in Database
-                        "drive" -> isDriveModalOpen = true // Open Drive Manager
-                        "settings" -> activeTab = 3 // Navigate to Settings tab
+                        "database", "drive" -> activeTab = 3 // Navigate to VEDrive tab
+                        "workspace", "vehub" -> activeTab = 1 // Navigate to VEHub tab
+                        "automation", "vetools" -> activeTab = 4 // Navigate to VETools tab
+                        "search" -> activeTab = 3 // Navigate to Search in VEDrive
+                        "settings" -> activeTab = 5 // Navigate to Settings tab
                         "pro_upgrade" -> Toast.makeText(context, "⚡ Upgraded to VEDRA PRO!", Toast.LENGTH_SHORT).show()
                     }
                 },

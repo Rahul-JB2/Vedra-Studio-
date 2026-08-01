@@ -1,6 +1,8 @@
 package com.example.ui.theme
 
 import android.os.Build
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -8,9 +10,26 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.example.services.AmbientLightManager
 import com.example.services.DatabaseService
+
+data class GlassmorphismTintConfig(
+    val ambientLux: Float = 150f,
+    val systemBrightness: Int = 128,
+    val tintIntensity: Float = 1.0f,
+    val bgAlpha: Float = 0.16f,
+    val borderAlpha: Float = 0.28f,
+    val accentColor: Color = Color(0xFF8B5CF6)
+)
+
+val LocalGlassmorphismTint = compositionLocalOf { GlassmorphismTintConfig() }
 
 private fun resolveAccentColors(accentName: String): Pair<Color, Color> {
     return when (accentName) {
@@ -29,6 +48,38 @@ fun VedraTheme(
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
+
+    // Ambient light sensor manager listening to camera/front light sensor & system brightness
+    val lightManager = remember(context) { AmbientLightManager(context) }
+
+    DisposableEffect(lightManager) {
+        lightManager.startListening()
+        onDispose {
+            lightManager.stopListening()
+        }
+    }
+
+    val targetIntensity = lightManager.tintIntensity.value
+    val targetBgAlpha = lightManager.bgAlpha.value
+    val targetBorderAlpha = lightManager.borderAlpha.value
+
+    // Smooth subtle animation transitions when ambient light shifts
+    val animIntensity by animateFloatAsState(
+        targetValue = targetIntensity,
+        animationSpec = tween(1000),
+        label = "GlassTintIntensity"
+    )
+    val animBgAlpha by animateFloatAsState(
+        targetValue = targetBgAlpha,
+        animationSpec = tween(1000),
+        label = "GlassBgAlpha"
+    )
+    val animBorderAlpha by animateFloatAsState(
+        targetValue = targetBorderAlpha,
+        animationSpec = tween(1000),
+        label = "GlassBorderAlpha"
+    )
+
     // Reading settingsVersion triggers recomposition whenever any setting changes
     val settingsVer = dbService?.settingsVersion?.intValue ?: 0
 
@@ -45,6 +96,15 @@ fun VedraTheme(
     }
 
     val (primaryColor, secondaryColor) = resolveAccentColors(accentName)
+
+    val glassConfig = GlassmorphismTintConfig(
+        ambientLux = lightManager.ambientLux.value,
+        systemBrightness = lightManager.systemBrightness.value,
+        tintIntensity = animIntensity,
+        bgAlpha = animBgAlpha,
+        borderAlpha = animBorderAlpha,
+        accentColor = primaryColor
+    )
 
     val colorScheme = when {
         useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
@@ -101,10 +161,14 @@ fun VedraTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    CompositionLocalProvider(
+        LocalGlassmorphismTint provides glassConfig
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }
 

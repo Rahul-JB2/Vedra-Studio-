@@ -11,44 +11,29 @@ jobs:
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install Node Dependencies
-        run: npm install
-
-      - name: Set up Java 17
+      
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
           cache: 'gradle'
 
-      - name: Generate Android Native Folder (If Expo Managed)
+      - name: Update Application ID Automatically
         run: |
-          if [ ! -d "android" ]; then
-            npx expo prebuild --platform android
-          fi
+          sed -i 's/applicationId = .*/applicationId = "com.vedra.ai"/' app/build.gradle.kts
 
-      - name: Make Gradlew Executable
-        run: chmod +x android/gradlew
+      - name: Generate Dummy Debug Keystore
+        run: keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
 
-      - name: Setup Default Debug Keystore
+      - name: Build APK with Fake Screen
         run: |
-          mkdir -p ~/.android
-          keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
+          sudo apt-get install -y xvfb
+          xvfb-run gradle assembleDebug --no-daemon
 
-      - name: Build Debug APK
-        working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
-
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: VEDRA-App
-          path: android/app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/debug/*.apk
           

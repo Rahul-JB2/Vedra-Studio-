@@ -1,10 +1,11 @@
+#!/bin/bash
+cat << 'KOTLIN' > app/src/main/java/com/example/ui/screens/SettingsScreen.kt
 package com.example.ui.screens
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -37,58 +38,44 @@ fun SettingsScreen(dbService: DatabaseService, voiceService: VoiceService) {
         activeSubScreen = null
     }
 
-    androidx.compose.animation.AnimatedContent(
-        targetState = activeSubScreen,
-        transitionSpec = {
-            if (targetState != null) {
-                (androidx.compose.animation.slideInHorizontally { width -> width } + androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(280)))
-                    .togetherWith(androidx.compose.animation.slideOutHorizontally { width -> -width } + androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(280)))
-            } else {
-                (androidx.compose.animation.slideInHorizontally { width -> -width } + androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(280)))
-                    .togetherWith(androidx.compose.animation.slideOutHorizontally { width -> width } + androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(280)))
-            }
-        },
-        label = "SettingsTransition"
-    ) { currentScreen ->
-        if (currentScreen == null) {
-            SettingsMainScreen(onNavigate = { activeSubScreen = it })
-        } else {
-            Column(modifier = Modifier.fillMaxSize().background(VedraBackground)) {
-                // Header for sub-screen
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = { activeSubScreen = null }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = currentScreen,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
-                    )
+    if (activeSubScreen == null) {
+        SettingsMainScreen(onNavigate = { activeSubScreen = it })
+    } else {
+        Column(modifier = Modifier.fillMaxSize().background(VedraBackground)) {
+            // Header for sub-screen
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { activeSubScreen = null }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
                 }
-                // Content
-                Box(modifier = Modifier.weight(1f)) {
-                    when (currentScreen) {
-                        "General Preferences" -> GeneralPreferencesDetailScreen(dbService = dbService)
-                        "Voice & Speech" -> VoiceSpeechDetailScreen(dbService = dbService, voiceService = voiceService)
-                        "Appearance" -> AppearanceDetailScreen(dbService = dbService)
-                        "Home Screen" -> HomeScreenDetailScreen(dbService = dbService)
-                        "Notifications" -> NotificationsDetailScreen(dbService = dbService)
-                        "Sound & Vibration" -> SoundVibrationDetailScreen(dbService = dbService)
-                        "AI Settings" -> AiSettingsDetailScreen(dbService = dbService)
-                        "Memory & Knowledge" -> MemorySettingsDetailScreen(dbService = dbService)
-                        "Widgets & Overlays" -> WidgetsDetailScreen(dbService = dbService)
-                        "Data & Storage" -> DriveBackupDetailScreen(dbService = dbService)
-                        "About VEDRA" -> AboutSupportDetailScreen(dbService = dbService)
-                        else -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("Screen not implemented yet", color = Color.Gray)
-                        }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = activeSubScreen ?: "",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            }
+            // Content
+            Box(modifier = Modifier.weight(1f)) {
+                when (activeSubScreen) {
+                    "General Preferences" -> GeneralPreferencesDetailScreen(dbService = dbService)
+                    "Voice & Speech" -> VoiceSpeechDetailScreen(dbService = dbService, voiceService = voiceService)
+                    "Appearance" -> AppearanceDetailScreen(dbService = dbService)
+                    "Home Screen" -> HomeScreenDetailScreen(dbService = dbService)
+                    "Notifications" -> NotificationsDetailScreen(dbService = dbService)
+                    "Sound & Vibration" -> SoundVibrationDetailScreen(dbService = dbService)
+                    "AI Settings" -> AiSettingsDetailScreen(dbService = dbService)
+                    "Memory & Knowledge" -> MemorySettingsDetailScreen(dbService = dbService)
+                    "Widgets & Overlays" -> WidgetsDetailScreen(dbService = dbService)
+                    "Data & Storage" -> DriveBackupDetailScreen(dbService = dbService)
+                    "About VEDRA" -> AboutSupportDetailScreen(dbService = dbService)
+                    else -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Screen not implemented yet", color = Color.Gray)
                     }
                 }
             }
@@ -112,7 +99,7 @@ fun SettingsMainScreen(onNavigate: (String) -> Unit) {
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color(0xFF141122))
-                    
+                    .border(1.dp, Color(0xFF2E1B4E), RoundedCornerShape(16.dp))
                     .padding(16.dp)
             ) {
                 Row(
@@ -122,7 +109,7 @@ fun SettingsMainScreen(onNavigate: (String) -> Unit) {
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
-                            modifier = Modifier.size(40.dp).clip(CircleShape),
+                            modifier = Modifier.size(40.dp).clip(CircleShape).border(1.dp, Color(0xFF6B21A8), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(Icons.Default.GraphicEq, contentDescription = null, tint = VedraPurplePrimary)
@@ -270,3 +257,4 @@ fun SettingsItemRow(item: SettingsItemData, onClick: () -> Unit) {
         Icon(Icons.Default.ChevronRight, contentDescription = null, tint = VedraTextMuted, modifier = Modifier.size(20.dp))
     }
 }
+KOTLIN

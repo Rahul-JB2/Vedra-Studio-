@@ -91,7 +91,7 @@ fun FloatingAssistantWidget(
     val opacityStr = dbService.getSetting("widget_opacity", "1.0")
     val widgetOpacity = opacityStr.toFloatOrNull() ?: 1.0f
 
-    val vedOrbStyle = remember { dbService.getSetting("ved_orb_style", "Gemini Neon Glow Orb") }
+    val vedOrbStyle = remember(dbService.settingsVersion.intValue) { dbService.getSetting("ved_orb_style", "Gemini Neon Glow Orb") }
 
     val orbSize = when (widgetSize) {
         "Small" -> 44.dp

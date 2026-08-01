@@ -67,7 +67,6 @@ import com.example.ui.screens.MemoryScreen
 import com.example.ui.screens.PermissionOnboardingScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.StudyHubScreen
-import com.example.ui.screens.VedScreen
 import com.example.ui.screens.VoiceModeOverlay
 import com.example.ui.theme.VedraBackground
 import com.example.ui.theme.VedraPurplePrimary
@@ -184,7 +183,7 @@ fun MainAppLayout(
 
     // Initial launch setup
     LaunchedEffect(initialTab) {
-        if (initialTab in 0..4) {
+        if (initialTab in 0..3) {
             activeTab = initialTab
         }
     }
@@ -193,7 +192,6 @@ fun MainAppLayout(
     val tabs = listOf(
         TabItem("Home", Icons.Default.Home),
         TabItem("Study", Icons.Default.School),
-        TabItem("VED", Icons.Default.Mic, isCenterPill = true),
         TabItem("VEDrive", Icons.Default.Folder),
         TabItem("Settings", Icons.Default.Settings)
     )
@@ -348,24 +346,7 @@ fun MainAppLayout(
                             dbService = dbService
                         )
                     }
-                    2 -> SafeTabBoundary("Ved AI Assistant") {
-                        VedScreen(
-                            dbService = dbService,
-                            voiceService = voiceService,
-                            onActivateVoiceMode = {
-                                hasUserInteracted = true
-                                isVoiceModeActive = true
-                            },
-                            onOpenDrawer = {
-                                isDrawerOpen = true
-                            },
-                            selectedHistoryItem = selectedChatHistoryItem,
-                            onClearHistorySelection = {
-                                selectedChatHistoryItem = null
-                            }
-                        )
-                    }
-                    3 -> SafeTabBoundary("VEDrive") {
+                    2 -> SafeTabBoundary("VEDrive") {
                         DatabaseScreen(
                             dbService = dbService,
                             onOpenDrawer = {
@@ -373,13 +354,13 @@ fun MainAppLayout(
                             }
                         )
                     }
-                    4 -> SafeTabBoundary("Settings") {
+                    3 -> SafeTabBoundary("Settings") {
                         SettingsScreen(
                             dbService = dbService,
                             voiceService = voiceService
                         )
                     }
-                    5 -> SafeTabBoundary("Actions") {
+                    4 -> SafeTabBoundary("Actions") {
                         ActionsScreen(
                             onExecuteAction = { command ->
                                 hasUserInteracted = true
@@ -421,14 +402,14 @@ fun MainAppLayout(
                 onSelectMenuItem = { actionKey ->
                     hasUserInteracted = true
                     when (actionKey) {
-                        "ved" -> activeTab = 2 // Navigate to Ved AI tab
+                        "ved" -> activeTab = 0 // Removed Ved tab, fallback to home
                         "app_launcher" -> isInstalledAppsScreenOpen = true // Open Installed Apps List Screen
-                        "database" -> activeTab = 3 // Navigate to Database & Drive tab
+                        "database" -> activeTab = 2 // Navigate to Database & Drive tab
                         "workspace" -> activeTab = 1 // Navigate to Study Hub / Workspace tab
-                        "automation" -> activeTab = 5 // Navigate to Actions / Automation tab
-                        "search" -> activeTab = 3 // Navigate to Search in Database
+                        "automation" -> activeTab = 4 // Navigate to Actions / Automation tab
+                        "search" -> activeTab = 2 // Navigate to Search in Database
                         "drive" -> isDriveModalOpen = true // Open Drive Manager
-                        "settings" -> activeTab = 4 // Navigate to Settings tab
+                        "settings" -> activeTab = 3 // Navigate to Settings tab
                         "pro_upgrade" -> Toast.makeText(context, "⚡ Upgraded to VEDRA PRO!", Toast.LENGTH_SHORT).show()
                     }
                 },

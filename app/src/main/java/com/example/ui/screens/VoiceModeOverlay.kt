@@ -102,7 +102,7 @@ fun VoiceModeOverlay(
 
     val context = LocalContext.current
     val dbService = remember { DatabaseService(context) }
-    val vedOrbStyle = remember { dbService.getSetting("ved_orb_style", "Gemini Neon Glow Orb") }
+    val vedOrbStyle = remember(dbService.settingsVersion.intValue) { dbService.getSetting("ved_orb_style", "Gemini Neon Glow Orb") }
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
 
     var recentLogs by remember {

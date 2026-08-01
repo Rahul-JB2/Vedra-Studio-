@@ -5,7 +5,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
 
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.material3.Surface
+import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -39,6 +43,7 @@ import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
@@ -280,8 +285,23 @@ fun HomeScreen(
             CustomInput(
                 value = homeSearchQuery,
                 onValueChange = { homeSearchQuery = it },
-                placeholder = "Search apps, files, play songs, or commands...",
-                leadingIcon = Icons.Default.Search,
+                placeholder = if (voiceService.isListening.value) "Listening..." else "Search apps, dictation, or commands...",
+                leadingIcon = Icons.Default.Mic,
+                onLeadingIconClick = {
+                    if (voiceService.isListening.value) {
+                        voiceService.stopListening()
+                    } else {
+                        voiceService.startListening(
+                            onResult = { resultText ->
+                                homeSearchQuery = resultText
+                                onExecuteQuickAction(resultText)
+                            },
+                            onError = { err ->
+                                Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    }
+                },
                 trailingIcon = {
                     if (homeSearchQuery.isNotBlank()) {
                         IconButton(onClick = {
@@ -303,6 +323,128 @@ fun HomeScreen(
                     }
                 }
             )
+        }
+
+        // QUICK ACCESS BANNERS: APP LAUNCHER & HOME SCREEN WIDGET
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                // Card 1: App Launcher
+                Surface(
+                    color = Color(0xFF131126),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Color(0xFF2C254A)),
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        selectedCardForLock = "App Launcher" to "App Launcher"
+                        isAppLockModalOpen = true
+                    }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF231C4A)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Apps,
+                                    contentDescription = "App Launcher",
+                                    tint = Color(0xFFC084FC),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "All Installed Apps Launcher 🚀",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = "View and open any application on your phone",
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color(0xFF7C3AED))
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(text = "Open 📱", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                // Card 2: Home Screen Small Quick Widget
+                Surface(
+                    color = Color(0xFF0F1A1B),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Color(0xFF193B32)),
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        com.example.widget.VedraAppWidgetProvider.pinWidgetToHomeScreen(context)
+                    }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF132F27)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Widgets,
+                                    contentDescription = "Home Screen Widget",
+                                    tint = Color(0xFF34D399),
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Add VEDRA Quick Widget 📌",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = "Pin quick assistant widget on phone home screen",
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color(0xFF059669))
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(text = "Pin Widget 📌", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
         }
 
         // VEDRA SUGGESTIONS SECTION HEADER

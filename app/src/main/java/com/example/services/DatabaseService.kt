@@ -106,7 +106,7 @@ data class DriveDocument(
 class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     val roomDb by lazy { com.example.data.room.AppRoomDatabase.getDatabase(context) }
-    val aiContextRepository by lazy { com.example.data.room.AiContextRepository(roomDb.conversationContextDao(), roomDb.userInteractionPatternDao()) }
+    val aiContextRepository by lazy { com.example.data.room.AiContextRepository(roomDb.conversationContextDao(), roomDb.userInteractionPatternDao(), roomDb.customTextCommandDao(), roomDb.vedraUserSettingDao()) }
 
     companion object {
         private const val DATABASE_NAME = "vedra_memory.db"
@@ -1648,6 +1648,11 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
     fun setSetting(key: String, value: String) {
         addOrUpdateMemory("setting_$key", value, "System", 0L)
         settingsVersion.intValue += 1
+        try {
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                aiContextRepository.saveUserSetting(key, value)
+            }
+        } catch (_: Exception) {}
     }
 
     fun getSetting(key: String, defaultValue: String): String {
@@ -2019,15 +2024,40 @@ object AppLauncher {
                 addCategory(Intent.CATEGORY_LAUNCHER)
             }
             val resolveInfos = pm.queryIntentActivities(mainIntent, 0)
-            resolveInfos.map { ri ->
+            val launcherApps = resolveInfos.map { ri ->
                 val pkg = ri.activityInfo.packageName
                 val iconDrawable = try { ri.loadIcon(pm) } catch (e: Exception) { null }
+                val isSys = try { (ri.activityInfo.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0 } catch (e: Exception) { false }
                 AppInfoItem(
                     label = ri.loadLabel(pm).toString(),
                     packageName = pkg,
-                    icon = iconDrawable
+                    icon = iconDrawable,
+                    isSystemApp = isSys
                 )
-            }.distinctBy { it.packageName }.sortedBy { it.label }
+            }.toMutableList()
+
+            val installedApps = try { pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA) } catch (e: Exception) { emptyList() }
+            for (appInfo in installedApps) {
+                val pkg = appInfo.packageName
+                if (launcherApps.none { it.packageName == pkg }) {
+                    val launchIntent = pm.getLaunchIntentForPackage(pkg)
+                    if (launchIntent != null) {
+                        val label = try { pm.getApplicationLabel(appInfo).toString() } catch (e: Exception) { pkg }
+                        val iconDrawable = try { pm.getApplicationIcon(appInfo) } catch (e: Exception) { null }
+                        val isSys = (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+                        launcherApps.add(
+                            AppInfoItem(
+                                label = label,
+                                packageName = pkg,
+                                icon = iconDrawable,
+                                isSystemApp = isSys
+                            )
+                        )
+                    }
+                }
+            }
+
+            launcherApps.distinctBy { it.packageName }.sortedBy { it.label.lowercase() }
         } catch (e: Exception) {
             emptyList()
         }
@@ -2036,7 +2066,8 @@ object AppLauncher {
     data class AppInfoItem(
         val label: String,
         val packageName: String,
-        val icon: android.graphics.drawable.Drawable? = null
+        val icon: android.graphics.drawable.Drawable? = null,
+        val isSystemApp: Boolean = false
     )
 
     private fun findInstalledPackageOnDevice(context: Context, query: String): String? {

@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import com.example.ui.theme.*
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -189,6 +191,7 @@ fun CustomInput(
     modifier: Modifier = Modifier,
     placeholder: String = "Type a command...",
     leadingIcon: ImageVector? = null,
+    onLeadingIconClick: (() -> Unit)? = null,
     trailingIcon: @Composable (() -> Unit)? = null,
     singleLine: Boolean = true,
     onSend: (() -> Unit)? = null,
@@ -210,11 +213,21 @@ fun CustomInput(
         },
         leadingIcon = if (leadingIcon != null) {
             {
-                Icon(
-                    imageVector = leadingIcon,
-                    contentDescription = null,
-                    tint = VedraTextSecondary
-                )
+                if (onLeadingIconClick != null) {
+                    IconButton(onClick = onLeadingIconClick) {
+                        Icon(
+                            imageVector = leadingIcon,
+                            contentDescription = "Voice Input STT",
+                            tint = VedraPurplePrimary
+                        )
+                    }
+                } else {
+                    Icon(
+                        imageVector = leadingIcon,
+                        contentDescription = null,
+                        tint = VedraTextSecondary
+                    )
+                }
             }
         } else null,
         trailingIcon = trailingIcon,
@@ -267,7 +280,7 @@ fun CustomModal(
                 modifier = modifier
                     .testTag(testTag)
                     .fillMaxSize(),
-                color = Color(0xFF090810)
+                color = VedraBackground
             ) {
                 Column(
                     modifier = Modifier
@@ -297,14 +310,14 @@ fun CustomModal(
                                     )
                                     .padding(2.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFF13152A))
+                                    .background(VedraSurface)
                                     .clickable { onDismissRequest() },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.ArrowBack,
                                     contentDescription = "Back",
-                                    tint = Color.White,
+                                    tint = VedraTextPrimary,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -315,7 +328,7 @@ fun CustomModal(
                             Column {
                                 Text(
                                     text = title,
-                                    color = Color.White,
+                                    color = VedraTextPrimary,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 19.sp
                                 )
@@ -323,7 +336,7 @@ fun CustomModal(
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = subtitle,
-                                        color = Color(0xFF94A3B8),
+                                        color = VedraTextSecondary,
                                         fontSize = 12.sp,
                                         lineHeight = 16.sp
                                     )
@@ -336,15 +349,15 @@ fun CustomModal(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF1A1D34))
-                                .border(1.dp, Color(0xFF2D3252), CircleShape)
+                                .background(VedraSurfaceVariant)
+                                .border(1.dp, VedraBorder, CircleShape)
                                 .clickable { onDismissRequest() },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Close",
-                                tint = Color.White,
+                                tint = VedraTextPrimary,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -411,7 +424,31 @@ fun AppPickerAndLockModal(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var searchQuery by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    var selectedCategory by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("All") }
     var installedApps by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<List<com.example.services.AppLauncher.AppInfoItem>>(emptyList()) }
+
+    fun getAppCategory(app: com.example.services.AppLauncher.AppInfoItem): String {
+        val pkg = app.packageName.lowercase(java.util.Locale.US)
+        val label = app.label.lowercase(java.util.Locale.US)
+        return when {
+            pkg.contains("whatsapp") || pkg.contains("telegram") || pkg.contains("instagram") ||
+            pkg.contains("facebook") || pkg.contains("twitter") || pkg.contains("snapchat") ||
+            pkg.contains("messaging") || pkg.contains("mail") || pkg.contains("contact") ||
+            label.contains("chat") || label.contains("social") || label.contains("message") -> "Social & Comms 💬"
+
+            pkg.contains("youtube") || pkg.contains("spotify") || pkg.contains("netflix") ||
+            pkg.contains("music") || pkg.contains("player") || pkg.contains("video") ||
+            pkg.contains("gallery") || pkg.contains("photos") || label.contains("camera") || label.contains("video") -> "Media & Entertainment 🎵"
+
+            pkg.contains("chrome") || pkg.contains("browser") || pkg.contains("drive") ||
+            pkg.contains("office") || pkg.contains("doc") || pkg.contains("notes") ||
+            pkg.contains("calculator") || pkg.contains("clock") || pkg.contains("tool") -> "Tools & Productivity 🛠️"
+
+            pkg.startsWith("com.android.") || pkg.startsWith("com.google.android.") || pkg.contains("settings") -> "System & Google ⚙️"
+
+            else -> "User Applications 📱"
+        }
+    }
 
     androidx.compose.runtime.LaunchedEffect(visible) {
         if (visible) {
@@ -419,45 +456,112 @@ fun AppPickerAndLockModal(
         }
     }
 
-    val filteredApps = androidx.compose.runtime.remember(searchQuery, installedApps) {
-        if (searchQuery.isBlank()) installedApps
-        else installedApps.filter {
-            it.label.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true)
+    val filteredApps = androidx.compose.runtime.remember(searchQuery, selectedCategory, installedApps) {
+        installedApps.filter { app ->
+            val matchesQuery = searchQuery.isBlank() ||
+                    app.label.contains(searchQuery, ignoreCase = true) ||
+                    app.packageName.contains(searchQuery, ignoreCase = true)
+            val category = getAppCategory(app)
+            val matchesCat = selectedCategory == "All" || category == selectedCategory
+            matchesQuery && matchesCat
         }
+    }
+
+    val groupedApps = androidx.compose.runtime.remember(filteredApps) {
+        filteredApps.groupBy { getAppCategory(it) }
     }
 
     CustomModal(
         visible = visible,
-        title = "Choose an app",
-        subtitle = "Select an installed app to assign & lock it.\nTap the app to open it directly.",
+        title = if (shortcutTitle.isNotBlank() && shortcutTitle != "App Launcher") "Choose App for $shortcutTitle" else "📱 Installed App Launcher",
+        subtitle = "Scan and launch any app installed on your Android device.\nFilter by category or search term below.",
         onDismissRequest = onDismissRequest
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            // Count badge & search bar
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "📱 ${installedApps.size} Applications (${filteredApps.size} showing)",
+                    color = Color(0xFFA78BFA),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
             // Search Input Field
             CustomInput(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = "Search installed apps...",
+                placeholder = "Search apps, packages or features...",
                 leadingIcon = Icons.Default.Search
             )
 
-            // App List Scroll Container
+            // Category Filter Chips Row
+            val categories = listOf("All", "Social & Comms 💬", "Media & Entertainment 🎵", "Tools & Productivity 🛠️", "System & Google ⚙️", "User Applications 📱")
+            androidx.compose.foundation.lazy.LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(categories.size) { index ->
+                    val cat = categories[index]
+                    val isSelected = selectedCategory == cat
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isSelected) Color(0xFF7C3AED) else Color(0xFF1B1630))
+                            .border(1.dp, if (isSelected) Color(0xFFA78BFA) else Color(0xFF2B254C), RoundedCornerShape(12.dp))
+                            .clickable { selectedCategory = cat }
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
+                        Text(
+                            text = cat,
+                            color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
+            // App List Scroll Container with Group Headers
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(300.dp)
+                    .height(320.dp)
             ) {
                 if (filteredApps.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            text = if (installedApps.isEmpty()) "Scanning device apps..." else "No matching app found.",
+                            text = if (installedApps.isEmpty()) "Scanning device apps via PackageManager..." else "No matching apps found in category.",
                             color = Color(0xFF94A3B8),
                             fontSize = 13.sp
                         )
                     }
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(filteredApps) { app ->
+                        groupedApps.forEach { (catName, appList) ->
+                            item(key = "header_$catName") {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFF1E1738))
+                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = "$catName (${appList.size})",
+                                        color = Color(0xFFC084FC),
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            items(appList, key = { it.packageName }) { app ->
                             val appIconBitmap = androidx.compose.runtime.remember(app.icon) {
                                 app.icon?.let { drawable ->
                                     try {
@@ -482,8 +586,19 @@ fun AppPickerAndLockModal(
                                     .clip(RoundedCornerShape(16.dp))
                                     .background(Color(0xFF13162A))
                                     .border(1.dp, Color(0xFF222644), RoundedCornerShape(16.dp))
-                                    .clickable { onAppSelected(app) }
-                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    .clickable {
+                                        if (shortcutTitle.isBlank() || shortcutTitle == "App Launcher") {
+                                            if (com.example.services.AppLauncher.tryLaunchPackage(context, app.packageName)) {
+                                                android.widget.Toast.makeText(context, "Opening ${app.label}...", android.widget.Toast.LENGTH_SHORT).show()
+                                                onDismissRequest()
+                                            } else {
+                                                android.widget.Toast.makeText(context, "Unable to launch ${app.label}", android.widget.Toast.LENGTH_SHORT).show()
+                                            }
+                                        } else {
+                                            onAppSelected(app)
+                                        }
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -499,7 +614,7 @@ fun AppPickerAndLockModal(
                                                 .size(38.dp)
                                                 .clip(RoundedCornerShape(10.dp))
                                         )
-                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Spacer(modifier = Modifier.width(10.dp))
                                     } else {
                                         Box(
                                             modifier = Modifier
@@ -515,45 +630,80 @@ fun AppPickerAndLockModal(
                                                 modifier = Modifier.size(20.dp)
                                             )
                                         }
-                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Spacer(modifier = Modifier.width(10.dp))
                                     }
 
-                                    // Display ONLY app label, NO package name shown
-                                    Text(
-                                        text = app.label,
-                                        color = Color.White,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 15.sp,
-                                        maxLines = 1,
-                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = app.label,
+                                            color = Color.White,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 14.sp,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = app.packageName,
+                                            color = Color(0xFF64748B),
+                                            fontSize = 10.sp,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
 
-                                Spacer(modifier = Modifier.width(10.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
 
-                                // Select Button exactly matching screenshot!
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(20.dp))
-                                        .background(
-                                            Brush.horizontalGradient(
-                                                listOf(Color(0xFF4F46E5), Color(0xFF7C3AED), Color(0xFF9333EA))
-                                            )
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    // Launch Button
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(Color(0xFF10B981))
+                                            .clickable {
+                                                if (com.example.services.AppLauncher.tryLaunchPackage(context, app.packageName)) {
+                                                    android.widget.Toast.makeText(context, "Opening ${app.label}...", android.widget.Toast.LENGTH_SHORT).show()
+                                                    onDismissRequest()
+                                                } else {
+                                                    android.widget.Toast.makeText(context, "Cannot open ${app.label}", android.widget.Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = "Launch 🚀",
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
                                         )
-                                        .clickable { onAppSelected(app) }
-                                        .padding(horizontal = 18.dp, vertical = 6.dp)
-                                ) {
-                                    Text(
-                                        text = "Select",
-                                        color = Color.White,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    }
+
+                                    if (shortcutTitle.isNotBlank() && shortcutTitle != "App Launcher") {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(16.dp))
+                                                .background(
+                                                    Brush.horizontalGradient(
+                                                        listOf(Color(0xFF4F46E5), Color(0xFF7C3AED), Color(0xFF9333EA))
+                                                    )
+                                                )
+                                                .clickable { onAppSelected(app) }
+                                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                        ) {
+                                            Text(
+                                                text = "Select 🔒",
+                                                color = Color.White,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
+            }
             }
 
             // Privacy Banner at bottom of modal matching screenshot

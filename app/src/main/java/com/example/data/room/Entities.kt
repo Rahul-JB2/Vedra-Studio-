@@ -24,3 +24,21 @@ data class UserInteractionPatternEntity(
     val lastUsedTimestamp: Long = System.currentTimeMillis(),
     val contextNote: String = ""
 )
+
+@Entity(tableName = "custom_text_commands")
+data class CustomTextCommandEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val commandText: String,    // e.g. "my whatsapp", "study mode", "night light"
+    val actionType: String,     // e.g. "LAUNCH_APP", "SYSTEM_SETTING", "VOICE_ACTION"
+    val targetPayload: String,  // e.g. "com.whatsapp", "flashlight", "open study hub"
+    val description: String = "",
+    val isEnabled: Boolean = true,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "vedra_user_settings")
+data class VedraUserSettingEntity(
+    @PrimaryKey val settingKey: String,
+    val settingValue: String,
+    val lastUpdated: Long = System.currentTimeMillis()
+)

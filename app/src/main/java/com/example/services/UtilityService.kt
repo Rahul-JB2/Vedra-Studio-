@@ -212,6 +212,35 @@ object UtilityService {
     fun parseAndExecuteLocalCommand(context: Context, dbService: DatabaseService, text: String): UtilityResult {
         val lower = text.trim().lowercase(Locale.US)
 
+        // 0. Check User-Defined Room Text Commands
+        try {
+            val customRoomCmd = kotlinx.coroutines.runBlocking {
+                dbService.aiContextRepository.findCustomCommand(lower)
+            }
+            if (customRoomCmd != null && customRoomCmd.isEnabled) {
+                when (customRoomCmd.actionType.uppercase(Locale.US)) {
+                    "LAUNCH_APP" -> {
+                        val launched = AppLauncher.tryLaunchPackage(context, customRoomCmd.targetPayload)
+                        val msg = if (launched) "Launched ${customRoomCmd.targetPayload} 🚀" else "Could not open ${customRoomCmd.targetPayload}"
+                        return UtilityResult(true, msg, "ROOM_CUSTOM_COMMAND")
+                    }
+                    "TOGGLE_SETTINGS", "SYSTEM_SETTING" -> {
+                        if (customRoomCmd.targetPayload.contains("flashlight", ignoreCase = true)) {
+                            val msg = toggleFlashlight(context, null)
+                            return UtilityResult(true, msg, "ROOM_CUSTOM_COMMAND")
+                        } else {
+                            val msg = "Triggered system setting: ${customRoomCmd.targetPayload} ⚙️"
+                            return UtilityResult(true, msg, "ROOM_CUSTOM_COMMAND")
+                        }
+                    }
+                    else -> {
+                        val msg = "Executed command: \"${customRoomCmd.commandText}\" -> ${customRoomCmd.targetPayload}"
+                        return UtilityResult(true, msg, "ROOM_CUSTOM_COMMAND")
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
         // Routine Execution Check
         val routineJson = dbService.getRoutineForTrigger(lower)
         if (routineJson != null) {

@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AltRoute
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Cloud
@@ -82,6 +83,7 @@ fun SideDrawer(
 
     val navItems = listOf(
         DrawerNavItem("Ved", Icons.Default.ChatBubbleOutline, "ved", activeKey == "ved"),
+        DrawerNavItem("App Launcher", Icons.Default.Apps, "app_launcher", activeKey == "app_launcher"),
         DrawerNavItem("Database", Icons.Default.Storage, "database", activeKey == "database"),
         DrawerNavItem("Workspace", Icons.Default.Dashboard, "workspace", activeKey == "workspace"),
         DrawerNavItem("Automation", Icons.Default.FlashOn, "automation", activeKey == "automation"),

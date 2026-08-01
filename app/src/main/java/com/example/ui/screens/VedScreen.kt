@@ -4,6 +4,11 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.widget.Toast
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -90,6 +95,14 @@ import androidx.compose.material.icons.filled.Menu
 
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Hearing
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import com.example.data.room.ConversationContextEntity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.lazy.LazyColumn
 import com.example.services.ChatHistoryItem
@@ -123,6 +136,7 @@ fun VedScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val vedOrbStyle = remember { dbService.getSetting("ved_orb_style", "Gemini Neon Glow Orb") }
     val coroutineScope = rememberCoroutineScope()
 
     var inputText by remember { mutableStateOf("") }
@@ -134,6 +148,13 @@ fun VedScreen(
     var isOfflineNativeMode by remember {
         mutableStateOf(dbService.getSetting("ai_network_mode", "Auto") == "Force Offline")
     }
+
+    val roomContextLogsState = dbService.aiContextRepository.allContextsFlow.collectAsState(initial = emptyList())
+    val roomContextLogs = roomContextLogsState.value
+
+    var activeTab by remember { mutableStateOf("CHAT") } // "CHAT" or "ROOM_LOGS"
+    var roomLogSearchQuery by remember { mutableStateOf("") }
+    var isWakeWordActive by remember { mutableStateOf(voiceService.isWakeWordActive.value) }
 
     val isOnline = OfflineService.isNetworkAvailable.collectAsState().value
 
@@ -238,12 +259,17 @@ fun VedScreen(
             isThinking = false
             messages.add(ChatMessage(sender = "VEDRA", text = replyText))
 
-            // Save conversation history to SQLite DB & Drive Document automatically
+            // Save conversation history to SQLite DB, Room Database & Drive Document automatically
             if (!isIncognitoMode) {
                 dbService.saveChatHistory(
                     sessionTitle = clean.take(25),
                     userText = clean,
                     vedResponse = replyText
+                )
+                dbService.aiContextRepository.recordConversation(
+                    userPrompt = clean,
+                    aiResponse = replyText,
+                    engine = if (isOfflineNativeMode) "Offline Native VEDRA AI" else "Cloud Gemini AI"
                 )
             }
 
@@ -293,15 +319,12 @@ fun VedScreen(
                     }
                     Spacer(modifier = Modifier.width(6.dp))
                 }
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(VedraPurplePrimary),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = "VED", color = VedraTextPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                }
+                com.example.ui.components.VedOrbView(
+                    orbStyle = vedOrbStyle,
+                    size = 38.dp,
+                    isListening = voiceService.isListening.value,
+                    isSpeaking = voiceService.isSpeaking.value
+                )
                 Spacer(modifier = Modifier.width(Spacing.small))
                 Column {
                     Text(text = "VEDRA AI", color = VedraTextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -340,6 +363,36 @@ fun VedScreen(
                     onClick = { isIncognitoMode = !isIncognitoMode },
                     isSecondary = !isIncognitoMode,
                     fontSize = 12.sp
+                )
+
+                // Hands-Free 'Hey VEDRA' Wake Word Activation
+                CustomButton(
+                    text = if (voiceService.isWakeWordActive.value) "🎙️ Hey VEDRA ON" else "🎙️ Hey VEDRA",
+                    icon = Icons.Default.Hearing,
+                    onClick = {
+                        if (voiceService.isWakeWordActive.value) {
+                            voiceService.stopWakeWordDetection()
+                            Toast.makeText(context, "Hands-free 'Hey VEDRA' wake word detection paused", Toast.LENGTH_SHORT).show()
+                        } else {
+                            if (hasMicPermission) {
+                                voiceService.startWakeWordDetection { detected ->
+                                    Toast.makeText(context, "🎙️ 'Hey VEDRA' detected! Listening for command...", Toast.LENGTH_SHORT).show()
+                                    voiceService.startListening(
+                                        onResult = { spoken ->
+                                            inputText = spoken
+                                            sendMessage(spoken)
+                                        },
+                                        onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
+                                    )
+                                }
+                                Toast.makeText(context, "🎙️ Listening for 'Hey VEDRA' hands-free wake word...", Toast.LENGTH_SHORT).show()
+                            } else {
+                                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        }
+                    },
+                    isSecondary = !voiceService.isWakeWordActive.value,
+                    fontSize = 11.5.sp
                 )
 
                 // Switch between Text & Voice Mode button
@@ -579,25 +632,296 @@ fun VedScreen(
             }
         }
 
-        // Messages List using CustomList
-        CustomList(
-            items = messages.toList(),
+        // Tab Selector Bar (Active Chat vs Room Database Conversation Logs)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(VedraSurface)
+                .border(1.dp, VedraBorder, RoundedCornerShape(12.dp))
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (activeTab == "CHAT") VedraPurplePrimary else Color.Transparent)
+                    .clickable { activeTab = "CHAT" }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Send, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "💬 Active Chat (${messages.size})",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = if (activeTab == "CHAT") FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (activeTab == "ROOM_LOGS") VedraPurplePrimary else Color.Transparent)
+                    .clickable { activeTab = "ROOM_LOGS" }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Storage, contentDescription = null, tint = Color(0xFFA78BFA), modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "🧠 Room DB Logs (${roomContextLogs.size})",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = if (activeTab == "ROOM_LOGS") FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            }
+        }
+
+        androidx.compose.animation.AnimatedContent(
+            targetState = activeTab,
+            transitionSpec = {
+                (fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(220)))
+            },
             modifier = Modifier.weight(1f),
-            emptyText = "No messages yet. Start conversation with VEDRA!",
-            itemKey = { it.id }
-        ) { msg ->
-            ChatMessageBubble(
-                message = msg,
-                isSpeaking = voiceService.isSpeaking.value,
-                onSpeak = {
-                    if (voiceService.isSpeaking.value) {
-                        voiceService.stopSpeaking()
-                    } else {
-                        voiceService.speak(msg.text)
+            label = "VedTabTransition"
+        ) { targetTab ->
+            if (targetTab == "ROOM_LOGS") {
+                // UI List displaying historical conversation logs retrieved from Room Database
+                val filteredRoomLogs = remember(roomLogSearchQuery, roomContextLogs) {
+                    if (roomLogSearchQuery.isBlank()) roomContextLogs
+                    else roomContextLogs.filter { log ->
+                        log.userPrompt.contains(roomLogSearchQuery, ignoreCase = true) ||
+                                log.aiResponse.contains(roomLogSearchQuery, ignoreCase = true) ||
+                                log.keywords.contains(roomLogSearchQuery, ignoreCase = true) ||
+                                log.aiEngine.contains(roomLogSearchQuery, ignoreCase = true)
                     }
-                },
-                onCopy = { UtilityService.writeToClipboard(context, msg.text) }
-            )
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                ) {
+                    // Search Field for Room Logs
+                    OutlinedTextField(
+                        value = roomLogSearchQuery,
+                        onValueChange = { roomLogSearchQuery = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp),
+                        placeholder = { Text("Search Room DB logs by keyword, prompt, or engine...", color = Color.Gray, fontSize = 12.sp) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFFA78BFA)) },
+                        trailingIcon = {
+                            if (roomLogSearchQuery.isNotEmpty()) {
+                                IconButton(onClick = { roomLogSearchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear", tint = Color.Gray)
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = VedraPurplePrimary,
+                            unfocusedBorderColor = VedraBorder,
+                            focusedContainerColor = VedraSurface,
+                            unfocusedContainerColor = VedraSurface,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    if (filteredRoomLogs.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.Psychology, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(48.dp))
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = if (roomLogSearchQuery.isBlank()) "No conversation logs stored in Room DB yet.\nStart chatting to automatically record history!"
+                                    else "No Room logs matched '$roomLogSearchQuery'",
+                                    color = Color.Gray,
+                                    fontSize = 13.sp,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = PaddingValues(vertical = 6.dp)
+                        ) {
+                            items(filteredRoomLogs, key = { it.id }) { log ->
+                                CustomCard(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    containerColor = Color(0xFF141829),
+                                    borderColor = Color(0xFF2A2E4B)
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        // Top Header Row
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(Color(0xFF8B5CF6).copy(alpha = 0.25f))
+                                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(
+                                                    text = log.aiEngine,
+                                                    color = Color(0xFFC4B5FD),
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = formatTimestamp(log.timestamp),
+                                                    color = Color(0xFF9CA3AF),
+                                                    fontSize = 10.sp
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                IconButton(
+                                                    onClick = {
+                                                        coroutineScope.launch {
+                                                            dbService.aiContextRepository.deleteContext(log.id)
+                                                            Toast.makeText(context, "Deleted log entry from Room DB", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    },
+                                                    modifier = Modifier.size(24.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Gray, modifier = Modifier.size(14.dp))
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        // User Prompt Box
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(Color(0xFF1E243B))
+                                                .padding(8.dp)
+                                        ) {
+                                            Text(
+                                                text = "👤 ${log.userPrompt}",
+                                                color = VedraCyanAccent,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 13.sp
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(6.dp))
+
+                                        // AI Response Text
+                                        Text(
+                                            text = "🤖 ${log.aiResponse}",
+                                            color = Color.White,
+                                            fontSize = 12.5.sp,
+                                            maxLines = 6,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+
+                                        if (log.keywords.isNotBlank()) {
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = "🏷️ Keywords: ${log.keywords}",
+                                                color = Color(0xFF9CA3AF),
+                                                fontSize = 10.sp
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        // Action buttons for log item
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            CustomButton(
+                                                text = "🚀 Load to Active Chat",
+                                                onClick = {
+                                                    messages.clear()
+                                                    messages.add(ChatMessage(sender = "USER", text = log.userPrompt, time = formatTimestamp(log.timestamp)))
+                                                    messages.add(ChatMessage(sender = "VEDRA", text = log.aiResponse, time = formatTimestamp(log.timestamp)))
+                                                    activeTab = "CHAT"
+                                                    Toast.makeText(context, "Loaded Room conversation into active chat!", Toast.LENGTH_SHORT).show()
+                                                },
+                                                fontSize = 11.sp
+                                            )
+
+                                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                IconButton(
+                                                    onClick = { voiceService.speak(log.aiResponse) },
+                                                    modifier = Modifier
+                                                        .size(32.dp)
+                                                        .clip(CircleShape)
+                                                        .background(Color(0xFF8B5CF6).copy(alpha = 0.2f))
+                                                ) {
+                                                    Icon(Icons.Default.VolumeUp, contentDescription = "Read Aloud", tint = Color(0xFFC4B5FD), modifier = Modifier.size(16.dp))
+                                                }
+
+                                                IconButton(
+                                                    onClick = {
+                                                        UtilityService.writeToClipboard(context, "Q: ${log.userPrompt}\nA: ${log.aiResponse}")
+                                                        Toast.makeText(context, "Copied log to clipboard!", Toast.LENGTH_SHORT).show()
+                                                    },
+                                                    modifier = Modifier
+                                                        .size(32.dp)
+                                                        .clip(CircleShape)
+                                                        .background(Color(0xFF8B5CF6).copy(alpha = 0.2f))
+                                                ) {
+                                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = Color(0xFFC4B5FD), modifier = Modifier.size(16.dp))
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Messages List using CustomList
+                CustomList(
+                    items = messages.toList(),
+                    modifier = Modifier.fillMaxSize(),
+                    emptyText = "No messages yet. Start conversation with VEDRA!",
+                    itemKey = { it.id }
+                ) { msg ->
+                    ChatMessageBubble(
+                        message = msg,
+                        isSpeaking = voiceService.isSpeaking.value,
+                        onSpeak = {
+                            if (voiceService.isSpeaking.value) {
+                                voiceService.stopSpeaking()
+                            } else {
+                                voiceService.speak(msg.text)
+                            }
+                        },
+                        onCopy = { UtilityService.writeToClipboard(context, msg.text) }
+                    )
+                }
+            }
         }
 
         if (isThinking) {
@@ -667,6 +991,21 @@ fun VedScreen(
                 onValueChange = { inputText = it },
                 placeholder = if (voiceService.isListening.value) "Listening..." else "Ask anything...",
                 leadingIcon = Icons.Default.Mic,
+                onLeadingIconClick = {
+                    if (voiceService.isListening.value) {
+                        voiceService.stopListening()
+                    } else {
+                        voiceService.startListening(
+                            onResult = { resultText ->
+                                inputText = resultText
+                                sendMessage(resultText)
+                            },
+                            onError = { err ->
+                                Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    }
+                },
                 trailingIcon = {
                     IconButton(
                         onClick = { sendMessage(inputText) },

@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import com.example.ui.theme.*
+
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.*
@@ -21,6 +23,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -559,7 +562,7 @@ fun GeneralPreferencesDetailScreen(dbService: DatabaseService) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF07060F))
+            .background(VedraBackground)
             .padding(horizontal = 16.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -581,9 +584,9 @@ fun GeneralPreferencesDetailScreen(dbService: DatabaseService) {
                         PreferenceIconBox(icon = Icons.Default.Language)
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
-                            Text(text = "App Language", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = "App Language", color = VedraTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                             Spacer(modifier = Modifier.height(2.dp))
-                            Text(text = "Select your preferred language", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                            Text(text = "Select your preferred language", color = VedraTextSecondary, fontSize = 11.sp)
                         }
                     }
                     Spacer(modifier = Modifier.width(8.dp))
@@ -602,9 +605,9 @@ fun GeneralPreferencesDetailScreen(dbService: DatabaseService) {
                         PreferenceIconBox(icon = Icons.Default.Palette)
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
-                            Text(text = "App Theme", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = "App Theme", color = VedraTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                             Spacer(modifier = Modifier.height(2.dp))
-                            Text(text = "Choose your visual experience", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                            Text(text = "Choose your visual experience", color = VedraTextSecondary, fontSize = 11.sp)
                         }
                     }
 
@@ -661,9 +664,9 @@ fun GeneralPreferencesDetailScreen(dbService: DatabaseService) {
                         PreferenceIconBox(icon = Icons.Default.Straighten)
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
-                            Text(text = "Measurement Units", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = "Measurement Units", color = VedraTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                             Spacer(modifier = Modifier.height(2.dp))
-                            Text(text = "Choose your preferred units", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                            Text(text = "Choose your preferred units", color = VedraTextSecondary, fontSize = 11.sp)
                         }
                     }
                     Spacer(modifier = Modifier.width(8.dp))
@@ -689,9 +692,9 @@ fun GeneralPreferencesDetailScreen(dbService: DatabaseService) {
                         PreferenceIconBox(icon = Icons.Default.Thermostat)
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
-                            Text(text = "Temperature", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = "Temperature", color = VedraTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                             Spacer(modifier = Modifier.height(2.dp))
-                            Text(text = "Select temperature display unit", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                            Text(text = "Select temperature display unit", color = VedraTextSecondary, fontSize = 11.sp)
                         }
                     }
                     Spacer(modifier = Modifier.width(8.dp))
@@ -725,9 +728,9 @@ fun GeneralPreferencesDetailScreen(dbService: DatabaseService) {
                         PreferenceIconBox(icon = Icons.Default.AccessTime)
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
-                            Text(text = "Time Format", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = "Time Format", color = VedraTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                             Spacer(modifier = Modifier.height(2.dp))
-                            Text(text = "Choose how time is displayed", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                            Text(text = "Choose how time is displayed", color = VedraTextSecondary, fontSize = 11.sp)
                         }
                     }
                     Spacer(modifier = Modifier.width(8.dp))
@@ -761,9 +764,9 @@ fun GeneralPreferencesDetailScreen(dbService: DatabaseService) {
                         PreferenceIconBox(icon = Icons.Default.CalendarToday)
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
-                            Text(text = "Date Format", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = "Date Format", color = VedraTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                             Spacer(modifier = Modifier.height(2.dp))
-                            Text(text = "Choose how date is displayed", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                            Text(text = "Choose how date is displayed", color = VedraTextSecondary, fontSize = 11.sp)
                         }
                     }
                     Spacer(modifier = Modifier.width(8.dp))
@@ -791,7 +794,7 @@ fun GeneralPreferencesDetailScreen(dbService: DatabaseService) {
                             .fillMaxWidth()
                             .padding(vertical = 10.dp)
                             .height(1.dp)
-                            .background(Color(0xFF1E1B2C))
+                            .background(VedraBorder)
                     )
 
                     OtherPreferenceRow(
@@ -807,7 +810,7 @@ fun GeneralPreferencesDetailScreen(dbService: DatabaseService) {
                             .fillMaxWidth()
                             .padding(vertical = 10.dp)
                             .height(1.dp)
-                            .background(Color(0xFF1E1B2C))
+                            .background(VedraBorder)
                     )
 
                     OtherPreferenceRow(
@@ -985,14 +988,229 @@ fun VoiceSpeechDetailScreen(dbService: DatabaseService, voiceService: VoiceServi
 
     var showVoiceModelModal by remember { mutableStateOf(false) }
 
+    var popUpEnabled by remember { mutableStateOf(dbService.getSetting("ved_voice_popup_enabled", "true") == "true") }
+    var autoSpeakResponses by remember { mutableStateOf(dbService.getSetting("ved_voice_auto_speak", "true") == "true") }
+    var showQuickShortcuts by remember { mutableStateOf(dbService.getSetting("ved_voice_shortcuts_enabled", "true") == "true") }
+    var soundwaveStyle by remember { mutableStateOf(dbService.getSetting("ved_voice_wave_style", "Dynamic Spectrum Glow")) }
+    var showWaveStyleModal by remember { mutableStateOf(false) }
+
+    var vedOrbStyle by remember { mutableStateOf(dbService.getSetting("ved_orb_style", "Gemini Neon Glow Orb")) }
+    var showOrbStyleModal by remember { mutableStateOf(false) }
+    var offlineCommandMode by remember { mutableStateOf(dbService.getSetting("offline_command_mode_enabled", "true") == "true") }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF07060F))
+            .background(VedraBackground)
             .padding(horizontal = 16.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // VED ORB & VISUAL STYLE
+        item {
+            PreferenceSectionHeader(title = "VED ORB & ANIMATION STYLE")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column {
+                    // VED Orb Style Selector
+                    OtherPreferenceRow(
+                        icon = Icons.Default.AutoAwesome,
+                        title = "VED Orb Style (Gemini / Google Voice)",
+                        subtitle = "Select AI orb visualizer & pulse animation",
+                        value = vedOrbStyle,
+                        onClick = { showOrbStyleModal = true }
+                    )
+
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(1.dp).background(Color(0xFF1E1B2C)))
+
+                    // Offline Command Mode Switch
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            PreferenceIconBox(icon = Icons.Default.SignalCellularOff)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(text = "Offline Command Mode", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(text = "Execute system commands (Flashlight, Alarms, Volume, Notes) when offline", color = Color(0xFF9CA3AF), fontSize = 11.5.sp)
+                            }
+                        }
+                        Switch(
+                            checked = offlineCommandMode,
+                            onCheckedChange = {
+                                offlineCommandMode = it
+                                dbService.setSetting("offline_command_mode_enabled", it.toString())
+                                Toast.makeText(context, if (it) "Offline Command Mode Enabled ⚡" else "Offline Command Mode Disabled", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFF8B5CF6),
+                                uncheckedThumbColor = Color(0xFF9CA3AF),
+                                uncheckedTrackColor = Color(0xFF1E1B2C)
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // VED VOICE ASSISTANT POP-UP SETTINGS
+        item {
+            PreferenceSectionHeader(title = "VED VOICE ASSISTANT POP-UP SETTINGS")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column {
+                    // Toggle Pop-Up Enabled
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            PreferenceIconBox(icon = Icons.Default.RecordVoiceOver)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(text = "VED Voice Overlay Pop-Up", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(text = "Enable floating voice popup & visualizer card", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                            }
+                        }
+                        Switch(
+                            checked = popUpEnabled,
+                            onCheckedChange = {
+                                popUpEnabled = it
+                                dbService.setSetting("ved_voice_popup_enabled", it.toString())
+                                Toast.makeText(context, if (it) "VED Voice Overlay Enabled" else "VED Voice Overlay Disabled", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFF8B5CF6),
+                                uncheckedThumbColor = Color(0xFF9CA3AF),
+                                uncheckedTrackColor = Color(0xFF1E1B2C)
+                            )
+                        )
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(1.dp).background(Color(0xFF1E1B2C)))
+
+                    // Auto Speak Responses
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            PreferenceIconBox(icon = Icons.Default.VolumeUp)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(text = "Auto-Read Responses Aloud", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(text = "Automatically speak VED AI answers", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                            }
+                        }
+                        Switch(
+                            checked = autoSpeakResponses,
+                            onCheckedChange = {
+                                autoSpeakResponses = it
+                                dbService.setSetting("ved_voice_auto_speak", it.toString())
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFF8B5CF6),
+                                uncheckedThumbColor = Color(0xFF9CA3AF),
+                                uncheckedTrackColor = Color(0xFF1E1B2C)
+                            )
+                        )
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(1.dp).background(Color(0xFF1E1B2C)))
+
+                    // Soundwave Visualizer Style
+                    OtherPreferenceRow(
+                        icon = Icons.Default.GraphicEq,
+                        title = "Soundwave Visualizer Theme",
+                        subtitle = "Animation style inside VED Pop-Up",
+                        value = soundwaveStyle,
+                        onClick = { showWaveStyleModal = true }
+                    )
+
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(1.dp).background(Color(0xFF1E1B2C)))
+
+                    // Hands-Free 'Hey VEDRA' Wake Word Switch
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            PreferenceIconBox(icon = Icons.Default.Hearing)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(text = "'Hey VEDRA' Wake Word Activation", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(text = "Hands-free voice trigger ('Hey VEDRA', 'VEDRA')", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                            }
+                        }
+                        Switch(
+                            checked = wakeWordEnabled,
+                            onCheckedChange = {
+                                wakeWordEnabled = it
+                                dbService.setSetting("wake_word_enabled", it.toString())
+                                if (it) {
+                                    voiceService.startWakeWordDetection {
+                                        Toast.makeText(context, "🎙️ 'Hey VEDRA' Wake Word Triggered!", Toast.LENGTH_SHORT).show()
+                                    }
+                                } else {
+                                    voiceService.stopWakeWordDetection()
+                                }
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFF8B5CF6),
+                                uncheckedThumbColor = Color(0xFF9CA3AF),
+                                uncheckedTrackColor = Color(0xFF1E1B2C)
+                            )
+                        )
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(1.dp).background(Color(0xFF1E1B2C)))
+
+                    // Show Quick Action Pills
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            PreferenceIconBox(icon = Icons.Default.AutoAwesome)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(text = "Quick Command Shortcut Pills", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(text = "Show Flashlight, Alarm & Voice Note shortcuts", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                            }
+                        }
+                        Switch(
+                            checked = showQuickShortcuts,
+                            onCheckedChange = {
+                                showQuickShortcuts = it
+                                dbService.setSetting("ved_voice_shortcuts_enabled", it.toString())
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFF8B5CF6),
+                                uncheckedThumbColor = Color(0xFF9CA3AF),
+                                uncheckedTrackColor = Color(0xFF1E1B2C)
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
         // VOICE SPEED & PITCH
         item {
             PreferenceSectionHeader(title = "VOICE CONTROLS")
@@ -1138,6 +1356,34 @@ fun VoiceSpeechDetailScreen(dbService: DatabaseService, voiceService: VoiceServi
             onDismiss = { showVoiceModelModal = false }
         )
     }
+
+    if (showWaveStyleModal) {
+        SelectionListModal(
+            title = "Soundwave Visualizer Style",
+            options = listOf("Dynamic Spectrum Glow", "Neon Waveform Pulse", "Minimal Bars", "Cyan Pulsing Circle"),
+            selectedOption = soundwaveStyle,
+            onSelect = {
+                soundwaveStyle = it
+                dbService.setSetting("ved_voice_wave_style", it)
+                Toast.makeText(context, "Soundwave theme set to $it", Toast.LENGTH_SHORT).show()
+                showWaveStyleModal = false
+            },
+            onDismiss = { showWaveStyleModal = false }
+        )
+    }
+
+    if (showOrbStyleModal) {
+        VedOrbStyleModal(
+            selectedStyle = vedOrbStyle,
+            onSelect = {
+                vedOrbStyle = it
+                dbService.setSetting("ved_orb_style", it)
+                Toast.makeText(context, "Orb theme updated: $it", Toast.LENGTH_SHORT).show()
+                showOrbStyleModal = false
+            },
+            onDismiss = { showOrbStyleModal = false }
+        )
+    }
 }
 
 // ==========================================
@@ -1153,7 +1399,7 @@ fun AppearanceDetailScreen(dbService: DatabaseService) {
     var smoothAnim by remember { mutableStateOf(dbService.getSetting("pref_smooth_anim", "true") == "true") }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Color(0xFF07060F)).padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxSize().background(VedraBackground).padding(horizontal = 16.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -1207,6 +1453,28 @@ fun AppearanceDetailScreen(dbService: DatabaseService) {
             Spacer(modifier = Modifier.height(4.dp))
             PreferenceCard {
                 Column {
+                    var dynamicColor by remember { mutableStateOf(dbService.getSetting("pref_dynamic_color", "true") == "true") }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = "Material 3 Dynamic Theme", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = "Adapt dark app colors to system wallpaper palette (Android 12+)", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                        }
+                        Switch(
+                            checked = dynamicColor,
+                            onCheckedChange = {
+                                dynamicColor = it
+                                dbService.setSetting("pref_dynamic_color", it.toString())
+                            },
+                            colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF8B5CF6))
+                        )
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(1.dp).background(Color(0xFF1E1B2C)))
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1262,7 +1530,7 @@ fun HomeScreenDetailScreen(dbService: DatabaseService) {
     var compactGrid by remember { mutableStateOf(dbService.getSetting("home_compact_grid", "false") == "true") }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Color(0xFF07060F)).padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxSize().background(VedraBackground).padding(horizontal = 16.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -1326,7 +1594,7 @@ fun NotificationsDetailScreen(dbService: DatabaseService) {
     var voiceAlerts by remember { mutableStateOf(dbService.getSetting("notif_voice_alerts", "false") == "true") }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Color(0xFF07060F)).padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxSize().background(VedraBackground).padding(horizontal = 16.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -1389,7 +1657,7 @@ fun SoundVibrationDetailScreen(dbService: DatabaseService) {
     var hapticFeedback by remember { mutableStateOf(dbService.getSetting("sound_haptics", "true") == "true") }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Color(0xFF07060F)).padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxSize().background(VedraBackground).padding(horizontal = 16.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -1475,7 +1743,7 @@ fun AiSettingsDetailScreen(dbService: DatabaseService) {
     val isOnline = remember { GeminiService.isDeviceOnline(context) }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Color(0xFF07060F)).padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxSize().background(VedraBackground).padding(horizontal = 16.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -2032,7 +2300,7 @@ fun MemorySettingsDetailScreen(dbService: DatabaseService) {
     val context = LocalContext.current
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Color(0xFF07060F)).padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxSize().background(VedraBackground).padding(horizontal = 16.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -2068,16 +2336,18 @@ fun MemorySettingsDetailScreen(dbService: DatabaseService) {
 // ==========================================
 @Composable
 fun WidgetsDetailScreen(dbService: DatabaseService) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var widgetEnabled by remember { mutableStateOf(dbService.getSetting("widget_enabled", "true") == "true") }
     var liveStatus by remember { mutableStateOf(dbService.getSetting("widget_live_status", "true") == "true") }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Color(0xFF07060F)).padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxSize().background(VedraBackground).padding(horizontal = 16.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+
         item {
-            PreferenceSectionHeader(title = "FLOATING AI WIDGET")
+            PreferenceSectionHeader(title = "IN-APP FLOATING AI WIDGET")
             Spacer(modifier = Modifier.height(4.dp))
             PreferenceCard {
                 Column {
@@ -2087,8 +2357,8 @@ fun WidgetsDetailScreen(dbService: DatabaseService) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text(text = "Floating Voice Widget", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                            Text(text = "Quick overlay pill over other apps", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                            Text(text = "In-App Floating Voice Widget", color = VedraTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = "Quick overlay pill inside VEDRA app", color = VedraTextSecondary, fontSize = 11.sp)
                         }
                         Switch(
                             checked = widgetEnabled,
@@ -2096,11 +2366,11 @@ fun WidgetsDetailScreen(dbService: DatabaseService) {
                                 widgetEnabled = it
                                 dbService.setSetting("widget_enabled", it.toString())
                             },
-                            colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF8B5CF6))
+                            colors = SwitchDefaults.colors(checkedTrackColor = VedraPurplePrimary)
                         )
                     }
 
-                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(1.dp).background(Color(0xFF1E1B2C)))
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(1.dp).background(VedraBorder))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -2108,8 +2378,8 @@ fun WidgetsDetailScreen(dbService: DatabaseService) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text(text = "Show Live Voice Indicator", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                            Text(text = "Pulse wave animation during voice listening", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                            Text(text = "Show Live Voice Indicator", color = VedraTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(text = "Pulse wave animation during voice listening", color = VedraTextSecondary, fontSize = 11.sp)
                         }
                         Switch(
                             checked = liveStatus,
@@ -2117,8 +2387,35 @@ fun WidgetsDetailScreen(dbService: DatabaseService) {
                                 liveStatus = it
                                 dbService.setSetting("widget_live_status", it.toString())
                             },
-                            colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF8B5CF6))
+                            colors = SwitchDefaults.colors(checkedTrackColor = VedraPurplePrimary)
                         )
+                    }
+                }
+            }
+        }
+
+        item {
+            PreferenceSectionHeader(title = "PHONE HOME SCREEN WIDGET")
+            Spacer(modifier = Modifier.height(4.dp))
+            PreferenceCard {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(text = "Permanent Home Screen Quick Widget", color = VedraTextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(text = "Place a small VEDRA button on your phone's home screen for instant 1-tap voice access.", color = VedraTextSecondary, fontSize = 11.5.sp)
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Brush.horizontalGradient(listOf(Color(0xFF4F46E5), Color(0xFF7C3AED))))
+                            .clickable { com.example.widget.VedraAppWidgetProvider.pinWidgetToHomeScreen(context) }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.Widgets, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = "Pin VEDRA Small Widget to Home Screen 📌", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
                     }
                 }
             }
@@ -2247,7 +2544,7 @@ fun DriveBackupDetailScreen(dbService: DatabaseService) {
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Color(0xFF07060F)).padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxSize().background(VedraBackground).padding(horizontal = 16.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -2519,7 +2816,7 @@ fun AboutSupportDetailScreen(dbService: DatabaseService) {
     val context = LocalContext.current
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(Color(0xFF07060F)).padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxSize().background(VedraBackground).padding(horizontal = 16.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -2729,21 +3026,21 @@ private fun ThemeOptionRow(
                 Icon(
                     imageVector = icon,
                     contentDescription = title,
-                    tint = if (isSelected) Color(0xFFA78BFA) else Color(0xFF9CA3AF),
+                    tint = if (isSelected) VedraPurplePrimary else VedraTextSecondary,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
                         text = title,
-                        color = Color.White,
+                        color = VedraTextPrimary,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 13.sp
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = subtitle,
-                        color = Color(0xFF9CA3AF),
+                        color = VedraTextSecondary,
                         fontSize = 11.sp
                     )
                 }
@@ -2754,7 +3051,7 @@ private fun ThemeOptionRow(
                     modifier = Modifier
                         .size(20.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF8B5CF6)),
+                        .background(VedraPurplePrimary),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -2769,7 +3066,7 @@ private fun ThemeOptionRow(
                     modifier = Modifier
                         .size(20.dp)
                         .clip(CircleShape)
-                        .border(1.5.dp, Color(0xFF4B5563), CircleShape)
+                        .border(1.5.dp, VedraTextMuted, CircleShape)
                 )
             }
         }
@@ -2801,14 +3098,14 @@ private fun OtherPreferenceRow(
             Column {
                 Text(
                     text = title,
-                    color = Color.White,
+                    color = VedraTextPrimary,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 13.5.sp
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = subtitle,
-                    color = Color(0xFF9CA3AF),
+                    color = VedraTextSecondary,
                     fontSize = 11.sp
                 )
             }
@@ -2876,6 +3173,80 @@ private fun SelectionListModal(
                                 contentDescription = "Selected",
                                 tint = Color(0xFF8B5CF6),
                                 modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VedOrbStyleModal(
+    selectedStyle: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val styles = listOf(
+        "Gemini Neon Glow Orb" to "Multi-color rotating gradient aura & pulsing core (Inspired by Gemini Live)",
+        "Google Voice Waveform Orb" to "Vibrant Google colors red, blue, yellow, green waveform & dots (Inspired by Google Assistant)",
+        "VED Purple Energy Orb" to "Classic cosmic purple pulsing core with soundwave aura",
+        "Quantum Hologram Orb" to "Cyberpunk cyan holographic particle aura"
+    )
+
+    CustomModal(
+        visible = true,
+        title = "Select VED Orb Style",
+        onDismissRequest = onDismiss
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(vertical = 4.dp)
+        ) {
+            styles.forEach { (styleName, description) ->
+                val isSel = styleName == selectedStyle
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (isSel) Color(0xFF2E1B4E) else Color(0xFF141122))
+                        .border(1.5.dp, if (isSel) Color(0xFFA78BFA) else Color(0xFF201B30), RoundedCornerShape(14.dp))
+                        .clickable { onSelect(styleName) }
+                        .padding(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        com.example.ui.components.VedOrbView(
+                            orbStyle = styleName,
+                            size = 46.dp,
+                            isListening = true
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = styleName,
+                                color = if (isSel) Color.White else Color(0xFFE5E7EB),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.5.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = description,
+                                color = Color(0xFF9CA3AF),
+                                fontSize = 11.sp,
+                                lineHeight = 14.sp
+                            )
+                        }
+                        if (isSel) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Selected",
+                                tint = Color(0xFF10B981),
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }

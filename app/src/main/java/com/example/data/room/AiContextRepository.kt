@@ -4,10 +4,65 @@ import kotlinx.coroutines.flow.Flow
 
 class AiContextRepository(
     private val contextDao: ConversationContextDao,
-    private val patternDao: UserInteractionPatternDao
+    private val patternDao: UserInteractionPatternDao,
+    private val commandDao: CustomTextCommandDao? = null,
+    private val settingDao: VedraUserSettingDao? = null
 ) {
     val allContextsFlow: Flow<List<ConversationContextEntity>> = contextDao.getAllContextsFlow()
     val topPatternsFlow: Flow<List<UserInteractionPatternEntity>> = patternDao.getAllPatternsFlow()
+    val allCustomCommandsFlow: Flow<List<CustomTextCommandEntity>>? = commandDao?.getAllCommandsFlow()
+    val allUserSettingsFlow: Flow<List<VedraUserSettingEntity>>? = settingDao?.getAllSettingsFlow()
+
+    suspend fun saveUserSetting(key: String, value: String) {
+        if (settingDao == null || key.isBlank()) return
+        val entity = VedraUserSettingEntity(
+            settingKey = key.trim(),
+            settingValue = value,
+            lastUpdated = System.currentTimeMillis()
+        )
+        settingDao.insertOrUpdateSetting(entity)
+    }
+
+    suspend fun getUserSetting(key: String): String? {
+        if (settingDao == null || key.isBlank()) return null
+        return settingDao.getSettingValue(key.trim())
+    }
+
+    suspend fun saveCustomCommand(
+        commandText: String,
+        actionType: String,
+        targetPayload: String,
+        description: String = ""
+    ): Long {
+        if (commandDao == null || commandText.isBlank()) return -1L
+        val entity = CustomTextCommandEntity(
+            commandText = commandText.trim().lowercase(),
+            actionType = actionType,
+            targetPayload = targetPayload.trim(),
+            description = description,
+            isEnabled = true,
+            createdAt = System.currentTimeMillis()
+        )
+        return commandDao.insertCommand(entity)
+    }
+
+    suspend fun findCustomCommand(query: String): CustomTextCommandEntity? {
+        if (commandDao == null || query.isBlank()) return null
+        return commandDao.findCommand(query.trim())
+    }
+
+    suspend fun getAllCustomCommands(): List<CustomTextCommandEntity> {
+        if (commandDao == null) return emptyList()
+        return commandDao.getAllCommands()
+    }
+
+    suspend fun deleteCustomCommand(id: Long) {
+        commandDao?.deleteCommand(id)
+    }
+
+    suspend fun deleteContext(id: Long) {
+        contextDao.deleteContext(id)
+    }
 
     suspend fun recordConversation(
         userPrompt: String,

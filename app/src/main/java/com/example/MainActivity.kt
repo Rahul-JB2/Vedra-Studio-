@@ -1,6 +1,13 @@
 package com.example
 
 import android.os.Bundle
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -46,6 +53,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.sp
 import com.example.services.DatabaseService
 import com.example.services.PermissionService
@@ -85,6 +93,7 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var dbService: DatabaseService
     private lateinit var voiceService: VoiceService
+    private val voiceTriggerState = androidx.compose.runtime.mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -97,6 +106,9 @@ class MainActivity : ComponentActivity() {
         BackgroundService.startBackgroundTasks(this, dbService)
 
         val launchVoice = intent?.getBooleanExtra("OPEN_VOICE_MODE", false) ?: false
+        if (launchVoice) {
+            voiceTriggerState.value = true
+        }
         val launchTab = intent?.getIntExtra("OPEN_TAB", -1) ?: -1
 
         setContent {
@@ -104,10 +116,19 @@ class MainActivity : ComponentActivity() {
                 MainAppLayout(
                     dbService = dbService,
                     voiceService = voiceService,
-                    initialVoiceMode = launchVoice,
+                    externalVoiceTrigger = voiceTriggerState,
                     initialTab = if (launchTab in 0..4) launchTab else 3
                 )
             }
+        }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val launchVoice = intent.getBooleanExtra("OPEN_VOICE_MODE", false)
+        if (launchVoice) {
+            voiceTriggerState.value = true
         }
     }
 
@@ -128,18 +149,28 @@ data class TabItem(
 fun MainAppLayout(
     dbService: DatabaseService,
     voiceService: VoiceService,
-    initialVoiceMode: Boolean = false,
+    externalVoiceTrigger: androidx.compose.runtime.MutableState<Boolean> = remember { mutableStateOf(false) },
     initialTab: Int = 3
 ) {
     val context = LocalContext.current
     var showPermissionOnboarding by remember {
         mutableStateOf(!PermissionService.isPermissionsOnboarded(context))
     }
-    var isVoiceModeActive by remember { mutableStateOf(initialVoiceMode) }
+    var isVoiceModeActive by remember { mutableStateOf(externalVoiceTrigger.value) }
+
+    LaunchedEffect(externalVoiceTrigger.value) {
+        if (externalVoiceTrigger.value) {
+            isVoiceModeActive = true
+            externalVoiceTrigger.value = false
+        }
+    }
+
     var activeTab by remember { mutableIntStateOf(initialTab) }
     var hasUserInteracted by remember { mutableStateOf(false) }
     var isDrawerOpen by remember { mutableStateOf(false) }
     var isDriveModalOpen by remember { mutableStateOf(false) }
+    var isAppLauncherModalOpen by remember { mutableStateOf(false) }
+    var isInstalledAppsScreenOpen by remember { mutableStateOf(false) }
     var selectedChatHistoryItem by remember { mutableStateOf<com.example.services.ChatHistoryItem?>(null) }
 
     if (showPermissionOnboarding) {
@@ -152,10 +183,7 @@ fun MainAppLayout(
     }
 
     // Initial launch setup
-    LaunchedEffect(initialVoiceMode, initialTab) {
-        if (initialVoiceMode) {
-            isVoiceModeActive = true
-        }
+    LaunchedEffect(initialTab) {
         if (initialTab in 0..4) {
             activeTab = initialTab
         }
@@ -280,71 +308,85 @@ fun MainAppLayout(
                     }
                 }
         ) {
-            when (activeTab) {
-                0 -> SafeTabBoundary("Home") {
-                    HomeScreen(
-                        dbService = dbService,
-                        voiceService = voiceService,
-                        onActivateVoice = {
-                            hasUserInteracted = true
-                            isVoiceModeActive = true
-                        },
-                        onNavigateTab = { tab ->
-                            hasUserInteracted = true
-                            activeTab = tab
-                        },
-                        onExecuteQuickAction = { actionText ->
-                            hasUserInteracted = true
-                            UtilityService.parseAndExecuteLocalCommand(context, dbService, actionText)
-                        },
-                        onOpenDrawer = {
-                            isDrawerOpen = true
-                        }
-                    )
-                }
-                1 -> SafeTabBoundary("Study Hub") {
-                    StudyHubScreen(
-                        dbService = dbService
-                    )
-                }
-                2 -> SafeTabBoundary("Ved AI Assistant") {
-                    VedScreen(
-                        dbService = dbService,
-                        voiceService = voiceService,
-                        onActivateVoiceMode = {
-                            hasUserInteracted = true
-                            isVoiceModeActive = true
-                        },
-                        onOpenDrawer = {
-                            isDrawerOpen = true
-                        },
-                        selectedHistoryItem = selectedChatHistoryItem,
-                        onClearHistorySelection = {
-                            selectedChatHistoryItem = null
-                        }
-                    )
-                }
-                3 -> SafeTabBoundary("VEDrive") {
-                    DatabaseScreen(
-                        dbService = dbService,
-                        onOpenDrawer = {
-                            isDrawerOpen = true
-                        }
-                    )
-                }
-                4 -> SafeTabBoundary("Settings") {
-                    SettingsScreen(
-                        dbService = dbService,
-                        voiceService = voiceService
-                    )
-                }
-                5 -> SafeTabBoundary("Actions") {
-                    ActionsScreen(
-                        onExecuteAction = { command ->
-                            hasUserInteracted = true
-                            UtilityService.parseAndExecuteLocalCommand(context, dbService, command)
-                        }
-                    )
+            androidx.compose.animation.AnimatedContent(
+                targetState = activeTab,
+                transitionSpec = {
+                    if (targetState > initialState) {
+                        (slideInHorizontally { width -> width } + fadeIn(animationSpec = tween(280)))
+                            .togetherWith(slideOutHorizontally { width -> -width } + fadeOut(animationSpec = tween(280)))
+                    } else {
+                        (slideInHorizontally { width -> -width } + fadeIn(animationSpec = tween(280)))
+                            .togetherWith(slideOutHorizontally { width -> width } + fadeOut(animationSpec = tween(280)))
+                    }
+                },
+                label = "SmoothTabTransition"
+            ) { targetTab ->
+                when (targetTab) {
+                    0 -> SafeTabBoundary("Home") {
+                        HomeScreen(
+                            dbService = dbService,
+                            voiceService = voiceService,
+                            onActivateVoice = {
+                                hasUserInteracted = true
+                                isVoiceModeActive = true
+                            },
+                            onNavigateTab = { tab ->
+                                hasUserInteracted = true
+                                activeTab = tab
+                            },
+                            onExecuteQuickAction = { actionText ->
+                                hasUserInteracted = true
+                                UtilityService.parseAndExecuteLocalCommand(context, dbService, actionText)
+                            },
+                            onOpenDrawer = {
+                                isDrawerOpen = true
+                            }
+                        )
+                    }
+                    1 -> SafeTabBoundary("Study Hub") {
+                        StudyHubScreen(
+                            dbService = dbService
+                        )
+                    }
+                    2 -> SafeTabBoundary("Ved AI Assistant") {
+                        VedScreen(
+                            dbService = dbService,
+                            voiceService = voiceService,
+                            onActivateVoiceMode = {
+                                hasUserInteracted = true
+                                isVoiceModeActive = true
+                            },
+                            onOpenDrawer = {
+                                isDrawerOpen = true
+                            },
+                            selectedHistoryItem = selectedChatHistoryItem,
+                            onClearHistorySelection = {
+                                selectedChatHistoryItem = null
+                            }
+                        )
+                    }
+                    3 -> SafeTabBoundary("VEDrive") {
+                        DatabaseScreen(
+                            dbService = dbService,
+                            onOpenDrawer = {
+                                isDrawerOpen = true
+                            }
+                        )
+                    }
+                    4 -> SafeTabBoundary("Settings") {
+                        SettingsScreen(
+                            dbService = dbService,
+                            voiceService = voiceService
+                        )
+                    }
+                    5 -> SafeTabBoundary("Actions") {
+                        ActionsScreen(
+                            onExecuteAction = { command ->
+                                hasUserInteracted = true
+                                UtilityService.parseAndExecuteLocalCommand(context, dbService, command)
+                            }
+                        )
+                    }
                 }
             }
 
@@ -380,6 +422,7 @@ fun MainAppLayout(
                     hasUserInteracted = true
                     when (actionKey) {
                         "ved" -> activeTab = 2 // Navigate to Ved AI tab
+                        "app_launcher" -> isInstalledAppsScreenOpen = true // Open Installed Apps List Screen
                         "database" -> activeTab = 3 // Navigate to Database & Drive tab
                         "workspace" -> activeTab = 1 // Navigate to Study Hub / Workspace tab
                         "automation" -> activeTab = 5 // Navigate to Actions / Automation tab
@@ -401,6 +444,40 @@ fun MainAppLayout(
                 dbService = dbService,
                 onDismissRequest = { isDriveModalOpen = false }
             )
+
+            // Installed Applications Launcher Modal
+            com.example.ui.components.AppPickerAndLockModal(
+                visible = isAppLauncherModalOpen,
+                shortcutTitle = "App Launcher",
+                onDismissRequest = { isAppLauncherModalOpen = false },
+                onAppSelected = { app ->
+                    if (com.example.services.AppLauncher.tryLaunchPackage(context, app.packageName)) {
+                        Toast.makeText(context, "Opening ${app.label}...", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Unable to open ${app.label}", Toast.LENGTH_SHORT).show()
+                    }
+                    isAppLauncherModalOpen = false
+                }
+            )
+
+            // Installed Apps Query List Screen Overlay
+            if (isInstalledAppsScreenOpen) {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(androidx.compose.material3.MaterialTheme.colorScheme.background)
+                        .zIndex(100f)
+                ) {
+                    com.example.ui.components.InstalledAppsListScreen(
+                        dbService = dbService,
+                        onExecuteVoiceCommand = { cmd ->
+                            isInstalledAppsScreenOpen = false
+                            com.example.services.UtilityService.parseAndExecuteLocalCommand(context, dbService, cmd)
+                        },
+                        onBack = { isInstalledAppsScreenOpen = false }
+                    )
+                }
+            }
         }
     }
 }

@@ -22,6 +22,8 @@ class VoiceService(private val context: Context) : TextToSpeech.OnInitListener {
     val isMuted = mutableStateOf(false)
     val isContinuousMode = mutableStateOf(false)
     val isPaused = mutableStateOf(false)
+    val isWakeWordActive = mutableStateOf(false)
+    val wakeWordStatus = mutableStateOf("Standby")
     val lastRecognizedText = mutableStateOf("")
 
     val speechPitch = mutableStateOf(1.0f)
@@ -271,7 +273,82 @@ class VoiceService(private val context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
+    fun startWakeWordDetection(onWakeWordTriggered: (String) -> Unit) {
+        if (speechRecognizer == null) return
+        stopListening()
+        stopSpeaking()
+
+        isWakeWordActive.value = true
+        wakeWordStatus.value = "Listening for 'Hey VEDRA'..."
+
+        val wakeWords = listOf("hey vedra", "vedra", "ok vedra", "hi vedra", "hey ved")
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+        }
+
+        speechRecognizer?.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+
+            override fun onError(error: Int) {
+                // Auto-restart wake word listener if still active
+                if (isWakeWordActive.value) {
+                    try {
+                        speechRecognizer?.startListening(intent)
+                    } catch (_: Exception) {}
+                }
+            }
+
+            private fun checkMatches(matches: ArrayList<String>?) {
+                if (matches.isNullOrEmpty() || !isWakeWordActive.value) return
+                for (match in matches) {
+                    val lower = match.lowercase()
+                    if (wakeWords.any { lower.contains(it) }) {
+                        isWakeWordActive.value = false
+                        wakeWordStatus.value = "Wake Word Detected!"
+                        stopListening()
+                        onWakeWordTriggered(match)
+                        break
+                    }
+                }
+            }
+
+            override fun onResults(results: Bundle?) {
+                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                checkMatches(matches)
+                if (isWakeWordActive.value) {
+                    try {
+                        speechRecognizer?.startListening(intent)
+                    } catch (_: Exception) {}
+                }
+            }
+
+            override fun onPartialResults(partialResults: Bundle?) {
+                val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                checkMatches(matches)
+            }
+
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+
+        try {
+            speechRecognizer?.startListening(intent)
+        } catch (_: Exception) {}
+    }
+
+    fun stopWakeWordDetection() {
+        isWakeWordActive.value = false
+        wakeWordStatus.value = "Standby"
+        stopListening()
+    }
+
     fun shutdown() {
+        stopWakeWordDetection()
         speechRecognizer?.destroy()
         tts?.stop()
         tts?.shutdown()

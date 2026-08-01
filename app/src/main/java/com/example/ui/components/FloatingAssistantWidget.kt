@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -90,10 +91,12 @@ fun FloatingAssistantWidget(
     val opacityStr = dbService.getSetting("widget_opacity", "1.0")
     val widgetOpacity = opacityStr.toFloatOrNull() ?: 1.0f
 
+    val vedOrbStyle = remember { dbService.getSetting("ved_orb_style", "Gemini Neon Glow Orb") }
+
     val orbSize = when (widgetSize) {
         "Small" -> 44.dp
         "Large" -> 68.dp
-        else -> 56.dp
+        else -> 50.dp
     }
 
     val glowColor = when (themeGlow) {
@@ -124,27 +127,12 @@ fun FloatingAssistantWidget(
                     .size(orbSize)
                     .alpha(widgetOpacity)
                     .clip(CircleShape)
-                    .background(VedraSurface.copy(alpha = 0.9f))
-                    .border(2.dp, glowColor, CircleShape)
-                    .shadow(12.dp, CircleShape)
                     .combinedClickable(
                         onClick = {
-                            // Single Tap: Instantly trigger AI voice mode / listening
-                            if (voiceService.isListening.value) {
-                                voiceService.stopListening()
-                            } else {
-                                voiceService.startListening(
-                                    onResult = { query ->
-                                        val res = UtilityService.parseAndExecuteLocalCommand(context, dbService, query)
-                                        widgetResponseText = res.responseMessage
-                                        voiceService.speak(res.responseMessage)
-                                    },
-                                    onError = { err -> widgetResponseText = err }
-                                )
-                            }
+                            // Single Tap: Open VED Voice Assistant Popup Box
+                            onActivateVoiceMode?.invoke()
                         },
                         onDoubleClick = {
-                            // Double Tap: Foreground app / full voice overlay
                             onActivateVoiceMode?.invoke()
                         },
                         onLongClick = {
@@ -154,10 +142,11 @@ fun FloatingAssistantWidget(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.app_logo),
-                    contentDescription = "VEDRA Floating Orb",
-                    modifier = Modifier.size(orbSize * 0.7f).clip(CircleShape)
+                VedOrbView(
+                    orbStyle = vedOrbStyle,
+                    size = orbSize,
+                    isListening = voiceService.isListening.value,
+                    isSpeaking = voiceService.isSpeaking.value
                 )
             }
         } else {

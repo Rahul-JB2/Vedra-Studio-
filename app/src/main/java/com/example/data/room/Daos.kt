@@ -49,3 +49,47 @@ interface UserInteractionPatternDao {
     @Query("DELETE FROM user_interaction_patterns")
     suspend fun clearAllPatterns()
 }
+
+@Dao
+interface CustomTextCommandDao {
+
+    @Query("SELECT * FROM custom_text_commands ORDER BY createdAt DESC")
+    fun getAllCommandsFlow(): Flow<List<CustomTextCommandEntity>>
+
+    @Query("SELECT * FROM custom_text_commands ORDER BY createdAt DESC")
+    suspend fun getAllCommands(): List<CustomTextCommandEntity>
+
+    @Query("SELECT * FROM custom_text_commands WHERE LOWER(commandText) = LOWER(:commandText) AND isEnabled = 1 LIMIT 1")
+    suspend fun findCommand(commandText: String): CustomTextCommandEntity?
+
+    @Query("SELECT * FROM custom_text_commands WHERE LOWER(commandText) LIKE '%' || LOWER(:query) || '%' OR LOWER(targetPayload) LIKE '%' || LOWER(:query) || '%' ORDER BY createdAt DESC")
+    suspend fun searchCommands(query: String): List<CustomTextCommandEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCommand(command: CustomTextCommandEntity): Long
+
+    @Query("DELETE FROM custom_text_commands WHERE id = :id")
+    suspend fun deleteCommand(id: Long)
+
+    @Query("DELETE FROM custom_text_commands")
+    suspend fun clearAllCommands()
+}
+
+@Dao
+interface VedraUserSettingDao {
+
+    @Query("SELECT * FROM vedra_user_settings ORDER BY settingKey ASC")
+    fun getAllSettingsFlow(): Flow<List<VedraUserSettingEntity>>
+
+    @Query("SELECT settingValue FROM vedra_user_settings WHERE settingKey = :key LIMIT 1")
+    suspend fun getSettingValue(key: String): String?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdateSetting(setting: VedraUserSettingEntity)
+
+    @Query("DELETE FROM vedra_user_settings WHERE settingKey = :key")
+    suspend fun deleteSetting(key: String)
+
+    @Query("DELETE FROM vedra_user_settings")
+    suspend fun clearAllSettings()
+}

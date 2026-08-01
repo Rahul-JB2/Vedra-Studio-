@@ -57,5 +57,30 @@ class VedraAppWidgetProvider : AppWidgetProvider() {
 
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
+
+        fun pinWidgetToHomeScreen(context: Context) {
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    val appWidgetManager = AppWidgetManager.getInstance(context)
+                    val myProvider = android.content.ComponentName(context, VedraAppWidgetProvider::class.java)
+                    if (appWidgetManager.isRequestPinAppWidgetSupported) {
+                        val successCallback = PendingIntent.getBroadcast(
+                            context,
+                            0,
+                            Intent(context, VedraAppWidgetProvider::class.java),
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        )
+                        appWidgetManager.requestPinAppWidget(myProvider, null, successCallback)
+                        android.widget.Toast.makeText(context, "Request sent to add VEDRA Widget to Home Screen! 📌", android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        android.widget.Toast.makeText(context, "Long-press your phone's Home Screen and choose Widgets -> VEDRA 📌", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                } else {
+                    android.widget.Toast.makeText(context, "Long-press your phone's Home Screen and choose Widgets -> VEDRA 📌", android.widget.Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(context, "Long-press phone Home Screen to add VEDRA Widget 📌", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
     }
 }

@@ -159,9 +159,7 @@ fun MainAppLayout(
     initialTab: Int = 3
 ) {
     val context = LocalContext.current
-    var showPermissionOnboarding by remember {
-        mutableStateOf(!PermissionService.isPermissionsOnboarded(context))
-    }
+    // Voice mode trigger listener
     var isVoiceModeActive by remember { mutableStateOf(externalVoiceTrigger.value) }
 
     LaunchedEffect(externalVoiceTrigger.value) {
@@ -184,15 +182,6 @@ fun MainAppLayout(
     var isFeedbackModalOpen by remember { mutableStateOf(false) }
     var isAutomationModalOpen by remember { mutableStateOf(false) }
     var selectedChatHistoryItem by remember { mutableStateOf<com.example.services.ChatHistoryItem?>(null) }
-
-    if (showPermissionOnboarding) {
-        PermissionOnboardingScreen(
-            onComplete = {
-                showPermissionOnboarding = false
-            }
-        )
-        return
-    }
 
     // Initial launch setup
     LaunchedEffect(initialTab) {
@@ -493,13 +482,14 @@ fun MainAppLayout(
             )
 
             if (isPermissionsModalOpen) {
-                com.example.ui.components.CentralizedPermissionManagerDialog(
-                    onDismiss = { isPermissionsModalOpen = false },
-                    onGranted = {
-                        isPermissionsModalOpen = false
-                        Toast.makeText(context, "Permissions granted! ✅", Toast.LENGTH_SHORT).show()
-                    }
-                )
+                androidx.compose.ui.window.Dialog(
+                    onDismissRequest = { isPermissionsModalOpen = false },
+                    properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+                ) {
+                    com.example.ui.screens.PermissionsManagementScreen(
+                        onBack = { isPermissionsModalOpen = false }
+                    )
+                }
             }
 
             com.example.ui.components.HelpSupportModal(

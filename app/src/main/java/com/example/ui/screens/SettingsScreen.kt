@@ -55,6 +55,7 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Tune
@@ -102,6 +103,7 @@ enum class SettingsSubView {
     NOTIFICATIONS,
     APPEARANCE,
     PRIVACY_SECURITY,
+    PERMISSIONS,
     ADVANCED,
     HELP_SUPPORT
 }
@@ -189,7 +191,14 @@ fun SettingsScreen(
                     }
 
                     SettingsSubView.PRIVACY_SECURITY -> {
-                        PrivacySecurityScreen(dbService = dbService)
+                        PrivacySecurityScreen(
+                            dbService = dbService,
+                            onNavigate = { currentSubView = it }
+                        )
+                    }
+
+                    SettingsSubView.PERMISSIONS -> {
+                        PermissionsManagementScreen(onBack = { currentSubView = SettingsSubView.MAIN })
                     }
 
                     SettingsSubView.ADVANCED -> {
@@ -246,6 +255,7 @@ private fun TopBarHeader(
                             SettingsSubView.NOTIFICATIONS -> "Notifications"
                             SettingsSubView.APPEARANCE -> "Appearance"
                             SettingsSubView.PRIVACY_SECURITY -> "Privacy & Security"
+                            SettingsSubView.PERMISSIONS -> "Permissions"
                             SettingsSubView.ADVANCED -> "Advanced"
                             SettingsSubView.HELP_SUPPORT -> "Help & Support"
                             else -> "Settings"
@@ -312,6 +322,7 @@ private fun MainSettingsView(
             SettingCategoryItem(SettingsSubView.NOTIFICATIONS, "Notifications", "Alerts, reminders & notification preferences", Icons.Default.Notifications, Color(0xFF8B5CF6)),
             SettingCategoryItem(SettingsSubView.APPEARANCE, "Appearance", "Theme, colors, font & visual preferences", Icons.Default.Palette, Color(0xFFEAB308)),
             SettingCategoryItem(SettingsSubView.PRIVACY_SECURITY, "Privacy & Security", "App lock, encryption, permissions & more", Icons.Default.Security, Color(0xFF059669)),
+            SettingCategoryItem(SettingsSubView.PERMISSIONS, "Permissions", "Manage what VEDRA AI can access", Icons.Default.Shield, Color(0xFFA78BFA)),
             SettingCategoryItem(SettingsSubView.ADVANCED, "Advanced", "Developer options, logs & performance", Icons.Default.Tune, Color(0xFF64748B)),
             SettingCategoryItem(SettingsSubView.HELP_SUPPORT, "Help & Support", "Help center, feedback & about VEDRA", Icons.Default.Help, Color(0xFF6366F1))
         )
@@ -1838,7 +1849,10 @@ private fun AppearanceSettingsScreen(dbService: DatabaseService) {
 
 // ================= 9. PRIVACY & SECURITY SCREEN =================
 @Composable
-private fun PrivacySecurityScreen(dbService: DatabaseService) {
+private fun PrivacySecurityScreen(
+    dbService: DatabaseService,
+    onNavigate: (SettingsSubView) -> Unit = {}
+) {
     val context = LocalContext.current
     var appLock by remember { mutableStateOf(dbService.getSetting("sec_app_lock", "true") == "true") }
     var fingerprintLock by remember { mutableStateOf(dbService.getSetting("sec_fingerprint", "true") == "true") }
@@ -1934,7 +1948,7 @@ private fun PrivacySecurityScreen(dbService: DatabaseService) {
                     .border(1.dp, Color(0xFF28264A), RoundedCornerShape(16.dp))
             ) {
                 SettingRowDetail("Permissions", "Manage app permissions") {
-                    Toast.makeText(context, "Permissions settings", Toast.LENGTH_SHORT).show()
+                    onNavigate(SettingsSubView.PERMISSIONS)
                 }
                 SettingDivider()
                 SettingRowDetail("Privacy Dashboard", "View data usage and activity") {

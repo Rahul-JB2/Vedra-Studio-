@@ -447,18 +447,19 @@ fun MainAppLayout(
                 onSelectMenuItem = { actionKey ->
                     hasUserInteracted = true
                     when (actionKey) {
-                        "ved", "recent_chat", "chat_item", "history_view_all" -> activeTab = 2 // Navigate to Ved tab
+                        "ved", "recent_chat", "chat_item", "history_view_all", "new_chat", "history", "saved_chats", "voice_engine", "image_gen", "web_search", "code_assistant" -> activeTab = 2 // Navigate to Ved Assistant tab
                         "app_launcher" -> isInstalledAppsScreenOpen = true // Open Installed Apps List Screen
-                        "database", "drive" -> activeTab = 3 // Navigate to VEDrive tab
-                        "workspace", "vehub" -> activeTab = 1 // Navigate to VEHub tab
+                        "database", "drive", "drive_folders", "drive_recent", "drive_shared", "drive_starred", "drive_bin" -> activeTab = 3 // Navigate to VEDrive tab
+                        "workspace", "vehub", "notes", "reminders", "ai_tools" -> activeTab = 1 // Navigate to VEHub tab
                         "automation", "vetools", "action" -> isAutomationModalOpen = true // Open Automation Modal
                         "search" -> activeTab = 3 // Navigate to Search in VEDrive
-                        "settings", "profile" -> activeTab = 4 // Navigate to Settings tab
+                        "settings", "profile", "appearance" -> activeTab = 4 // Navigate to Settings tab
                         "notification" -> isNotificationsModalOpen = true
                         "privacy" -> isPrivacyModalOpen = true
                         "permissions" -> isPermissionsModalOpen = true
                         "help" -> isHelpModalOpen = true
                         "feedback" -> isFeedbackModalOpen = true
+                        "whats_new" -> Toast.makeText(context, "✨ You are using the latest version of VEDRA AI!", Toast.LENGTH_SHORT).show()
                         "pro_upgrade" -> Toast.makeText(context, "⚡ Upgraded to VEDRA PRO!", Toast.LENGTH_SHORT).show()
                     }
                 },

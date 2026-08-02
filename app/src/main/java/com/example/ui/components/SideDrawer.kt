@@ -1,13 +1,19 @@
 package com.example.ui.components
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,42 +26,49 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.HelpOutline
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.VpnKey
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.NotificationsNone
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.StarOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.ui.platform.LocalContext
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,18 +80,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.services.ChatHistoryItem
 import com.example.services.DatabaseService
-
-data class DefaultChatHistory(
-    val title: String,
-    val time: String,
-    val response: String = ""
-)
 
 @Composable
 fun SideDrawer(
@@ -88,33 +96,22 @@ fun SideDrawer(
     onSelectMenuItem: (String) -> Unit,
     onSelectChatHistoryItem: ((ChatHistoryItem) -> Unit)? = null
 ) {
-    var activeKey by remember { mutableStateOf("ved") }
-
-    val defaultHistories = remember {
-        listOf(
-            DefaultChatHistory("Explain photosynthesis", "9:30 AM", "Photosynthesis is the process by which plants..."),
-            DefaultChatHistory("Create Flashcard", "Yesterday", "Flashcard set generated for Biology chapter 4"),
-            DefaultChatHistory("Solve integral problems", "2 days ago", "Step-by-step calculus solution for ∫x² dx"),
-            DefaultChatHistory("Quantum mechanics basics", "3 days ago", "Introduction to wave-particle duality and Schrödinger equation"),
-            DefaultChatHistory("Study plan for JEE", "4 days ago", "Customized 30-day preparation strategy for physics and math")
-        )
-    }
+    val context = LocalContext.current
 
     var selectedHistoryOptionsItem by remember { mutableStateOf<ChatHistoryItem?>(null) }
     var historyToRename by remember { mutableStateOf<ChatHistoryItem?>(null) }
     var renameInputText by remember { mutableStateOf("") }
-    val context = LocalContext.current
+    var showEditProfileDialog by remember { mutableStateOf(false) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
 
-    val realChatHistory = remember(isOpen, dbService?.settingsVersion?.intValue) {
-        dbService?.getAllChatHistory() ?: emptyList()
+    val userName = remember(isOpen, dbService?.settingsVersion?.intValue) {
+        dbService?.getSetting("user_name", "Rahul Kumar") ?: "Rahul Kumar"
+    }
+    val userEmail = remember(isOpen, dbService?.settingsVersion?.intValue) {
+        dbService?.getSetting("user_email", "rahul.kumar@email.com") ?: "rahul.kumar@email.com"
     }
 
-    val userName = remember(isOpen) {
-        dbService?.getSetting("user_name", "Rahul") ?: "Rahul"
-    }
-    val avatarInitial = remember(userName) {
-        userName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "R"
-    }
+    var editedNameInput by remember { mutableStateOf(userName) }
 
     if (isOpen) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -122,11 +119,11 @@ fun SideDrawer(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.70f))
+                    .background(Color.Black.copy(alpha = 0.65f))
                     .clickable { onClose() }
             )
 
-            // Animated Slide-In Drawer Panel (Scaled to ~75% size: 235dp width)
+            // Animated Slide-In Drawer Panel
             AnimatedVisibility(
                 visible = isOpen,
                 enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
@@ -136,540 +133,523 @@ fun SideDrawer(
                 Column(
                     modifier = Modifier
                         .fillMaxHeight()
-                        .width(235.dp)
-                        .clip(RoundedCornerShape(topEnd = 18.dp, bottomEnd = 18.dp))
-                        .background(Color(0xFF0C0915))
-                        .border(1.dp, Color(0xFF1E1735), RoundedCornerShape(topEnd = 18.dp, bottomEnd = 18.dp))
-                        .padding(horizontal = 12.dp, vertical = 15.dp)
+                        .widthIn(max = 310.dp)
+                        .clip(RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp))
+                        .background(Color(0xFF0D0B1A))
+                        .border(1.dp, Color(0xFF221B38), RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp))
+                        .padding(horizontal = 16.dp, vertical = 18.dp)
                 ) {
-                    // 1. TOP HEADER: LOGO, BRANDING & STATUS
+                    // 1. TOP HEADER ROW: [Avatar Orb] VEDRA AI / Your AI Companion / Online  [X Close]
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 9.dp, bottom = 13.dp),
+                            .padding(bottom = 16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Waveform Logo Icon Box
+                            // Glowing Orb Logo
                             Box(
                                 modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(RoundedCornerShape(9.dp))
+                                    .size(42.dp)
+                                    .clip(CircleShape)
                                     .background(
-                                        Brush.linearGradient(
-                                            listOf(Color(0xFF1B1235), Color(0xFF2E1A52))
+                                        Brush.radialGradient(
+                                            listOf(Color(0xFF8B5CF6), Color(0xFF3B0764))
                                         )
                                     )
-                                    .border(1.dp, Color(0xFF3B236E), RoundedCornerShape(9.dp)),
+                                    .border(1.5.dp, Color(0xFFA855F7), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
-                                VedMathLogoIconCard(
-                                    size = 24.dp,
-                                    animated = true,
-                                    showBrandText = false
+                                VedMathLogoCanvas(
+                                    modifier = Modifier.size(28.dp),
+                                    animated = true
                                 )
                             }
-                            Spacer(modifier = Modifier.width(9.dp))
+
+                            Spacer(modifier = Modifier.width(10.dp))
+
                             Column {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = "VEDR",
+                                        text = "VEDRA",
                                         color = Color.White,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 15.sp,
-                                        letterSpacing = 0.4.sp
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 17.sp,
+                                        letterSpacing = 0.5.sp
                                     )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(Color(0xFF6D28D9))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "AI",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                ) {
                                     Text(
-                                        text = "A",
-                                        color = Color(0xFFA78BFA),
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 15.sp,
-                                        letterSpacing = 0.4.sp
+                                        text = "Your AI Companion",
+                                        color = Color(0xFFA29BFE),
+                                        fontSize = 11.5.sp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .size(5.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF10B981))
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Online",
+                                        color = Color(0xFF10B981),
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Medium
                                     )
                                 }
-                                Text(
-                                    text = "Your Smart Assistant ✨",
-                                    color = Color(0xFF94A3B8),
-                                    fontSize = 8.5.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
                             }
                         }
 
-                        // Online Status Pill
-                        Box(
+                        // Close 'X' Button
+                        IconButton(
+                            onClick = { onClose() },
                             modifier = Modifier
-                                .clip(RoundedCornerShape(15.dp))
-                                .background(Color(0xFF092918))
-                                .border(1.dp, Color(0xFF059669), RoundedCornerShape(15.dp))
-                                .padding(horizontal = 7.dp, vertical = 3.dp),
-                            contentAlignment = Alignment.Center
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF1B1532))
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(4.5.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF10B981))
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Online",
-                                    color = Color(0xFF34D399),
-                                    fontSize = 8.5.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close Drawer",
+                                tint = Color(0xFFA29BFE),
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
                     }
 
-                    // 2. SCROLLABLE DRAWER CONTENT
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(7.dp)
-                    ) {
-                        // PRIMARY NAVIGATION ITEMS
-                        item {
-                            DrawerMainItem(
-                                title = "Ved Chat",
-                                icon = Icons.Default.ChatBubble,
-                                isSelected = activeKey == "ved",
-                                onClick = {
-                                    activeKey = "ved"
-                                    onSelectMenuItem("ved")
-                                    onClose()
-                                }
-                            )
-                        }
-
-                        item {
-                            DrawerMainItem(
-                                title = "VEHub",
-                                icon = Icons.Default.School,
-                                isSelected = activeKey == "vehub",
-                                tagText = "formerly Study hub",
-                                onClick = {
-                                    activeKey = "vehub"
-                                    onSelectMenuItem("vehub")
-                                    onClose()
-                                }
-                            )
-                        }
-
-                        item {
-                            DrawerMainItem(
-                                title = "VEDrive",
-                                icon = Icons.Default.Folder,
-                                isSelected = activeKey == "drive",
-                                onClick = {
-                                    activeKey = "drive"
-                                    onSelectMenuItem("drive")
-                                    onClose()
-                                }
-                            )
-                        }
-
-                        item {
-                            DrawerMainItem(
-                                title = "Automation",
-                                icon = Icons.Default.FlashOn,
-                                isSelected = activeKey == "automation",
-                                onClick = {
-                                    activeKey = "automation"
-                                    onSelectMenuItem("automation")
-                                    onClose()
-                                }
-                            )
-                        }
-
-                        item {
-                            DrawerMainItem(
-                                title = "Notification",
-                                icon = Icons.Default.Notifications,
-                                isSelected = activeKey == "notification",
-                                badgeText = "3",
-                                onClick = {
-                                    activeKey = "notification"
-                                    onSelectMenuItem("notification")
-                                    onClose()
-                                }
-                            )
-                        }
-
-                        // SECTION: RECENT CHAT
-                        item {
-                            Spacer(modifier = Modifier.height(7.dp))
-                            Text(
-                                text = "Recent Chat",
-                                color = Color(0xFFA78BFA),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(start = 3.dp, bottom = 3.dp)
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(9.dp))
-                                    .background(Color(0xFF140F24))
-                                    .border(1.dp, Color(0xFF261D42), RoundedCornerShape(9.dp))
-                                    .clickable {
-                                        activeKey = "ved"
-                                        onSelectMenuItem("ved")
-                                        onClose()
-                                    }
-                                    .padding(horizontal = 10.dp, vertical = 8.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(text = "📌", fontSize = 11.5.sp)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "chat",
-                                        color = Color.White,
-                                        fontSize = 10.5.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
+                    // 2. USER PROFILE CARD (Rahul Kumar, email, Premium badge)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(Color(0xFF16122C))
+                            .border(1.dp, Color(0xFF28204A), RoundedCornerShape(18.dp))
+                            .clickable {
+                                editedNameInput = userName
+                                showEditProfileDialog = true
                             }
-                        }
-
-                        // SECTION: CHAT HISTORY
-                        item {
-                            Spacer(modifier = Modifier.height(7.dp))
+                            .padding(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 3.dp, vertical = 2.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.weight(1f),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = "Chat History",
-                                    color = Color(0xFF94A3B8),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "View all >",
-                                    color = Color(0xFFA78BFA),
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.clickable {
-                                        activeKey = "ved"
-                                        onSelectMenuItem("ved")
-                                        onClose()
-                                    }
-                                )
-                            }
-                        }
+                                // User Avatar Circle
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF2A1F52)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = "User Avatar",
+                                        tint = Color(0xFFA855F7),
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
 
-                        // Chat History List Items
-                        if (realChatHistory.isNotEmpty()) {
-                            items(realChatHistory.take(7)) { item ->
-                                ChatHistoryRow(
-                                    title = item.sessionTitle.ifBlank { item.userText },
-                                    time = "Today",
-                                    onClick = {
-                                        activeKey = "ved"
-                                        onSelectChatHistoryItem?.invoke(item)
-                                        onSelectMenuItem("ved")
-                                        onClose()
-                                    },
-                                    onLongClick = {
-                                        selectedHistoryOptionsItem = item
-                                    }
-                                )
-                            }
-                        } else {
-                            items(defaultHistories) { item ->
-                                ChatHistoryRow(
-                                    title = item.title,
-                                    time = item.time,
-                                    onClick = {
-                                        activeKey = "ved"
-                                        onSelectChatHistoryItem?.invoke(
-                                            ChatHistoryItem(
-                                                id = System.currentTimeMillis(),
-                                                sessionTitle = item.title,
-                                                userText = item.title,
-                                                vedResponse = item.response,
-                                                timestamp = System.currentTimeMillis()
-                                            )
-                                        )
-                                        onSelectMenuItem("ved")
-                                        onClose()
-                                    },
-                                    onLongClick = {
-                                        selectedHistoryOptionsItem = ChatHistoryItem(
-                                            id = System.currentTimeMillis(),
-                                            sessionTitle = item.title,
-                                            userText = item.title,
-                                            vedResponse = item.response,
-                                            timestamp = System.currentTimeMillis()
-                                        )
-                                    }
-                                )
-                            }
-                        }
+                                Spacer(modifier = Modifier.width(10.dp))
 
-                        // SECTION: SYSTEM SETTINGS & UTILITIES
-                        item {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                DrawerSystemLink(
-                                    title = "Settings",
-                                    icon = Icons.Default.Settings,
-                                    onClick = {
-                                        activeKey = "settings"
-                                        onSelectMenuItem("settings")
-                                        onClose()
-                                    }
-                                )
-                                DrawerSystemLink(
-                                    title = "Privacy & Security",
-                                    icon = Icons.Default.Security,
-                                    onClick = {
-                                        onSelectMenuItem("privacy")
-                                        onClose()
-                                    }
-                                )
-                                DrawerSystemLink(
-                                    title = "Permissions",
-                                    icon = Icons.Default.VpnKey,
-                                    onClick = {
-                                        onSelectMenuItem("permissions")
-                                        onClose()
-                                    }
-                                )
-                                DrawerSystemLink(
-                                    title = "Help & Support",
-                                    icon = Icons.Default.HelpOutline,
-                                    onClick = {
-                                        onSelectMenuItem("help")
-                                        onClose()
-                                    }
-                                )
-                                DrawerSystemLink(
-                                    title = "Feedback",
-                                    icon = Icons.Default.Edit,
-                                    onClick = {
-                                        onSelectMenuItem("feedback")
-                                        onClose()
-                                    }
-                                )
-                            }
-                        }
-
-                        // BOTTOM PROFILE CARD & FOOTER
-                        item {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFF130E24))
-                                    .border(1.dp, Color(0xFF231A3B), RoundedCornerShape(12.dp))
-                                    .clickable {
-                                        onSelectMenuItem("profile")
-                                        onClose()
-                                    }
-                                    .padding(10.dp)
-                            ) {
                                 Column {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(31.dp)
-                                                .clip(CircleShape)
-                                                .background(
-                                                    Brush.linearGradient(
-                                                        listOf(Color(0xFF8B5CF6), Color(0xFFEC4899))
-                                                    )
-                                                ),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = avatarInitial,
-                                                color = Color.White,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 13.5.sp
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column {
-                                            Text(
-                                                text = userName,
-                                                color = Color.White,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 11.sp
-                                            )
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                modifier = Modifier.padding(top = 1.dp)
-                                            ) {
-                                                Text(
-                                                    text = "👑 Premium",
-                                                    color = Color(0xFFF59E0B),
-                                                    fontSize = 8.5.sp,
-                                                    fontWeight = FontWeight.SemiBold
-                                                )
-                                            }
-                                        }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = userName,
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.5.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = "Edit Name",
+                                            tint = Color(0xFFA29BFE),
+                                            modifier = Modifier.size(12.dp)
+                                        )
                                     }
 
-                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = userEmail,
+                                        color = Color(0xFF94A3B8),
+                                        fontSize = 10.5.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
 
-                                    Column(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalAlignment = Alignment.Start
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    // "Premium" Badge
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(Color(0xFF231745))
+                                            .border(1.dp, Color(0xFF4C2A8A), RoundedCornerShape(12.dp))
+                                            .padding(horizontal = 8.dp, vertical = 2.dp)
                                     ) {
-                                        Text(
-                                            text = "Version 1.0.0",
-                                            color = Color(0xFF64748B),
-                                            fontSize = 8.5.sp,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                        Text(
-                                            text = "©VEDRA.AI",
-                                            color = Color(0xFF64748B),
-                                            fontSize = 7.5.sp,
-                                            fontWeight = FontWeight.Normal
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "👑",
+                                                fontSize = 9.sp
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "Premium",
+                                                color = Color(0xFFD8B4FE),
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
                                     }
                                 }
                             }
+
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = "Profile Details",
+                                tint = Color(0xFFA29BFE),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // 3. MAIN ACTION ITEM: "+ New Chat"
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFF1E173D))
+                            .border(1.dp, Color(0xFF36286B), RoundedCornerShape(16.dp))
+                            .clickable {
+                                onSelectMenuItem("new_chat")
+                                onClose()
+                                Toast.makeText(context, "New Chat Started ✨", Toast.LENGTH_SHORT).show()
+                            }
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.ChatBubbleOutline,
+                                    contentDescription = "New Chat",
+                                    tint = Color(0xFFA855F7),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "New Chat",
+                                    color = Color.White,
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = "Start New Chat",
+                                tint = Color(0xFFA855F7),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // 4. SCROLLABLE MENU ITEMS
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        // UNLABELED TOP MENU GROUP
+                        item {
+                            DrawerRowMenuItem(
+                                title = "History",
+                                icon = Icons.Default.History,
+                                onClick = {
+                                    onSelectMenuItem("history")
+                                    onClose()
+                                }
+                            )
+                        }
+
+                        item {
+                            DrawerRowMenuItem(
+                                title = "Saved Chats",
+                                icon = Icons.Default.BookmarkBorder,
+                                onClick = {
+                                    onSelectMenuItem("saved_chats")
+                                    onClose()
+                                }
+                            )
+                        }
+
+                        item {
+                            DrawerRowMenuItem(
+                                title = "Notes",
+                                icon = Icons.Default.Description,
+                                onClick = {
+                                    onSelectMenuItem("notes")
+                                    onClose()
+                                }
+                            )
+                        }
+
+                        item {
+                            DrawerRowMenuItem(
+                                title = "Reminders",
+                                icon = Icons.Default.NotificationsNone,
+                                onClick = {
+                                    onSelectMenuItem("reminders")
+                                    onClose()
+                                }
+                            )
+                        }
+
+                        // SECTION: VEDRIVE
+                        item {
+                            DrawerSectionHeader(title = "VEDRIVE")
+                        }
+
+                        item {
+                            DrawerRowMenuItem(
+                                title = "My Folders",
+                                icon = Icons.Default.FolderOpen,
+                                onClick = {
+                                    onSelectMenuItem("drive_folders")
+                                    onClose()
+                                }
+                            )
+                        }
+
+                        item {
+                            DrawerRowMenuItem(
+                                title = "Recent Files",
+                                icon = Icons.Default.AccessTime,
+                                onClick = {
+                                    onSelectMenuItem("drive_recent")
+                                    onClose()
+                                }
+                            )
+                        }
+
+                        item {
+                            DrawerRowMenuItem(
+                                title = "Shared with Me",
+                                icon = Icons.Default.People,
+                                onClick = {
+                                    onSelectMenuItem("drive_shared")
+                                    onClose()
+                                }
+                            )
+                        }
+
+                        item {
+                            DrawerRowMenuItem(
+                                title = "Starred",
+                                icon = Icons.Default.StarOutline,
+                                onClick = {
+                                    onSelectMenuItem("drive_starred")
+                                    onClose()
+                                }
+                            )
+                        }
+
+                        item {
+                            DrawerRowMenuItem(
+                                title = "Recycle Bin",
+                                icon = Icons.Default.DeleteOutline,
+                                onClick = {
+                                    onSelectMenuItem("drive_bin")
+                                    onClose()
+                                }
+                            )
+                        }
+
+                        // SECTION: TOOLS & FEATURES
+                        item {
+                            DrawerSectionHeader(title = "TOOLS & FEATURES")
+                        }
+
+                        item {
+                            DrawerRowMenuItem(
+                                title = "AI Tools",
+                                icon = Icons.Default.AutoAwesome,
+                                badgeText = "New",
+                                onClick = {
+                                    onSelectMenuItem("ai_tools")
+                                    onClose()
+                                }
+                            )
+                        }
+
+                        item {
+                            DrawerRowMenuItem(
+                                title = "Voice Engine",
+                                icon = Icons.Default.GraphicEq,
+                                onClick = {
+                                    onSelectMenuItem("voice_engine")
+                                    onClose()
+                                }
+                            )
+                        }
+
+                        item {
+                            DrawerRowMenuItem(
+                                title = "Image Generator",
+                                icon = Icons.Default.Image,
+                                onClick = {
+                                    onSelectMenuItem("image_gen")
+                                    onClose()
+                                }
+                            )
+                        }
+
+                        item {
+                            DrawerRowMenuItem(
+                                title = "Web Search",
+                                icon = Icons.Default.Language,
+                                onClick = {
+                                    onSelectMenuItem("web_search")
+                                    onClose()
+                                }
+                            )
+                        }
+
+                        item {
+                            DrawerRowMenuItem(
+                                title = "Code Assistant",
+                                icon = Icons.Default.Code,
+                                onClick = {
+                                    onSelectMenuItem("code_assistant")
+                                    onClose()
+                                }
+                            )
+                        }
+
+                        // SECTION: SETTINGS & MORE
+                        item {
+                            DrawerSectionHeader(title = "SETTINGS & MORE")
+                        }
+
+                        item {
+                            DrawerRowMenuItem(
+                                title = "Settings",
+                                icon = Icons.Default.Settings,
+                                onClick = {
+                                    onSelectMenuItem("settings")
+                                    onClose()
+                                }
+                            )
+                        }
+
+                        item {
+                            DrawerRowMenuItem(
+                                title = "Appearance",
+                                icon = Icons.Default.Palette,
+                                onClick = {
+                                    onSelectMenuItem("appearance")
+                                    onClose()
+                                }
+                            )
+                        }
+
+                        item {
+                            DrawerRowMenuItem(
+                                title = "Help & Support",
+                                icon = Icons.Default.HelpOutline,
+                                onClick = {
+                                    onSelectMenuItem("help")
+                                    onClose()
+                                }
+                            )
+                        }
+
+                        item {
+                            DrawerRowMenuItem(
+                                title = "What's New",
+                                icon = Icons.Default.CardGiftcard,
+                                onClick = {
+                                    onSelectMenuItem("whats_new")
+                                    onClose()
+                                }
+                            )
+                        }
+
+                        // LOG OUT ITEM
+                        item {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            DrawerRowMenuItem(
+                                title = "Log Out",
+                                icon = Icons.Default.Logout,
+                                textColor = Color(0xFFEF4444),
+                                iconColor = Color(0xFFEF4444),
+                                hideChevron = true,
+                                onClick = {
+                                    showLogoutDialog = true
+                                }
+                            )
                         }
                     }
                 }
             }
         }
 
-        // Long Press Chat History Action Dialog
-        if (selectedHistoryOptionsItem != null) {
-            val historyItem = selectedHistoryOptionsItem!!
+        // Edit Profile Name Dialog
+        if (showEditProfileDialog) {
             AlertDialog(
-                onDismissRequest = { selectedHistoryOptionsItem = null },
-                containerColor = Color(0xFF120E24),
+                onDismissRequest = { showEditProfileDialog = false },
+                containerColor = Color(0xFF141026),
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.ChatBubble, contentDescription = null, tint = Color(0xFFA78BFA), modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = historyItem.sessionTitle.ifBlank { "Chat Options" },
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                    Text("User Profile Settings", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // Option 1: Edit Name / Rename
-                        Button(
-                            onClick = {
-                                historyToRename = historyItem
-                                renameInputText = historyItem.sessionTitle.ifBlank { historyItem.userText }
-                                selectedHistoryOptionsItem = null
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF231842))
-                        ) {
-                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Edit, contentDescription = null, tint = Color(0xFFA78BFA), modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text("Edit Name / Rename Chat", color = Color.White, fontSize = 13.sp)
-                            }
-                        }
-
-                        // Option 2: Pin Chat / Favorite
-                        Button(
-                            onClick = {
-                                dbService?.setSetting("pinned_chat_${historyItem.id}", "true")
-                                Toast.makeText(context, "📌 Pinned Chat History!", Toast.LENGTH_SHORT).show()
-                                selectedHistoryOptionsItem = null
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF231842))
-                        ) {
-                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.PushPin, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text("Pin Chat to Top", color = Color.White, fontSize = 13.sp)
-                            }
-                        }
-
-                        // Option 3: Copy Text
-                        Button(
-                            onClick = {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                                val textToCopy = "Q: ${historyItem.userText}\n\nVEDRA: ${historyItem.vedResponse}"
-                                clipboard?.setPrimaryClip(ClipData.newPlainText("VEDRA Chat", textToCopy))
-                                Toast.makeText(context, "📋 Copied chat text to clipboard", Toast.LENGTH_SHORT).show()
-                                selectedHistoryOptionsItem = null
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF231842))
-                        ) {
-                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color(0xFF06B6D4), modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text("Copy Chat Conversation", color = Color.White, fontSize = 13.sp)
-                            }
-                        }
-
-                        // Option 4: Delete Chat History
-                        Button(
-                            onClick = {
-                                dbService?.deleteChatHistoryItem(historyItem.id)
-                                Toast.makeText(context, "🗑️ Deleted chat history", Toast.LENGTH_SHORT).show()
-                                selectedHistoryOptionsItem = null
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF451A2B))
-                        ) {
-                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text("Delete Chat History", color = Color(0xFFFCA5A5), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = { selectedHistoryOptionsItem = null }) {
-                        Text("Cancel", color = Color.Gray)
-                    }
-                }
-            )
-        }
-
-        // Rename Chat History Dialog
-        if (historyToRename != null) {
-            AlertDialog(
-                onDismissRequest = { historyToRename = null },
-                containerColor = Color(0xFF120E24),
-                title = {
-                    Text("Rename Chat Title", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Enter a new title for this conversation:", color = Color(0xFFCBD5E1), fontSize = 12.5.sp)
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Update your display name:", color = Color(0xFFA09EC0), fontSize = 12.sp)
                         OutlinedTextField(
-                            value = renameInputText,
-                            onValueChange = { renameInputText = it },
+                            value = editedNameInput,
+                            onValueChange = { editedNameInput = it },
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White,
                                 focusedBorderColor = Color(0xFF8B5CF6),
-                                unfocusedBorderColor = Color(0xFF2E1A52),
-                                focusedContainerColor = Color(0xFF181130),
-                                unfocusedContainerColor = Color(0xFF181130)
+                                unfocusedBorderColor = Color(0xFF28204A),
+                                focusedContainerColor = Color(0xFF1B1634),
+                                unfocusedContainerColor = Color(0xFF1B1634)
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -678,10 +658,10 @@ fun SideDrawer(
                 confirmButton = {
                     Button(
                         onClick = {
-                            if (renameInputText.isNotBlank() && historyToRename != null) {
-                                dbService?.renameChatHistoryItem(historyToRename!!.id, renameInputText.trim())
-                                Toast.makeText(context, "✅ Renamed chat title!", Toast.LENGTH_SHORT).show()
-                                historyToRename = null
+                            if (editedNameInput.isNotBlank()) {
+                                dbService?.setSetting("user_name", editedNameInput.trim())
+                                Toast.makeText(context, "Profile updated!", Toast.LENGTH_SHORT).show()
+                                showEditProfileDialog = false
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
@@ -690,7 +670,38 @@ fun SideDrawer(
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { historyToRename = null }) {
+                    TextButton(onClick = { showEditProfileDialog = false }) {
+                        Text("Cancel", color = Color.Gray)
+                    }
+                }
+            )
+        }
+
+        // Logout Confirmation Dialog
+        if (showLogoutDialog) {
+            AlertDialog(
+                onDismissRequest = { showLogoutDialog = false },
+                containerColor = Color(0xFF141026),
+                title = {
+                    Text("Log Out", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                },
+                text = {
+                    Text("Are you sure you want to log out of VEDRA AI?", color = Color(0xFFA09EC0), fontSize = 12.5.sp)
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            Toast.makeText(context, "Logged out successfully", Toast.LENGTH_SHORT).show()
+                            showLogoutDialog = false
+                            onClose()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                    ) {
+                        Text("Log Out", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showLogoutDialog = false }) {
                         Text("Cancel", color = Color.Gray)
                     }
                 }
@@ -699,27 +710,36 @@ fun SideDrawer(
     }
 }
 
+// Section Header Component (e.g. VEDRIVE, TOOLS & FEATURES, SETTINGS & MORE)
 @Composable
-private fun DrawerMainItem(
+private fun DrawerSectionHeader(title: String) {
+    Text(
+        text = title,
+        color = Color(0xFF6455A4),
+        fontSize = 10.5.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 0.6.sp,
+        modifier = Modifier.padding(start = 6.dp, top = 14.dp, bottom = 4.dp)
+    )
+}
+
+// Menu Row Item Component
+@Composable
+private fun DrawerRowMenuItem(
     title: String,
     icon: ImageVector,
-    isSelected: Boolean,
-    tagText: String? = null,
+    textColor: Color = Color.White,
+    iconColor: Color = Color(0xFFA855F7),
     badgeText: String? = null,
+    hideChevron: Boolean = false,
     onClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (isSelected) Color(0xFF231642) else Color(0xFF130E22))
-            .border(
-                1.dp,
-                if (isSelected) Color(0xFF8B5CF6) else Color(0xFF211838),
-                RoundedCornerShape(10.dp)
-            )
+            .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
-            .padding(horizontal = 10.dp, vertical = 8.dp)
+            .padding(horizontal = 8.dp, vertical = 10.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -730,149 +750,45 @@ private fun DrawerMainItem(
                 Icon(
                     imageVector = icon,
                     contentDescription = title,
-                    tint = Color(0xFFA78BFA),
-                    modifier = Modifier.size(15.dp)
+                    tint = iconColor,
+                    modifier = Modifier.size(18.dp)
                 )
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = title,
-                    color = Color.White,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-
-                if (tagText != null) {
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(9.dp))
-                            .background(Color(0xFF2E1A47))
-                            .border(1.dp, Color(0xFF4C2A8A), RoundedCornerShape(9.dp))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = tagText,
-                            color = Color(0xFFC084FC),
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-            }
-
-            if (badgeText != null) {
-                Box(
-                    modifier = Modifier
-                        .size(16.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF7C3AED)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = badgeText,
-                        color = Color.White,
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun ChatHistoryRow(
-    title: String,
-    time: String,
-    onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = { onLongClick?.invoke() }
-            )
-            .padding(horizontal = 4.dp, vertical = 5.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.ChatBubbleOutline,
-                    contentDescription = null,
-                    tint = Color(0xFFA78BFA),
-                    modifier = Modifier.size(12.dp)
-                )
-                Spacer(modifier = Modifier.width(7.dp))
-                Text(
-                    text = title,
-                    color = Color.White,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = time,
-                color = Color(0xFF94A3B8),
-                fontSize = 8.5.sp,
-                fontWeight = FontWeight.Normal
-            )
-        }
-    }
-}
-
-@Composable
-private fun DrawerSystemLink(
-    title: String,
-    icon: ImageVector,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .clickable { onClick() }
-            .padding(horizontal = 4.dp, vertical = 7.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = title,
-                    tint = Color(0xFFA78BFA),
-                    modifier = Modifier.size(13.5.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = title,
-                    color = Color.White,
-                    fontSize = 10.5.sp,
+                    color = textColor,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Medium
                 )
             }
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = Color(0xFF64748B),
-                modifier = Modifier.size(12.dp)
-            )
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (badgeText != null) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF3B2875))
+                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = badgeText,
+                            color = Color(0xFFD8B4FE),
+                            fontSize = 9.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+
+                if (!hideChevron) {
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = Color(0xFF53487A),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
         }
     }
 }

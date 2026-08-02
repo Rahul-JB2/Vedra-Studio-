@@ -128,13 +128,11 @@ fun SideDrawer(
                             .fillMaxWidth()
                             .padding(top = 20.dp, bottom = 18.dp, start = 4.dp)
                     ) {
-                        // Glowing VEDRA logo PNG
-                        Image(
-                            painter = painterResource(id = R.drawable.app_logo),
-                            contentDescription = "VEDRA Logo",
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(RoundedCornerShape(10.dp))
+                        // Mathematical VEDRA logo
+                        VedMathLogoIconCard(
+                            size = 38.dp,
+                            animated = true,
+                            showBrandText = false
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(

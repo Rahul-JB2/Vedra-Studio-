@@ -436,12 +436,10 @@ fun DatabaseScreen(
 
                             // VEDRA AI Brand Logo
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.app_logo),
-                                    contentDescription = "VEDRA Logo",
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(RoundedCornerShape(6.dp))
+                                com.example.ui.components.VedMathLogoIconCard(
+                                    size = 28.dp,
+                                    animated = true,
+                                    showBrandText = false
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(

@@ -145,7 +145,15 @@ fun VedAssistantScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
+
+                com.example.ui.components.VedMathLogoIconCard(
+                    size = 36.dp,
+                    animated = true,
+                    showBrandText = false
+                )
+
+                Spacer(modifier = Modifier.width(10.dp))
 
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {

@@ -90,6 +90,15 @@ fun VedOrbView(
         .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
 
     when (orbStyle) {
+        "Mathematical Waveform Logo (VED)" -> {
+            VedMathLogoIconCard(
+                modifier = baseModifier,
+                size = size,
+                animated = true,
+                showBrandText = false
+            )
+        }
+
         "Google Voice Waveform Orb" -> {
             // Google Voice / Assistant App Style: Vibrant 4-color dots & waveform
             val googleBlue = Color(0xFF4285F4)

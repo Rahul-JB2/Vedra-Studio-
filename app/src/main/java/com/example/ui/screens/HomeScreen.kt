@@ -39,10 +39,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -165,19 +168,28 @@ fun HomeScreen(
         refreshDashboardData()
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF090714),
-                        Color(0xFF0F0B21),
-                        Color(0xFF07050E)
+    val currentDensity = LocalDensity.current
+    val customDensity = remember(currentDensity) {
+        Density(
+            density = currentDensity.density * 0.67f,
+            fontScale = currentDensity.fontScale * 0.67f
+        )
+    }
+
+    CompositionLocalProvider(LocalDensity provides customDensity) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF090714),
+                            Color(0xFF0F0B21),
+                            Color(0xFF07050E)
+                        )
                     )
                 )
-            )
-    ) {
+        ) {
         // Main Scrollable Dashboard Content
         LazyColumn(
             modifier = Modifier
@@ -219,6 +231,12 @@ fun HomeScreen(
                                 modifier = Modifier.size(20.dp)
                             )
                         }
+                        com.example.ui.components.VedMathLogoIconCard(
+                            size = 32.dp,
+                            animated = true,
+                            showBrandText = false
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "VEDRA",
                             color = Color.White,
@@ -807,6 +825,7 @@ fun HomeScreen(
                 )
             }
         }
+    }
     }
 
     // Notifications Dialog

@@ -347,6 +347,7 @@ fun VedOrbStyleModal(
     onDismiss: () -> Unit
 ) {
     val styles = listOf(
+        "Mathematical Waveform Logo (VED)" to "Gaussian modulated sine wave W(x) = ∑ A_n sin(ω_n x) e^(-(x/σ_n)²) exact brand logo equation",
         "Gemini Neon Glow Orb" to "Multi-color rotating gradient aura & pulsing core (Inspired by Gemini Live)",
         "Google Voice Waveform Orb" to "Vibrant Google colors red, blue, yellow, green waveform & dots (Inspired by Google Assistant)",
         "VED Purple Energy Orb" to "Classic cosmic purple pulsing core with soundwave aura",

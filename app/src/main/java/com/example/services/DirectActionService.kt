@@ -84,123 +84,17 @@ object DirectActionService {
 
         // 2. Calls & Contact Handling: "Call [Name]"
         if (lower.startsWith("call ")) {
-            val target = text.substring(5).trim()
-            if (target.isNotEmpty()) {
-                val resolvedTarget = dbService.resolveAlias(target) ?: target
-                val contactInfo = ContactsService.findContactByName(context, resolvedTarget)
-                val phone = contactInfo?.phoneNumber ?: resolvedTarget
-                val contactName = contactInfo?.name ?: if (resolvedTarget != phone) resolvedTarget else target
-                val msg = ContactsService.makeCall(context, phone, contactName)
-                return UtilityResult(true, msg, "CALL")
-            }
+            return handleCallCommand(context, dbService, text)
         }
 
         // 3a. WhatsApp Messaging Handling: "WhatsApp [Name] [Message]", "Send WhatsApp to [Name] [Message]"
         if (lower.contains("whatsapp") || lower.startsWith("wa ")) {
-            var raw = text
-
-            val waPrefixes = listOf(
-                "send whatsapp message to ", "send whatsapp message ", "send whatsapp msg to ", "send whatsapp msg ",
-                "send whatsapp to ", "send whatsapp ", "send message on whatsapp to ", "send message on whatsapp ",
-                "send msg on whatsapp to ", "send msg on whatsapp ", "whatsapp message to ", "whatsapp message ",
-                "whatsapp msg to ", "whatsapp msg ", "whatsapp to ", "whatsapp ", "wa to ", "wa "
-            )
-            for (prefix in waPrefixes) {
-                if (raw.startsWith(prefix, ignoreCase = true)) {
-                    raw = raw.substring(prefix.length).trim()
-                    break
-                }
-            }
-            if (raw.startsWith("to ", ignoreCase = true)) {
-                raw = raw.substring(3).trim()
-            }
-
-            raw = raw.replace(" on whatsapp", "", ignoreCase = true)
-                .replace(" in whatsapp", "", ignoreCase = true)
-                .replace(" via whatsapp", "", ignoreCase = true)
-                .trim()
-
-            var targetName = ""
-            var waMsg = ""
-
-            val sayingIdx = raw.indexOf(" saying ", ignoreCase = true)
-            val thatIdx = raw.indexOf(" that ", ignoreCase = true)
-
-            if (sayingIdx > 0) {
-                targetName = raw.substring(0, sayingIdx).trim()
-                waMsg = raw.substring(sayingIdx + 8).trim()
-            } else if (thatIdx > 0) {
-                targetName = raw.substring(0, thatIdx).trim()
-                waMsg = raw.substring(thatIdx + 6).trim()
-            } else {
-                val spaceIdx = raw.indexOf(' ')
-                if (spaceIdx > 0) {
-                    targetName = raw.substring(0, spaceIdx).trim()
-                    waMsg = raw.substring(spaceIdx + 1).trim()
-                } else {
-                    targetName = raw.trim()
-                    waMsg = ""
-                }
-            }
-
-            if (targetName.isNotEmpty()) {
-                val resolvedTarget = dbService.resolveAlias(targetName) ?: targetName
-                val contactInfo = ContactsService.findContactByName(context, resolvedTarget)
-                val phone = contactInfo?.phoneNumber ?: resolvedTarget
-                val contactName = contactInfo?.name ?: if (resolvedTarget != phone) resolvedTarget else targetName
-                val msg = ContactsService.sendWhatsApp(context, phone, waMsg, contactName)
-                return UtilityResult(true, msg, "WHATSAPP")
-            }
+            return handleWhatsAppCommand(context, dbService, text)
         }
 
         // 3b. SMS & Text Handling: "Text [Name] [Message]", "Send SMS to [Name] [Message]", "Message [Name] [Message]"
-        if (lower.startsWith("text ") || lower.startsWith("send sms") || lower.startsWith("sms ") || lower.startsWith("message ") || lower.startsWith("msg ") || lower.startsWith("send message")) {
-            var raw = text
-            val prefixes = listOf(
-                "send message to ", "send message ", "send sms to ", "send sms ",
-                "text to ", "text ", "message to ", "message ", "msg to ", "msg ", "sms to ", "sms "
-            )
-            for (prefix in prefixes) {
-                if (raw.startsWith(prefix, ignoreCase = true)) {
-                    raw = raw.substring(prefix.length).trim()
-                    break
-                }
-            }
-            if (raw.startsWith("to ", ignoreCase = true)) {
-                raw = raw.substring(3).trim()
-            }
-
-            var targetName = ""
-            var smsMsg = ""
-
-            val sayingIdx = raw.indexOf(" saying ", ignoreCase = true)
-            val thatIdx = raw.indexOf(" that ", ignoreCase = true)
-
-            if (sayingIdx > 0) {
-                targetName = raw.substring(0, sayingIdx).trim()
-                smsMsg = raw.substring(sayingIdx + 8).trim()
-            } else if (thatIdx > 0) {
-                targetName = raw.substring(0, thatIdx).trim()
-                smsMsg = raw.substring(thatIdx + 6).trim()
-            } else {
-                val spaceIdx = raw.indexOf(' ')
-                if (spaceIdx > 0) {
-                    targetName = raw.substring(0, spaceIdx).trim()
-                    smsMsg = raw.substring(spaceIdx + 1).trim()
-                } else {
-                    targetName = raw.trim()
-                    smsMsg = ""
-                }
-            }
-
-            if (targetName.isNotEmpty()) {
-                val resolvedTarget = dbService.resolveAlias(targetName) ?: targetName
-                val contactInfo = ContactsService.findContactByName(context, resolvedTarget)
-                val phone = contactInfo?.phoneNumber ?: resolvedTarget
-                val contactName = contactInfo?.name ?: if (resolvedTarget != phone) resolvedTarget else targetName
-                val msg = ContactsService.sendSMS(context, phone, smsMsg, contactName)
-                return UtilityResult(true, msg, "SMS")
-            }
+        if (lower.startsWith("text ") || lower.startsWith("send sms") || lower.startsWith("sms ") || lower.startsWith("message ") || lower.startsWith("msg ") || lower.startsWith("send message") || lower.startsWith("send to ")) {
+            return handleSmsCommand(context, dbService, text)
         }
 
         // 4. Quick Voice Note Creation: "Take a note saying [Content]", "Create note [Title]"
@@ -297,5 +191,196 @@ object DirectActionService {
 
         // Fallback to general offline intent parser
         return OfflineIntentParser.tryParseAndExecute(context, dbService, text)
+    }
+
+    data class ParsedCommunicationCommand(
+        val rawTarget: String,
+        val messageText: String
+    )
+
+    data class ResolvedContact(
+        val name: String,
+        val phoneNumber: String,
+        val isValidPhone: Boolean
+    )
+
+    fun parseCommunicationCommand(text: String): ParsedCommunicationCommand {
+        var raw = text.trim()
+
+        val prefixes = listOf(
+            "send whatsapp message to ", "send whatsapp message ", "send whatsapp msg to ", "send whatsapp msg ",
+            "send whatsapp to ", "send whatsapp ", "send message on whatsapp to ", "send message on whatsapp ",
+            "send msg on whatsapp to ", "send msg on whatsapp ", "whatsapp message to ", "whatsapp message ",
+            "whatsapp msg to ", "whatsapp msg ", "whatsapp to ", "whatsapp ", "wa to ", "wa ",
+            "send message to ", "send message ", "send sms to ", "send sms ", "send text to ", "send text ",
+            "text message to ", "text to ", "text ", "message to ", "message ", "msg to ", "msg ", "sms to ", "sms ",
+            "make a call to ", "call to ", "call ", "send to "
+        )
+
+        for (prefix in prefixes) {
+            if (raw.startsWith(prefix, ignoreCase = true)) {
+                raw = raw.substring(prefix.length).trim()
+                break
+            }
+        }
+
+        var hasLeadingTo = false
+        if (raw.startsWith("to ", ignoreCase = true)) {
+            raw = raw.substring(3).trim()
+            hasLeadingTo = true
+        }
+
+        raw = raw.replace(Regex("(?i)\\s+(on|in|via)\\s+(whatsapp|sms|text|phone|call)"), "").trim()
+
+        var extractedTarget = ""
+        var extractedMsg = ""
+
+        val sayingIdx = raw.indexOf(" saying ", ignoreCase = true)
+        val thatIdx = raw.indexOf(" that ", ignoreCase = true)
+
+        if (sayingIdx > 0) {
+            extractedTarget = raw.substring(0, sayingIdx).trim()
+            extractedMsg = raw.substring(sayingIdx + 8).trim()
+        } else if (thatIdx > 0) {
+            extractedTarget = raw.substring(0, thatIdx).trim()
+            extractedMsg = raw.substring(thatIdx + 6).trim()
+        } else {
+            val toIdx = raw.indexOf(" to ", ignoreCase = true)
+            if (toIdx > 0 && !hasLeadingTo) {
+                val left = raw.substring(0, toIdx).trim()
+                val right = raw.substring(toIdx + 4).trim()
+
+                val rightDigits = right.filter { it.isDigit() }
+                if (rightDigits.length >= 5 || right.split(" ").size <= 3) {
+                    extractedTarget = right
+                    extractedMsg = left
+                } else {
+                    extractedTarget = left
+                    extractedMsg = right
+                }
+            } else {
+                val firstSpace = raw.indexOf(' ')
+                if (firstSpace > 0) {
+                    val firstToken = raw.substring(0, firstSpace).trim()
+                    val remainder = raw.substring(firstSpace + 1).trim()
+
+                    val tokenDigits = firstToken.filter { it.isDigit() }
+                    if (tokenDigits.length >= 7 || hasLeadingTo) {
+                        extractedTarget = firstToken
+                        extractedMsg = remainder
+                    } else {
+                        val remainderPhoneMatch = Regex("""\b\+?\d{7,15}\b""").find(remainder)
+                        if (remainderPhoneMatch != null) {
+                            extractedTarget = remainderPhoneMatch.value
+                            extractedMsg = raw.replace(remainderPhoneMatch.value, "").replace(" to ", " ").trim()
+                        } else {
+                            extractedTarget = firstToken
+                            extractedMsg = remainder
+                        }
+                    }
+                } else {
+                    extractedTarget = raw
+                    extractedMsg = ""
+                }
+            }
+        }
+
+        if (extractedTarget.startsWith("to ", ignoreCase = true)) {
+            extractedTarget = extractedTarget.substring(3).trim()
+        }
+
+        val targetDigits = extractedTarget.filter { it.isDigit() }
+        val msgPhoneMatch = Regex("""\b\+?\d{7,15}\b""").find(extractedMsg)
+        if (targetDigits.isEmpty() && msgPhoneMatch != null) {
+            val phoneInMsg = msgPhoneMatch.value
+            val cleanMsg = extractedMsg.replace(phoneInMsg, "").replace(" to ", " ").trim()
+            val finalMsg = if (cleanMsg.isNotEmpty()) cleanMsg else extractedTarget
+            extractedTarget = phoneInMsg
+            extractedMsg = finalMsg
+        }
+
+        return ParsedCommunicationCommand(extractedTarget.trim(), extractedMsg.trim())
+    }
+
+    fun resolveContact(context: Context, dbService: DatabaseService, target: String): ResolvedContact {
+        val cleanTarget = target.trim()
+        if (cleanTarget.isEmpty()) return ResolvedContact("", "", false)
+
+        val aliasResolved = dbService.resolveAlias(cleanTarget) ?: cleanTarget
+        val contactInfo = ContactsService.findContactByName(context, aliasResolved)
+
+        if (contactInfo != null) {
+            return ResolvedContact(
+                name = contactInfo.name,
+                phoneNumber = contactInfo.phoneNumber,
+                isValidPhone = true
+            )
+        }
+
+        val digits = aliasResolved.filter { it.isDigit() || it == '+' }
+        if (digits.length >= 5) {
+            return ResolvedContact(
+                name = aliasResolved,
+                phoneNumber = digits,
+                isValidPhone = true
+            )
+        }
+
+        return ResolvedContact(
+            name = cleanTarget,
+            phoneNumber = "",
+            isValidPhone = false
+        )
+    }
+
+    fun handleCallCommand(context: Context, dbService: DatabaseService, text: String): UtilityResult {
+        val parsed = parseCommunicationCommand(text)
+        if (parsed.rawTarget.isBlank()) {
+            return UtilityResult(true, "Please specify who to call (e.g., 'call 7033486291' or 'call Mom').", "CALL")
+        }
+        val resolved = resolveContact(context, dbService, parsed.rawTarget)
+        if (!resolved.isValidPhone) {
+            return UtilityResult(
+                true,
+                "Contact '${parsed.rawTarget}' not found in your phone contacts. Please check contact name or specify a valid phone number.",
+                "CALL"
+            )
+        }
+        val msg = ContactsService.makeCall(context, resolved.phoneNumber, resolved.name)
+        return UtilityResult(true, msg, "CALL")
+    }
+
+    fun handleSmsCommand(context: Context, dbService: DatabaseService, text: String): UtilityResult {
+        val parsed = parseCommunicationCommand(text)
+        if (parsed.rawTarget.isBlank()) {
+            return UtilityResult(true, "Please specify a recipient and message (e.g., 'send sms hi to 7033486291').", "SMS")
+        }
+        val resolved = resolveContact(context, dbService, parsed.rawTarget)
+        if (!resolved.isValidPhone) {
+            return UtilityResult(
+                true,
+                "Contact '${parsed.rawTarget}' not found in your phone contacts. Please check contact name or specify a valid phone number (e.g., 'send sms hi to 7033486291').",
+                "SMS"
+            )
+        }
+        val msg = ContactsService.sendSMS(context, resolved.phoneNumber, parsed.messageText, resolved.name)
+        return UtilityResult(true, msg, "SMS")
+    }
+
+    fun handleWhatsAppCommand(context: Context, dbService: DatabaseService, text: String): UtilityResult {
+        val parsed = parseCommunicationCommand(text)
+        if (parsed.rawTarget.isBlank()) {
+            return UtilityResult(true, "Please specify a contact and message for WhatsApp (e.g., 'send whatsapp hi to Mom').", "WHATSAPP")
+        }
+        val resolved = resolveContact(context, dbService, parsed.rawTarget)
+        if (!resolved.isValidPhone) {
+            return UtilityResult(
+                true,
+                "Contact '${parsed.rawTarget}' not found in your phone contacts for WhatsApp. Please check contact name or specify a valid phone number.",
+                "WHATSAPP"
+            )
+        }
+        val msg = ContactsService.sendWhatsApp(context, resolved.phoneNumber, parsed.messageText, resolved.name)
+        return UtilityResult(true, msg, "WHATSAPP")
     }
 }

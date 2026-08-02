@@ -2,9 +2,12 @@ package com.example
 
 import android.os.Bundle
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -174,6 +177,11 @@ fun MainAppLayout(
     var isDriveModalOpen by remember { mutableStateOf(false) }
     var isAppLauncherModalOpen by remember { mutableStateOf(false) }
     var isInstalledAppsScreenOpen by remember { mutableStateOf(false) }
+    var isNotificationsModalOpen by remember { mutableStateOf(false) }
+    var isPrivacyModalOpen by remember { mutableStateOf(false) }
+    var isPermissionsModalOpen by remember { mutableStateOf(false) }
+    var isHelpModalOpen by remember { mutableStateOf(false) }
+    var isFeedbackModalOpen by remember { mutableStateOf(false) }
     var selectedChatHistoryItem by remember { mutableStateOf<com.example.services.ChatHistoryItem?>(null) }
 
     if (showPermissionOnboarding) {
@@ -333,12 +341,26 @@ fun MainAppLayout(
             androidx.compose.animation.AnimatedContent(
                 targetState = activeTab,
                 transitionSpec = {
+                    val animDuration = 260
+                    val animEasing = FastOutSlowInEasing
                     if (targetState > initialState) {
-                        (slideInHorizontally { width -> width } + fadeIn(animationSpec = tween(280)))
-                            .togetherWith(slideOutHorizontally { width -> -width } + fadeOut(animationSpec = tween(280)))
+                        (slideInHorizontally(animationSpec = tween(animDuration, easing = animEasing)) { width -> (width * 0.25f).toInt() } +
+                            fadeIn(animationSpec = tween(animDuration, easing = animEasing)) +
+                            scaleIn(initialScale = 0.94f, animationSpec = tween(animDuration, easing = animEasing)))
+                            .togetherWith(
+                                slideOutHorizontally(animationSpec = tween(animDuration, easing = animEasing)) { width -> (-width * 0.25f).toInt() } +
+                                fadeOut(animationSpec = tween(animDuration, easing = animEasing)) +
+                                scaleOut(targetScale = 0.96f, animationSpec = tween(animDuration, easing = animEasing))
+                            )
                     } else {
-                        (slideInHorizontally { width -> -width } + fadeIn(animationSpec = tween(280)))
-                            .togetherWith(slideOutHorizontally { width -> width } + fadeOut(animationSpec = tween(280)))
+                        (slideInHorizontally(animationSpec = tween(animDuration, easing = animEasing)) { width -> (-width * 0.25f).toInt() } +
+                            fadeIn(animationSpec = tween(animDuration, easing = animEasing)) +
+                            scaleIn(initialScale = 0.94f, animationSpec = tween(animDuration, easing = animEasing)))
+                            .togetherWith(
+                                slideOutHorizontally(animationSpec = tween(animDuration, easing = animEasing)) { width -> (width * 0.25f).toInt() } +
+                                fadeOut(animationSpec = tween(animDuration, easing = animEasing)) +
+                                scaleOut(targetScale = 0.96f, animationSpec = tween(animDuration, easing = animEasing))
+                            )
                     }
                 },
                 label = "SmoothTabTransition"
@@ -439,13 +461,18 @@ fun MainAppLayout(
                 onSelectMenuItem = { actionKey ->
                     hasUserInteracted = true
                     when (actionKey) {
-                        "ved" -> activeTab = 2 // Navigate to Ved tab
+                        "ved", "recent_chat", "chat_item", "history_view_all" -> activeTab = 2 // Navigate to Ved tab
                         "app_launcher" -> isInstalledAppsScreenOpen = true // Open Installed Apps List Screen
                         "database", "drive" -> activeTab = 3 // Navigate to VEDrive tab
                         "workspace", "vehub" -> activeTab = 1 // Navigate to VEHub tab
                         "automation", "vetools" -> activeTab = 4 // Navigate to VETools tab
                         "search" -> activeTab = 3 // Navigate to Search in VEDrive
-                        "settings" -> activeTab = 5 // Navigate to Settings tab
+                        "settings", "profile" -> activeTab = 5 // Navigate to Settings tab
+                        "notification" -> isNotificationsModalOpen = true
+                        "privacy" -> isPrivacyModalOpen = true
+                        "permissions" -> isPermissionsModalOpen = true
+                        "help" -> isHelpModalOpen = true
+                        "feedback" -> isFeedbackModalOpen = true
                         "pro_upgrade" -> Toast.makeText(context, "⚡ Upgraded to VEDRA PRO!", Toast.LENGTH_SHORT).show()
                     }
                 },
@@ -453,6 +480,40 @@ fun MainAppLayout(
                     selectedChatHistoryItem = chat
                     activeTab = 2
                 }
+            )
+
+            // VEDRA Interactive Side Drawer Modals
+            com.example.ui.components.NotificationsModal(
+                visible = isNotificationsModalOpen,
+                dbService = dbService,
+                onDismissRequest = { isNotificationsModalOpen = false }
+            )
+
+            com.example.ui.components.PrivacySecurityModal(
+                visible = isPrivacyModalOpen,
+                dbService = dbService,
+                onDismissRequest = { isPrivacyModalOpen = false }
+            )
+
+            if (isPermissionsModalOpen) {
+                com.example.ui.components.CentralizedPermissionManagerDialog(
+                    onDismiss = { isPermissionsModalOpen = false },
+                    onGranted = {
+                        isPermissionsModalOpen = false
+                        Toast.makeText(context, "Permissions granted! ✅", Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
+
+            com.example.ui.components.HelpSupportModal(
+                visible = isHelpModalOpen,
+                onDismissRequest = { isHelpModalOpen = false }
+            )
+
+            com.example.ui.components.FeedbackModal(
+                visible = isFeedbackModalOpen,
+                dbService = dbService,
+                onDismissRequest = { isFeedbackModalOpen = false }
             )
 
             // VEDRA AI Knowledge Base / Drive Modal (triggered via Memory long-press)

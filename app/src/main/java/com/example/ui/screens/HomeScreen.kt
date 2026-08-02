@@ -171,8 +171,8 @@ fun HomeScreen(
     val currentDensity = LocalDensity.current
     val customDensity = remember(currentDensity) {
         Density(
-            density = currentDensity.density * 0.67f,
-            fontScale = currentDensity.fontScale * 0.67f
+            density = currentDensity.density * 0.88f,
+            fontScale = currentDensity.fontScale * 0.88f
         )
     }
 

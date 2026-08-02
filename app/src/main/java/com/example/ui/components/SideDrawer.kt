@@ -89,6 +89,13 @@ fun SideDrawer(
         dbService?.getAllChatHistory() ?: emptyList()
     }
 
+    val userName = remember(isOpen) {
+        dbService?.getSetting("user_name", "Rahul") ?: "Rahul"
+    }
+    val avatarInitial = remember(userName) {
+        userName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "R"
+    }
+
     if (isOpen) {
         Box(modifier = Modifier.fillMaxSize()) {
             // Semi-transparent backdrop overlay
@@ -431,7 +438,7 @@ fun SideDrawer(
                                     .background(Color(0xFF130E24))
                                     .border(1.dp, Color(0xFF231A3B), RoundedCornerShape(12.dp))
                                     .clickable {
-                                        onSelectMenuItem("settings")
+                                        onSelectMenuItem("profile")
                                         onClose()
                                     }
                                     .padding(10.dp)
@@ -453,7 +460,7 @@ fun SideDrawer(
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
-                                                text = "A",
+                                                text = avatarInitial,
                                                 color = Color.White,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 13.5.sp
@@ -462,7 +469,7 @@ fun SideDrawer(
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Column {
                                             Text(
-                                                text = "Arjun Kumar",
+                                                text = userName,
                                                 color = Color.White,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 11.sp

@@ -147,7 +147,7 @@ fun DatabaseScreen(
     var selectedTab by remember { mutableStateOf(VedriveTab.FOLDERS) }
 
     // Grid vs List view toggle state
-    var isGridView by remember { mutableStateOf(false) }
+    var isGridView by remember { mutableStateOf(dbService.getSetting("drive_file_view", "List View") == "Grid View") }
 
     // Navigation Stack for Folders
     var activeFolderId by remember { mutableLongStateOf(0L) }
@@ -483,7 +483,7 @@ private fun VedriveRootView(
         Box(modifier = Modifier.weight(1f)) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Top Storage Donut Overview Card (Only shown in ROOT view)
-                StorageOverviewCard()
+                StorageOverviewCard(dbService = dbService)
 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -584,9 +584,15 @@ private fun VedriveRootView(
     }
 }
 
-// Storage Donut Overview Card (Exact match to Top Left screenshot)
+// Storage Donut Overview Card (Exact match to Top Left screenshot with Google Drive Sync)
 @Composable
-private fun StorageOverviewCard() {
+private fun StorageOverviewCard(dbService: DatabaseService) {
+    val stats = remember(dbService.getAllDriveDocuments().size, dbService.getAllDriveFolders().size) {
+        com.example.services.GoogleDriveService.getStorageStats(dbService)
+    }
+    val totalFilesCount = remember(dbService.getAllDriveDocuments().size) { dbService.getAllDriveDocuments().size }
+    val totalFoldersCount = remember(dbService.getAllDriveFolders().size) { dbService.getAllDriveFolders().size }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -607,33 +613,43 @@ private fun StorageOverviewCard() {
         ) {
             // Left Donut Ring Chart
             Row(verticalAlignment = Alignment.CenterVertically) {
-                StorageDonutChart(percentage = 0.68f)
+                StorageDonutChart(percentage = stats.percentageUsed)
 
                 Spacer(modifier = Modifier.width(16.dp))
 
                 Column {
-                    Text("Storage Overview", color = Color(0xFFA09EC0), fontSize = 11.5.sp)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("68%", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text("Google Drive Storage", color = Color(0xFFA09EC0), fontSize = 11.sp)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF10B981))
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("${stats.leftGigaBytes} GB", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Used", color = Color(0xFFA09EC0), fontSize = 13.sp)
+                        Text("Left", color = Color(0xFF10B981), fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
                     }
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text("87.6 GB / 128 GB", color = Color(0xFF6B6893), fontSize = 11.sp)
+                    Text("${stats.usedGigaBytes} GB Used / ${stats.totalGigaBytes.toInt()} GB Total", color = Color(0xFF6B6893), fontSize = 10.5.sp)
+                    Text("Linked: ${stats.connectedEmail}", color = Color(0xFF34D399), fontSize = 9.5.sp, fontWeight = FontWeight.Medium)
                 }
             }
 
             // Right Stats (Total Files, Total Folders)
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Column {
                     Text("Total Files", color = Color(0xFF6B6893), fontSize = 10.5.sp)
-                    Text("3,245", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("$totalFilesCount", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Text("items", color = Color(0xFF6B6893), fontSize = 10.sp)
                 }
 
                 Column {
                     Text("Total Folders", color = Color(0xFF6B6893), fontSize = 10.5.sp)
-                    Text("126", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("$totalFoldersCount", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Text("folders", color = Color(0xFF6B6893), fontSize = 10.sp)
                 }
             }
@@ -730,17 +746,24 @@ private fun FoldersTabContent(
     onOpenFolder: (Long, String) -> Unit,
     onOpenItemMenu: (Any) -> Unit
 ) {
-    // Default Root Folders matching reference design EXACTLY
-    val rootFolders = remember {
-        listOf(
+    val chatsCount = remember(dbService.getAllChatHistory().size) { dbService.getAllChatHistory().size }
+    val customDbFolders = remember(dbService.getAllDriveFolders().size) { dbService.getAllDriveFolders() }
+
+    // Root Folders including VEChat History & Custom User Folders
+    val rootFolders = remember(chatsCount, customDbFolders) {
+        val list = mutableListOf(
+            Triple("VEChat History", "$chatsCount sessions (Synced to Drive)", "Auto Backup"),
             Triple("Study Material", "842 items", "2 May 2025"),
             Triple("Books", "156 items", "1 May 2025"),
             Triple("Notes", "532 items", "30 Apr 2025"),
             Triple("PYQs", "432 items", "29 Apr 2025"),
             Triple("Mock Tests", "215 items", "28 Apr 2025"),
-            Triple("Projects", "120 items", "27 Apr 2025"),
-            Triple("Others", "948 items", "26 Apr 2025")
+            Triple("Projects", "120 items", "27 Apr 2025")
         )
+        customDbFolders.forEach { f ->
+            list.add(Triple(f.name, "Custom Folder", "Just Now"))
+        }
+        list
     }
 
     val filtered = rootFolders.filter {

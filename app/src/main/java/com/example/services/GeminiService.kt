@@ -115,6 +115,14 @@ object GeminiService {
         }
     }
 
+    private fun getBuildConfigOpenAIKey(): String? {
+        return try {
+            BuildConfig::class.java.getField("OPENAI_API_KEY").get(null) as? String
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private fun buildSystemInstruction(contextSummary: String, dbService: DatabaseService? = null): String {
         val appLanguage = dbService?.getSetting("pref_app_language", "English (India)") ?: "English (India)"
         val responseTone = dbService?.getSetting("ai_tone", "Short & Direct") ?: "Short & Direct"
@@ -234,6 +242,12 @@ object GeminiService {
         modelName: String,
         dbService: DatabaseService? = null
     ): String {
+        val keyToUse = if (!apiKey.isNullOrBlank() && apiKey != "MY_OPENAI_API_KEY") apiKey else getBuildConfigOpenAIKey()
+
+        if (keyToUse.isNullOrBlank() || keyToUse == "MY_OPENAI_API_KEY") {
+            return "⚠️ OpenAI API Key is missing or set to default placeholder. Please enter your OpenAI API key in Settings > AI Settings (or via Secrets Panel) to enable OpenAI models."
+        }
+
         try {
             val resolvedModel = when {
                 modelName.contains("4o-mini", ignoreCase = true) -> "gpt-4o-mini"
@@ -261,7 +275,7 @@ object GeminiService {
 
             val request = Request.Builder()
                 .url(url)
-                .addHeader("Authorization", "Bearer $apiKey")
+                .addHeader("Authorization", "Bearer $keyToUse")
                 .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 

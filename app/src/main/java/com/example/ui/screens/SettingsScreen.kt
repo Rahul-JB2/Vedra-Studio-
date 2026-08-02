@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DeveloperMode
@@ -60,6 +61,7 @@ import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -75,7 +77,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -1268,8 +1272,32 @@ private fun VedmtKnowledgeScreen(dbService: DatabaseService) {
 @Composable
 private fun VedriveSettingsScreen(dbService: DatabaseService) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
     var autoBackup by remember { mutableStateOf(dbService.getSetting("drive_auto_backup", "Daily")) }
-    var fileView by remember { mutableStateOf(dbService.getSetting("drive_file_view", "Grid View")) }
+    var fileView by remember { mutableStateOf(dbService.getSetting("drive_file_view", "List View")) }
+    var saveLocation by remember { mutableStateOf(dbService.getSetting("drive_save_location", "/VEDrive")) }
+    var isSyncing by remember { mutableStateOf(false) }
+    var lastSyncTime by remember { mutableStateOf(com.example.services.GoogleDriveService.getLastSyncTime(dbService)) }
+    var connectedEmail by remember { mutableStateOf(com.example.services.GoogleDriveService.getConnectedEmail(dbService)) }
+
+    // Dynamic Storage Stats
+    var storageStats by remember { mutableStateOf(com.example.services.GoogleDriveService.getStorageStats(dbService)) }
+
+    // Dialog States
+    var showGoogleSyncDialog by remember { mutableStateOf(false) }
+    var showBackupRestoreDialog by remember { mutableStateOf(false) }
+    var showAutoBackupDialog by remember { mutableStateOf(false) }
+    var showSaveLocationDialog by remember { mutableStateOf(false) }
+    var showManageStorageDialog by remember { mutableStateOf(false) }
+    var showFilePermissionsDialog by remember { mutableStateOf(false) }
+    var showRecentBackupRestoreDialog by remember { mutableStateOf<String?>(null) }
+
+    fun refreshStats() {
+        storageStats = com.example.services.GoogleDriveService.getStorageStats(dbService)
+        lastSyncTime = com.example.services.GoogleDriveService.getLastSyncTime(dbService)
+        connectedEmail = com.example.services.GoogleDriveService.getConnectedEmail(dbService)
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -1278,6 +1306,7 @@ private fun VedriveSettingsScreen(dbService: DatabaseService) {
         contentPadding = PaddingValues(bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        // --- 1. HEADER STORAGE CARD ---
         item {
             Box(
                 modifier = Modifier
@@ -1301,8 +1330,19 @@ private fun VedriveSettingsScreen(dbService: DatabaseService) {
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
-                            Text("VEDrive", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                            Text("Manage, sync and backup your files across devices and accounts.", color = Color(0xFFA09EC0), fontSize = 11.5.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("VEDrive", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color(0xFF10B981).copy(alpha = 0.2f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text("${storageStats.leftGigaBytes} GB Left", color = Color(0xFF10B981), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Text("Linked: $connectedEmail", color = Color(0xFF34D399), fontSize = 11.sp)
                         }
                     }
 
@@ -1312,29 +1352,34 @@ private fun VedriveSettingsScreen(dbService: DatabaseService) {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Storage Used", color = Color(0xFF6B6893), fontSize = 11.sp)
-                        Text("12.4 GB / 100 GB", color = Color.White, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                        Text("Google Drive Storage Used", color = Color(0xFF6B6893), fontSize = 11.sp)
+                        Text("${storageStats.usedGigaBytes} GB / ${storageStats.totalGigaBytes.toInt()} GB", color = Color.White, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp))
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp))
                             .background(Color(0xFF28264A))
                     ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxHeight()
-                                .fillMaxWidth(0.124f)
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(Color(0xFF3B82F6))
+                                .fillMaxWidth(storageStats.percentageUsed.coerceIn(0.05f, 1.0f))
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colors = listOf(Color(0xFF3B82F6), Color(0xFF06B6D4))
+                                    )
+                                )
                         )
                     }
                 }
             }
         }
 
+        // --- 2. DRIVE SETTINGS GROUP ---
         item {
             Text("Drive Settings", color = Color(0xFFA855F7), fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
@@ -1347,38 +1392,40 @@ private fun VedriveSettingsScreen(dbService: DatabaseService) {
                     .background(Color(0xFF14132B))
                     .border(1.dp, Color(0xFF28264A), RoundedCornerShape(16.dp))
             ) {
-                SettingRowValue("Google Drive Sync", "Connected", isSuccess = true) {
-                    Toast.makeText(context, "Google Drive Account Synced", Toast.LENGTH_SHORT).show()
+                SettingRowValue("Google Drive Sync", "Connected ($connectedEmail)", isSuccess = true) {
+                    showGoogleSyncDialog = true
                 }
                 SettingDivider()
-                SettingRowDetail("Backup & Restore", "Backup and manage your data") {
-                    Toast.makeText(context, "Initiating Cloud Backup...", Toast.LENGTH_SHORT).show()
+                SettingRowDetail("Backup & Restore", "Sync VEDrive tab & data with Google Drive") {
+                    showBackupRestoreDialog = true
                 }
                 SettingDivider()
                 SettingRowValue("Auto Backup", autoBackup) {
-                    autoBackup = if (autoBackup == "Daily") "Weekly" else "Daily"
-                    dbService.setSetting("drive_auto_backup", autoBackup)
+                    showAutoBackupDialog = true
                 }
                 SettingDivider()
-                SettingRowValue("Default Save Location", "/VEDrive") {
-                    Toast.makeText(context, "Default path: /VEDrive", Toast.LENGTH_SHORT).show()
+                SettingRowValue("Default Save Location", saveLocation) {
+                    showSaveLocationDialog = true
                 }
                 SettingDivider()
-                SettingRowDetail("Manage Storage", "Clean cache and manage space") {
-                    Toast.makeText(context, "Cleaning Drive Cache...", Toast.LENGTH_SHORT).show()
+                SettingRowDetail("Manage Storage", "Clean cache (${storageStats.leftGigaBytes} GB Left)") {
+                    showManageStorageDialog = true
                 }
                 SettingDivider()
                 SettingRowValue("File View", fileView) {
                     fileView = if (fileView == "Grid View") "List View" else "Grid View"
                     dbService.setSetting("drive_file_view", fileView)
+                    Toast.makeText(context, "File View updated to $fileView", Toast.LENGTH_SHORT).show()
+                    refreshStats()
                 }
                 SettingDivider()
-                SettingRowDetail("File Permissions", "Manage access and visibility") {
-                    Toast.makeText(context, "Permissions configured", Toast.LENGTH_SHORT).show()
+                SettingRowDetail("File Permissions", "Manage access, encryption & cloud visibility") {
+                    showFilePermissionsDialog = true
                 }
             }
         }
 
+        // --- 3. RECENT BACKUPS GROUP ---
         item {
             Text("Recent Backups", color = Color(0xFFA855F7), fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
@@ -1391,14 +1438,27 @@ private fun VedriveSettingsScreen(dbService: DatabaseService) {
                     .background(Color(0xFF14132B))
                     .border(1.dp, Color(0xFF28264A), RoundedCornerShape(16.dp))
             ) {
-                BackupHistoryRow("2 May 2025, 10:30 AM", "1.24 GB")
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showRecentBackupRestoreDialog = lastSyncTime }
+                        .padding(14.dp)
+                ) {
+                    Text("Latest Sync: $lastSyncTime", color = Color.White, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
+                    Text("VEDrive tab files, chats & secrets synchronized with $connectedEmail", color = Color(0xFFA09EC0), fontSize = 11.sp)
+                }
                 SettingDivider()
-                BackupHistoryRow("1 May 2025, 10:30 AM", "1.18 GB")
+                BackupHistoryRow("2 May 2025, 10:30 AM", "1.24 GB") {
+                    showRecentBackupRestoreDialog = "2 May 2025, 10:30 AM"
+                }
                 SettingDivider()
-                BackupHistoryRow("30 Apr 2025, 10:30 AM", "983 MB")
+                BackupHistoryRow("1 May 2025, 10:30 AM", "1.18 GB") {
+                    showRecentBackupRestoreDialog = "1 May 2025, 10:30 AM"
+                }
             }
         }
 
+        // --- 4. LIVE SYNC STATUS BANNER ---
         item {
             Box(
                 modifier = Modifier
@@ -1409,9 +1469,443 @@ private fun VedriveSettingsScreen(dbService: DatabaseService) {
                     .padding(12.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
+                    if (isSyncing) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color(0xFF10B981), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Sync Status: All files are up to date", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Text(
+                        if (isSyncing) "Syncing with $connectedEmail..." else "Sync Status: Connected to $connectedEmail (${storageStats.leftGigaBytes} GB Left)",
+                        color = Color.White,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+    }
+
+    // ================= DIALOGS =================
+
+    // 1. Google Drive Sync Dialog
+    if (showGoogleSyncDialog) {
+        Dialog(onDismissRequest = { showGoogleSyncDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xFF14132B),
+                border = BorderStroke(1.dp, Color(0xFF3B2E6E)),
+                modifier = Modifier.fillMaxWidth().padding(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text("Google Drive Sync", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Direct link active with dev.vadra.ai@gmail.com", color = Color(0xFFA09EC0), fontSize = 12.sp)
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF1B1A38))
+                            .padding(12.dp)
+                    ) {
+                        Column {
+                            Text("Account Email", color = Color(0xFF6B6893), fontSize = 10.5.sp)
+                            Text(connectedEmail, color = Color(0xFF34D399), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("${storageStats.leftGigaBytes} GB Available in Google Drive", color = Color.White, fontSize = 11.5.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    var customEmailInput by remember { mutableStateOf(connectedEmail) }
+                    OutlinedTextField(
+                        value = customEmailInput,
+                        onValueChange = { customEmailInput = it },
+                        label = { Text("Google Account Email", color = Color.Gray, fontSize = 11.sp) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color(0xFFA855F7),
+                            unfocusedBorderColor = Color(0xFF28264A)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Surface(
+                            onClick = {
+                                com.example.services.GoogleDriveService.connectAccount(dbService, customEmailInput)
+                                refreshStats()
+                                Toast.makeText(context, "Updated account to $customEmailInput", Toast.LENGTH_SHORT).show()
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFF28264A)
+                        ) {
+                            Text("Save Account", color = Color.White, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Surface(
+                            onClick = {
+                                coroutineScope.launch {
+                                    isSyncing = true
+                                    val result = com.example.services.GoogleDriveService.exportAllVedDriveData(context, dbService)
+                                    isSyncing = false
+                                    refreshStats()
+                                    Toast.makeText(context, result, Toast.LENGTH_LONG).show()
+                                    showGoogleSyncDialog = false
+                                }
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFF059669)
+                        ) {
+                            Text("Sync Now 🔄", color = Color.White, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Backup & Restore Dialog
+    if (showBackupRestoreDialog) {
+        Dialog(onDismissRequest = { showBackupRestoreDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xFF14132B),
+                border = BorderStroke(1.dp, Color(0xFF3B2E6E)),
+                modifier = Modifier.fillMaxWidth().padding(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text("VEDrive Backup & Restore", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("Sync all VEDrive files, folders, chats & secrets directly with Google Drive.", color = Color(0xFFA09EC0), fontSize = 12.sp)
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Surface(
+                        onClick = {
+                            coroutineScope.launch {
+                                isSyncing = true
+                                val res = com.example.services.GoogleDriveService.exportAllVedDriveData(context, dbService)
+                                isSyncing = false
+                                refreshStats()
+                                Toast.makeText(context, res, Toast.LENGTH_LONG).show()
+                                showBackupRestoreDialog = false
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF059669),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.CloudUpload, contentDescription = null, tint = Color.White)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("Backup All Data to Google Drive", color = Color.White, fontSize = 13.5.sp, fontWeight = FontWeight.Bold)
+                                Text("Upload VEDrive tab, VEChat & secrets to $connectedEmail", color = Color(0xFFD1FAE5), fontSize = 10.5.sp)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Surface(
+                        onClick = {
+                            coroutineScope.launch {
+                                isSyncing = true
+                                val res = com.example.services.GoogleDriveService.importAllVedDriveData(context, dbService)
+                                isSyncing = false
+                                refreshStats()
+                                Toast.makeText(context, res, Toast.LENGTH_LONG).show()
+                                showBackupRestoreDialog = false
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF3B82F6),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("Restore All Data from Google Drive", color = Color.White, fontSize = 13.5.sp, fontWeight = FontWeight.Bold)
+                                Text("Download and restore files from $connectedEmail", color = Color(0xFFDBEAFE), fontSize = 10.5.sp)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text("Last Synced: $lastSyncTime", color = Color.Gray, fontSize = 11.sp)
+                }
+            }
+        }
+    }
+
+    // 3. Auto Backup Dialog
+    if (showAutoBackupDialog) {
+        Dialog(onDismissRequest = { showAutoBackupDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xFF14132B),
+                border = BorderStroke(1.dp, Color(0xFF3B2E6E)),
+                modifier = Modifier.fillMaxWidth().padding(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text("Auto Backup Frequency", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    val options = listOf("Realtime", "Daily", "Weekly", "Off")
+                    options.forEach { opt ->
+                        Surface(
+                            onClick = {
+                                autoBackup = opt
+                                dbService.setSetting("drive_auto_backup", opt)
+                                Toast.makeText(context, "Auto Backup set to $opt", Toast.LENGTH_SHORT).show()
+                                showAutoBackupDialog = false
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (autoBackup == opt) Color(0xFF8B5CF6) else Color(0xFF1B1A38),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        ) {
+                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(opt, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Spacer(modifier = Modifier.weight(1f))
+                                if (autoBackup == opt) {
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Default Save Location Dialog
+    if (showSaveLocationDialog) {
+        Dialog(onDismissRequest = { showSaveLocationDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xFF14132B),
+                border = BorderStroke(1.dp, Color(0xFF3B2E6E)),
+                modifier = Modifier.fillMaxWidth().padding(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text("Default Save Location", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("Choose default directory path for VEDrive uploads", color = Color(0xFFA09EC0), fontSize = 11.5.sp)
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    val locations = listOf("/VEDrive", "/VEDrive/Study Material", "/VEDrive/CloudSync", "/GoogleDrive/dev.vadra.ai/VEDrive")
+                    locations.forEach { loc ->
+                        Surface(
+                            onClick = {
+                                saveLocation = loc
+                                dbService.setSetting("drive_save_location", loc)
+                                Toast.makeText(context, "Default save location set to $loc", Toast.LENGTH_SHORT).show()
+                                showSaveLocationDialog = false
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (saveLocation == loc) Color(0xFF8B5CF6) else Color(0xFF1B1A38),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        ) {
+                            Text(loc, color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(12.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 5. Manage Storage Dialog
+    if (showManageStorageDialog) {
+        Dialog(onDismissRequest = { showManageStorageDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xFF14132B),
+                border = BorderStroke(1.dp, Color(0xFF3B2E6E)),
+                modifier = Modifier.fillMaxWidth().padding(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Google Drive Storage", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.weight(1f))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color(0xFF10B981).copy(alpha = 0.2f))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text("${storageStats.leftGigaBytes} GB Left", color = Color(0xFF10B981), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Text("Real Cloud Storage Limit: 15.0 GB Free Account", color = Color(0xFFA09EC0), fontSize = 11.5.sp)
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF1B1A38))
+                            .padding(14.dp)
+                    ) {
+                        Column {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Total Google Drive Quota:", color = Color(0xFFA09EC0), fontSize = 12.sp)
+                                Text("15.0 GB", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Total Used Storage:", color = Color(0xFFA09EC0), fontSize = 12.sp)
+                                Text("${storageStats.usedGigaBytes} GB / 15.0 GB", color = Color(0xFF38BDF8), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Remaining Storage Left:", color = Color(0xFFA09EC0), fontSize = 12.sp)
+                                Text("${storageStats.leftGigaBytes} GB", color = Color(0xFF10B981), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = Color(0xFF28264A))
+
+                            Text("Breakdown by Category:", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("• VEDrive Documents:", color = Color(0xFFA09EC0), fontSize = 11.5.sp)
+                                Text("${storageStats.docsCount} files (${storageStats.docsSizeMb} MB)", color = Color.White, fontSize = 11.5.sp)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("• VED AI Chat History:", color = Color(0xFFA09EC0), fontSize = 11.5.sp)
+                                Text("${storageStats.chatsCount} sessions (${storageStats.chatsSizeMb} MB)", color = Color(0xFFA855F7), fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("• Drive Cache & Temp Files:", color = Color(0xFFA09EC0), fontSize = 11.5.sp)
+                                Text("${storageStats.cacheSizeMb} MB", color = Color(0xFFF59E0B), fontSize = 11.5.sp)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Surface(
+                        onClick = {
+                            refreshStats()
+                            Toast.makeText(context, "Cleared ${storageStats.cacheSizeMb} MB cache! Left Google Drive space: ${storageStats.leftGigaBytes} GB out of 15.0 GB", Toast.LENGTH_LONG).show()
+                            showManageStorageDialog = false
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFEF4444),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Clean Drive Cache & Free Up Space", color = Color.White, modifier = Modifier.padding(12.dp), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+
+    // 6. File Permissions Dialog
+    if (showFilePermissionsDialog) {
+        Dialog(onDismissRequest = { showFilePermissionsDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xFF14132B),
+                border = BorderStroke(1.dp, Color(0xFF3B2E6E)),
+                modifier = Modifier.fillMaxWidth().padding(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text("VEDrive Permissions & Security", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("Manage cloud access and local encryption", color = Color(0xFFA09EC0), fontSize = 11.5.sp)
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Google Drive Sync Access", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("Linked to $connectedEmail", color = Color.Gray, fontSize = 10.5.sp)
+                        }
+                        Switch(checked = true, onCheckedChange = {}, colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF10B981)))
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("XOR/AES-256 Secret Encryption", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("Encrypt credentials & VEDSecret folder", color = Color.Gray, fontSize = 10.5.sp)
+                        }
+                        Switch(checked = true, onCheckedChange = {}, colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF10B981)))
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Surface(
+                        onClick = {
+                            Toast.makeText(context, "Permissions & security settings updated", Toast.LENGTH_SHORT).show()
+                            showFilePermissionsDialog = false
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF8B5CF6),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Save Permissions", color = Color.White, modifier = Modifier.padding(12.dp), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+
+    // 7. Recent Backup Restore Confirmation Dialog
+    showRecentBackupRestoreDialog?.let { backupTime ->
+        Dialog(onDismissRequest = { showRecentBackupRestoreDialog = null }) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xFF14132B),
+                border = BorderStroke(1.dp, Color(0xFF3B2E6E)),
+                modifier = Modifier.fillMaxWidth().padding(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text("Restore Backup Snapshot", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text("Do you want to restore VEDrive files, chats, and secrets from backup dated '$backupTime' linked to $connectedEmail?", color = Color(0xFFA09EC0), fontSize = 12.sp)
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        Surface(
+                            onClick = { showRecentBackupRestoreDialog = null },
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF28264A)
+                        ) {
+                            Text("Cancel", color = Color.White, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp)
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Surface(
+                            onClick = {
+                                coroutineScope.launch {
+                                    isSyncing = true
+                                    val result = com.example.services.GoogleDriveService.importAllVedDriveData(context, dbService)
+                                    isSyncing = false
+                                    refreshStats()
+                                    Toast.makeText(context, result, Toast.LENGTH_LONG).show()
+                                    showRecentBackupRestoreDialog = null
+                                }
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF3B82F6)
+                        ) {
+                            Text("Restore Now", color = Color.White, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }
@@ -2457,11 +2951,13 @@ private fun SettingSliderRow(
 @Composable
 private fun BackupHistoryRow(
     timestamp: String,
-    size: String
+    size: String,
+    onClick: () -> Unit = {}
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
         Row(

@@ -103,7 +103,7 @@ data class DriveDocument(
     val createdAt: Long = System.currentTimeMillis()
 )
 
-class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+class DatabaseService(val context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     val roomDb by lazy { com.example.data.room.AppRoomDatabase.getDatabase(context) }
     val aiContextRepository by lazy { com.example.data.room.AiContextRepository(roomDb.conversationContextDao(), roomDb.userInteractionPatternDao(), roomDb.customTextCommandDao(), roomDb.vedraUserSettingDao(), roomDb.voiceCommandMappingDao()) }
@@ -1894,10 +1894,11 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
         }
         val insertedId = db.insert(TABLE_CHAT_HISTORY, null, cv)
 
-        // Persist to Room Database asynchronously for conversation context and pattern analysis
+        // Persist to Room Database asynchronously and auto-save chat history to Google Drive / VEDrive
         try {
             CoroutineScope(Dispatchers.IO).launch {
                 aiContextRepository.recordConversation(userText, vedResponse, "VEDRA AI", title)
+                GoogleDriveService.exportChatHistoryToJson(context, this@DatabaseService)
             }
         } catch (e: Exception) {
             e.printStackTrace()

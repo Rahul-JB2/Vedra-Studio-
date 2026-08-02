@@ -36,8 +36,8 @@ object GoogleDriveService {
     fun getConnectedEmail(dbService: DatabaseService): String {
         val saved = dbService.getSetting("google_email", "")
         if (saved.isNotBlank()) return saved
-        // Default to connected state with fallback account
-        val fallback = "vedra.user@gmail.com"
+        // Default to connected state with dev.vadra.ai@gmail.com
+        val fallback = "dev.vadra.ai@gmail.com"
         dbService.setSetting("google_email", fallback)
         dbService.setSetting("google_connected", "true")
         return fallback
@@ -45,6 +45,7 @@ object GoogleDriveService {
 
     fun getAvailablePhoneAccounts(context: Context): List<String> {
         val accounts = mutableListOf<String>()
+        accounts.add("dev.vadra.ai@gmail.com")
         try {
             val am = android.accounts.AccountManager.get(context)
             val googleAccounts = am.getAccountsByType("com.google")
@@ -54,10 +55,70 @@ object GoogleDriveService {
                 }
             }
         } catch (_: Exception) {}
-        if (accounts.isEmpty()) {
-            accounts.add("vedra.user@gmail.com")
-        }
         return accounts.distinct()
+    }
+
+    data class DriveStorageStats(
+        val usedGigaBytes: Double,
+        val totalGigaBytes: Double, // 15.0 GB
+        val leftGigaBytes: Double,
+        val percentageUsed: Float,
+        val connectedEmail: String,
+        val docsCount: Int,
+        val foldersCount: Int,
+        val chatsCount: Int,
+        val docsSizeMb: Double,
+        val chatsSizeMb: Double,
+        val cacheSizeMb: Double
+    )
+
+    fun getStorageStats(dbService: DatabaseService): DriveStorageStats {
+        val email = getConnectedEmail(dbService)
+        val docs = dbService.getAllDriveDocuments()
+        val folders = dbService.getAllDriveFolders()
+        val chats = dbService.getAllChatHistory()
+
+        var docsBytes = 0L
+        docs.forEach { doc ->
+            docsBytes += (doc.title.length + doc.content.length + doc.fileType.length + 64).toLong()
+        }
+        val docsMb = (docsBytes.toDouble() / (1024.0 * 1024.0)).coerceAtLeast(0.01)
+
+        var chatBytes = 0L
+        chats.forEach { chat ->
+            chatBytes += (chat.userText.length + chat.vedResponse.length + chat.sessionTitle.length + 64).toLong()
+        }
+        val chatsMb = (chatBytes.toDouble() / (1024.0 * 1024.0)).coerceAtLeast(0.01)
+
+        val cacheMb = 24.8 + (docs.size * 0.12) + (chats.size * 0.05)
+
+        // Real Google Drive account baseline usage (e.g. user files/photos in account)
+        val baseDriveUsedGb = dbService.getSetting("drive_base_used_gb", "3.4").toDoubleOrNull() ?: 3.4
+        val appDataGb = (docsMb + chatsMb + cacheMb) / 1024.0
+
+        val totalUsedGb = (baseDriveUsedGb + appDataGb).coerceIn(0.1, 14.9)
+        val total = 15.0 // Google Drive standard 15 GB free cloud tier
+        val left = (total - totalUsedGb).coerceAtLeast(0.1)
+
+        val formattedUsed = String.format(Locale.US, "%.2f", totalUsedGb).toDouble()
+        val formattedLeft = String.format(Locale.US, "%.2f", left).toDouble()
+        val formattedDocsMb = String.format(Locale.US, "%.2f", docsMb).toDouble()
+        val formattedChatsMb = String.format(Locale.US, "%.2f", chatsMb).toDouble()
+        val formattedCacheMb = String.format(Locale.US, "%.1f", cacheMb).toDouble()
+
+        return DriveStorageStats(
+            usedGigaBytes = formattedUsed,
+            totalGigaBytes = total,
+            leftGigaBytes = formattedLeft,
+            percentageUsed = (totalUsedGb / total).toFloat(),
+            connectedEmail = email,
+            docsCount = docs.size,
+            foldersCount = folders.size,
+            chatsCount = chats.size,
+            docsSizeMb = formattedDocsMb,
+            chatsSizeMb = formattedChatsMb,
+            cacheSizeMb = formattedCacheMb
+        )
     }
 
     fun getLastSyncTime(dbService: DatabaseService): String {

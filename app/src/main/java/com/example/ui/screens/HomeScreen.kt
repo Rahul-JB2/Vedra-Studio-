@@ -34,8 +34,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -104,6 +108,10 @@ fun HomeScreen(
     var showNotificationsDialog by remember { mutableStateOf(false) }
     var showProfileDialog by remember { mutableStateOf(false) }
     var showAttachmentDialog by remember { mutableStateOf(false) }
+    var showQuickActionSettings by remember { mutableStateOf(false) }
+    var showCreateCustomShortcutDialog by remember { mutableStateOf(false) }
+    var customShortcutName by remember { mutableStateOf("") }
+    var customShortcutCmd by remember { mutableStateOf("") }
 
     val userName = remember { dbService.getSetting("user_name", "Rahul") }
 
@@ -385,7 +393,7 @@ fun HomeScreen(
                 }
             }
 
-            // 3. Quick Actions (Horizontal scroll with Pin support)
+            // 3. Quick Actions (Horizontal scroll with 3-dots settings)
             item {
                 Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
                     Row(
@@ -399,23 +407,25 @@ fun HomeScreen(
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold
                         )
-                        Text(
-                            text = "Long-press to Pin 📌",
-                            color = Color(0xFF6B7280),
-                            fontSize = 10.5.sp
-                        )
+                        IconButton(
+                            onClick = { showQuickActionSettings = true },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreHoriz,
+                                contentDescription = "Quick Action Settings",
+                                tint = Color(0xFFA78BFA)
+                            )
+                        }
                     }
 
                     val allQuickActions = remember {
                         listOf(
-                            QuickActionData("Chat", "Chat", Icons.Default.ChatBubble, Color(0xFF3B82F6), "com.whatsapp"),
-                            QuickActionData("Search", "Search", Icons.Default.Search, Color(0xFF10B981), "com.android.chrome"),
-                            QuickActionData("PDF", "PDF", Icons.Default.PictureAsPdf, Color(0xFFEF4444)),
-                            QuickActionData("Image", "Image", Icons.Default.Palette, Color(0xFF8B5CF6)),
-                            QuickActionData("Study", "Study", Icons.Default.Psychology, Color(0xFFF59E0B)),
-                            QuickActionData("VEDrive", "VEDrive", Icons.Default.Folder, Color(0xFF6366F1), "com.google.android.apps.docs"),
+                            QuickActionData("Chat", "Chat", Icons.Default.ChatBubble, Color(0xFF3B82F6)),
+                            QuickActionData("Search", "Search", Icons.Default.Search, Color(0xFF10B981)),
+                            QuickActionData("VEDrive", "VEDrive", Icons.Default.Folder, Color(0xFF6366F1)),
                             QuickActionData("Voice", "Voice", Icons.Default.Mic, Color(0xFFEC4899)),
-                            QuickActionData("More", "More", Icons.Default.ElectricBolt, Color(0xFF06B6D4))
+                            QuickActionData("More", "More", Icons.Default.Add, Color(0xFF06B6D4))
                         )
                     }
 
@@ -441,10 +451,11 @@ fun HomeScreen(
                                 onLongClick = { togglePinAction(action.id) },
                                 onClick = {
                                     when (action.id) {
-                                        "Study", "VEHub" -> onNavigateTab(1) // VEHub
-                                        "Voice", "Ved" -> onNavigateTab(2) // Ved AI tab
-                                        "VEDrive" -> onNavigateTab(3) // VEDrive
-                                        "More", "VETools" -> onNavigateTab(4) // VETools
+                                        "Chat" -> onNavigateTab(2) // Ved AI Chat tab
+                                        "Search" -> onNavigateTab(2) // Search in Ved Chat
+                                        "VEDrive" -> onNavigateTab(3) // VEDrive tab
+                                        "Voice" -> onActivateVoice() // Activate Voice mode
+                                        "More" -> showCreateCustomShortcutDialog = true // Open Custom Shortcut Creation
                                         else -> onExecuteQuickAction(action.id.lowercase())
                                     }
                                 }
@@ -519,7 +530,7 @@ fun HomeScreen(
                 }
             }
 
-            // 5. Continue Section (Without Resume Research)
+            // 5. Continue Section (Showing Last 3 Ved AI Chats)
             item {
                 Column(modifier = Modifier.fillMaxWidth().padding(top = 24.dp)) {
                     Text(
@@ -529,17 +540,51 @@ fun HomeScreen(
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
                     )
-                    Row(
+
+                    val lastChats = remember(dbService.settingsVersion.intValue) {
+                        val history = dbService.getAllChatHistory().take(3)
+                        if (history.isNotEmpty()) {
+                            history
+                        } else {
+                            listOf(
+                                com.example.services.ChatHistoryItem(
+                                    id = 1L,
+                                    sessionTitle = "Quantum Physics & Relativity",
+                                    userText = "Explain spacetime curvature and wave equations",
+                                    vedResponse = "Spacetime curvature describes gravity...",
+                                    timestamp = System.currentTimeMillis()
+                                ),
+                                com.example.services.ChatHistoryItem(
+                                    id = 2L,
+                                    sessionTitle = "Kotlin Compose Architecture",
+                                    userText = "How to build responsive drawer & state flows",
+                                    vedResponse = "Use ViewModel and StateFlow with collectAsState...",
+                                    timestamp = System.currentTimeMillis()
+                                ),
+                                com.example.services.ChatHistoryItem(
+                                    id = 3L,
+                                    sessionTitle = "VEDRA Automation Macros",
+                                    userText = "Create automated torch and system triggers",
+                                    vedResponse = "Automation macros can be executed in VEDRA drawer...",
+                                    timestamp = System.currentTimeMillis()
+                                )
+                            )
+                        }
+                    }
+
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        ContinueGlassCard(
-                            title = "Last Chat",
-                            subtitle = "Quantum AI & Physics Notes",
-                            icon = Icons.Default.History,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            onExecuteQuickAction("open last chat")
+                        lastChats.forEachIndexed { index, chatItem ->
+                            ContinueGlassCard(
+                                title = chatItem.sessionTitle.ifBlank { "Ved AI Chat #${index + 1}" },
+                                subtitle = chatItem.userText.ifBlank { chatItem.vedResponse },
+                                icon = Icons.Default.ChatBubbleOutline,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                onNavigateTab(2) // Open Ved AI Chat
+                            }
                         }
                     }
                 }
@@ -760,7 +805,7 @@ fun HomeScreen(
             }
         }
 
-        // 9. FIXED SEARCH BAR AT BOTTOM: ➕ Ask VED... 🎤 ➤
+        // 9. FIXED SEARCH BAR AT BOTTOM (Single smooth box)
         var inputText by remember { mutableStateOf("") }
         Box(
             modifier = Modifier
@@ -777,55 +822,194 @@ fun HomeScreen(
                 )
                 .padding(horizontal = 16.dp, vertical = 10.dp)
         ) {
-            GlassyCard(modifier = Modifier.fillMaxWidth()) {
-                CustomInput(
-                    value = inputText,
-                    onValueChange = { inputText = it },
-                    placeholder = "Ask VED...",
-                    leadingIcon = Icons.Default.Add,
-                    onLeadingIconClick = { showAttachmentDialog = true },
-                    trailingIcon = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(
-                                onClick = onActivateVoice,
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Mic,
-                                    contentDescription = "Voice Input",
-                                    tint = Color(0xFFC4B5FD)
-                                )
-                            }
-                            IconButton(
-                                onClick = {
-                                    if (inputText.isNotBlank()) {
-                                        onExecuteQuickAction(inputText)
-                                        inputText = ""
-                                    }
-                                },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Send,
-                                    contentDescription = "Send",
-                                    tint = Color(0xFFC4B5FD)
-                                )
-                            }
+            OutlinedTextField(
+                value = inputText,
+                onValueChange = { inputText = it },
+                placeholder = {
+                    Text(
+                        text = "Ask VEDRA anything...",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 13.5.sp
+                    )
+                },
+                leadingIcon = {
+                    IconButton(
+                        onClick = { showAttachmentDialog = true },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Attach",
+                            tint = Color(0xFFA78BFA)
+                        )
+                    }
+                },
+                trailingIcon = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(end = 4.dp)
+                    ) {
+                        IconButton(
+                            onClick = onActivateVoice,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Mic,
+                                contentDescription = "Voice Input",
+                                tint = Color(0xFF06B6D4)
+                            )
                         }
-                    },
-                    onSend = {
-                        if (inputText.isNotBlank()) {
-                            onExecuteQuickAction(inputText)
-                            inputText = ""
+                        IconButton(
+                            onClick = {
+                                if (inputText.isNotBlank()) {
+                                    onExecuteQuickAction(inputText)
+                                    inputText = ""
+                                }
+                            },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(Color(0xFF8B5CF6), Color(0xFF06B6D4))
+                                    )
+                                )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Send,
+                                contentDescription = "Send",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
-                )
-            }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFF130E24),
+                    unfocusedContainerColor = Color(0xFF130E24),
+                    focusedBorderColor = Color(0xFF8B5CF6),
+                    unfocusedBorderColor = Color(0xFF281E45),
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White
+                ),
+                singleLine = true
+            )
         }
     }
+    }
+
+    // Quick Action 3-Dots Settings Dialog
+    if (showQuickActionSettings) {
+        AlertDialog(
+            onDismissRequest = { showQuickActionSettings = false },
+            containerColor = Color(0xFF120E24),
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Settings, contentDescription = null, tint = Color(0xFFA78BFA))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Quick Action Settings", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Manage VEDRA Shortcuts & Pins:", color = Color(0xFFE2E8F0), fontSize = 13.sp)
+                    val defaultQuickActions = listOf("Chat", "Search", "VEDrive", "Voice", "More")
+                    defaultQuickActions.forEach { actionLabel ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(actionLabel, color = Color.White, fontSize = 14.sp)
+                            val isPinned = pinnedActionIds.contains(actionLabel)
+                            Button(
+                                onClick = { togglePinAction(actionLabel) },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isPinned) Color(0xFF8B5CF6) else Color(0xFF281E45)
+                                )
+                            ) {
+                                Text(if (isPinned) "📌 Pinned" else "Pin", fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showQuickActionSettings = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+                ) {
+                    Text("Done", color = Color.White)
+                }
+            }
+        )
+    }
+
+    // Create Custom Shortcut Dialog
+    if (showCreateCustomShortcutDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreateCustomShortcutDialog = false },
+            containerColor = Color(0xFF120E24),
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.AddCircleOutline, contentDescription = null, tint = Color(0xFF06B6D4))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Create VEDRA Custom Shortcut", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Define a custom shortcut for VEDRA:", color = Color(0xFFCBD5E1), fontSize = 12.5.sp)
+                    OutlinedTextField(
+                        value = customShortcutName,
+                        onValueChange = { customShortcutName = it },
+                        placeholder = { Text("Shortcut Name (e.g. Scan Doc)", color = Color.Gray, fontSize = 12.sp) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color(0xFF06B6D4), unfocusedBorderColor = Color(0xFF2E1A52),
+                            focusedContainerColor = Color(0xFF140F24), unfocusedContainerColor = Color(0xFF140F24)
+                        )
+                    )
+                    OutlinedTextField(
+                        value = customShortcutCmd,
+                        onValueChange = { customShortcutCmd = it },
+                        placeholder = { Text("Command / Action (e.g. open camera)", color = Color.Gray, fontSize = 12.sp) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color(0xFF06B6D4), unfocusedBorderColor = Color(0xFF2E1A52),
+                            focusedContainerColor = Color(0xFF140F24), unfocusedContainerColor = Color(0xFF140F24)
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (customShortcutName.isNotBlank() && customShortcutCmd.isNotBlank()) {
+                            dbService.setSetting("custom_shortcut_${customShortcutName.trim()}", customShortcutCmd.trim())
+                            Toast.makeText(context, "✅ Created Shortcut '${customShortcutName.trim()}'!", Toast.LENGTH_SHORT).show()
+                            showCreateCustomShortcutDialog = false
+                            customShortcutName = ""
+                            customShortcutCmd = ""
+                        } else {
+                            Toast.makeText(context, "Please enter shortcut name & command", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF06B6D4))
+                ) {
+                    Text("Save Shortcut", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateCustomShortcutDialog = false }) {
+                    Text("Cancel", color = Color.Gray)
+                }
+            }
+        )
     }
 
     // Notifications Dialog

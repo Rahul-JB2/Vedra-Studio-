@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -314,7 +315,7 @@ fun VedAssistantScreen(
                 ) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(0.85f)
+                            .widthIn(min = 40.dp, max = 290.dp)
                             .clip(
                                 RoundedCornerShape(
                                     topStart = 16.dp,
@@ -443,17 +444,26 @@ fun VedAssistantScreen(
                         isProcessing = true
 
                         scope.launch {
-                            val response = UtilityService.parseAndExecuteLocalCommand(context, dbService, text)
+                            val localResult = UtilityService.parseAndExecuteLocalCommand(context, dbService, text)
+                            val responseText = if (localResult.isHandled && localResult.responseMessage.isNotBlank()) {
+                                localResult.responseMessage
+                            } else {
+                                com.example.services.GeminiService.generateResponse(
+                                    prompt = text,
+                                    dbService = dbService,
+                                    context = context
+                                )
+                            }
                             val vedMsg = VedChatMessage(
                                 id = "msg_${System.currentTimeMillis() + 1}",
                                 sender = "vedra",
-                                content = response.responseMessage
+                                content = responseText
                             )
                             chatMessages = chatMessages + vedMsg
                             isProcessing = false
 
                             // Persist to database history
-                            dbService.saveChatHistory("Ved Assistant Query", text, response.responseMessage)
+                            dbService.saveChatHistory("Ved Assistant Query", text, responseText)
                         }
                     }
                 },

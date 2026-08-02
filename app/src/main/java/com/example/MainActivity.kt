@@ -182,6 +182,7 @@ fun MainAppLayout(
     var isPermissionsModalOpen by remember { mutableStateOf(false) }
     var isHelpModalOpen by remember { mutableStateOf(false) }
     var isFeedbackModalOpen by remember { mutableStateOf(false) }
+    var isAutomationModalOpen by remember { mutableStateOf(false) }
     var selectedChatHistoryItem by remember { mutableStateOf<com.example.services.ChatHistoryItem?>(null) }
 
     if (showPermissionOnboarding) {
@@ -200,13 +201,12 @@ fun MainAppLayout(
         }
     }
 
-    // 6 Main Tabs: Home, VEHub, Ved (Center Pill), VEDrive, VETools, Settings
+    // 5 Main Tabs: Home, VEHub, Ved (Center Pill), VEDrive, Settings
     val tabs = listOf(
         TabItem("Home", Icons.Default.Home),
         TabItem("VEHub", Icons.Default.School),
         TabItem("Ved", Icons.Default.AutoAwesome, isCenterPill = true),
         TabItem("VEDrive", Icons.Default.Folder),
-        TabItem("VETools", Icons.Default.Build),
         TabItem("Settings", Icons.Default.Settings)
     )
 
@@ -413,15 +413,7 @@ fun MainAppLayout(
                             }
                         )
                     }
-                    4 -> SafeTabBoundary("VETools") {
-                        ActionsScreen(
-                            onExecuteAction = { command ->
-                                hasUserInteracted = true
-                                UtilityService.parseAndExecuteLocalCommand(context, dbService, command)
-                            }
-                        )
-                    }
-                    5 -> SafeTabBoundary("Settings") {
+                    4 -> SafeTabBoundary("Settings") {
                         SettingsScreen(
                             dbService = dbService,
                             voiceService = voiceService
@@ -465,9 +457,9 @@ fun MainAppLayout(
                         "app_launcher" -> isInstalledAppsScreenOpen = true // Open Installed Apps List Screen
                         "database", "drive" -> activeTab = 3 // Navigate to VEDrive tab
                         "workspace", "vehub" -> activeTab = 1 // Navigate to VEHub tab
-                        "automation", "vetools" -> activeTab = 4 // Navigate to VETools tab
+                        "automation", "vetools", "action" -> isAutomationModalOpen = true // Open Automation Modal
                         "search" -> activeTab = 3 // Navigate to Search in VEDrive
-                        "settings", "profile" -> activeTab = 5 // Navigate to Settings tab
+                        "settings", "profile" -> activeTab = 4 // Navigate to Settings tab
                         "notification" -> isNotificationsModalOpen = true
                         "privacy" -> isPrivacyModalOpen = true
                         "permissions" -> isPermissionsModalOpen = true
@@ -480,6 +472,16 @@ fun MainAppLayout(
                     selectedChatHistoryItem = chat
                     activeTab = 2
                 }
+            )
+
+            // VEDRA Interactive Side Drawer Modals
+            com.example.ui.components.AutomationModal(
+                visible = isAutomationModalOpen,
+                onExecuteAction = { command ->
+                    hasUserInteracted = true
+                    UtilityService.parseAndExecuteLocalCommand(context, dbService, command)
+                },
+                onDismissRequest = { isAutomationModalOpen = false }
             )
 
             // VEDRA Interactive Side Drawer Modals

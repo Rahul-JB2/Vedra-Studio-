@@ -1289,6 +1289,24 @@ class DatabaseService(val context: Context) : SQLiteOpenHelper(context, DATABASE
         return list
     }
 
+    fun getDriveDocumentById(id: Long): DriveDocument? {
+        val cursor = readableDatabase.rawQuery("SELECT id, folder_id, title, content, file_type, file_size, created_at FROM $TABLE_DRIVE_DOCUMENTS WHERE id=?", arrayOf(id.toString()))
+        cursor.use {
+            if (it.moveToNext()) {
+                return DriveDocument(
+                    id = it.getLong(0),
+                    folderId = it.getLong(1),
+                    title = it.getString(2),
+                    content = it.getString(3),
+                    fileType = it.getString(4),
+                    fileSize = it.getLong(5),
+                    createdAt = it.getLong(6)
+                )
+            }
+        }
+        return null
+    }
+
     fun createDriveDocument(folderId: Long, title: String, content: String, fileType: String = "TXT"): Long {
         val values = ContentValues().apply {
             put("folder_id", folderId)
@@ -1298,7 +1316,12 @@ class DatabaseService(val context: Context) : SQLiteOpenHelper(context, DATABASE
             put("file_size", content.toByteArray().size.toLong())
             put("created_at", System.currentTimeMillis())
         }
-        return writableDatabase.insert(TABLE_DRIVE_DOCUMENTS, null, values)
+        val insertedId = writableDatabase.insert(TABLE_DRIVE_DOCUMENTS, null, values)
+        try {
+            LocalFileStorageManager.saveDriveDocumentToLocalFile(context, title, content, fileType)
+            LocalFileStorageManager.syncVedmtToLocalFiles(context, getAllDriveDocuments())
+        } catch (_: Exception) {}
+        return insertedId
     }
 
     fun updateDriveDocument(id: Long, title: String, content: String): Boolean {
@@ -1307,11 +1330,30 @@ class DatabaseService(val context: Context) : SQLiteOpenHelper(context, DATABASE
             put("content", content)
             put("file_size", content.toByteArray().size.toLong())
         }
-        return writableDatabase.update(TABLE_DRIVE_DOCUMENTS, values, "id=?", arrayOf(id.toString())) > 0
+        val updated = writableDatabase.update(TABLE_DRIVE_DOCUMENTS, values, "id=?", arrayOf(id.toString())) > 0
+        if (updated) {
+            try {
+                LocalFileStorageManager.saveDriveDocumentToLocalFile(context, title, content, "TXT")
+                LocalFileStorageManager.syncVedmtToLocalFiles(context, getAllDriveDocuments())
+            } catch (_: Exception) {}
+        }
+        return updated
     }
 
     fun deleteDriveDocument(id: Long): Boolean {
-        return writableDatabase.delete(TABLE_DRIVE_DOCUMENTS, "id=?", arrayOf(id.toString())) > 0
+        val doc = getDriveDocumentById(id)
+        if (doc != null) {
+            try {
+                LocalFileStorageManager.deleteLocalDriveDocumentFile(context, doc.title)
+            } catch (_: Exception) {}
+        }
+        val deleted = writableDatabase.delete(TABLE_DRIVE_DOCUMENTS, "id=?", arrayOf(id.toString())) > 0
+        if (deleted) {
+            try {
+                LocalFileStorageManager.syncVedmtToLocalFiles(context, getAllDriveDocuments())
+            } catch (_: Exception) {}
+        }
+        return deleted
     }
 
     fun moveDriveDocument(id: Long, newFolderId: Long): Boolean {
@@ -1894,11 +1936,12 @@ class DatabaseService(val context: Context) : SQLiteOpenHelper(context, DATABASE
         }
         val insertedId = db.insert(TABLE_CHAT_HISTORY, null, cv)
 
-        // Persist to Room Database asynchronously and auto-save chat history to Google Drive / VEDrive
+        // Persist to Room Database, local Android files, and auto-save chat history to Google Drive / VEDrive
         try {
             CoroutineScope(Dispatchers.IO).launch {
                 aiContextRepository.recordConversation(userText, vedResponse, "VEDRA AI", title)
                 GoogleDriveService.exportChatHistoryToJson(context, this@DatabaseService)
+                LocalFileStorageManager.syncChatHistoryToLocalFiles(context, getAllChatHistory())
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -2184,9 +2227,21 @@ object AppLauncher {
             }
         }
 
-        // 4. Special System Intents for native device apps
-        if (cleanWord.contains("camera") || cleanWord.contains("photo") || cleanWord.contains("snap")) {
+        // 4. Fallback Intent execution for standard Android system apps & web handlers
+        if (cleanWord.contains("youtube") || cleanWord.contains("yt")) {
+            val ytIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+            return tryLaunchSpecialIntentByIntent(context, ytIntent, "YouTube")
+        }
+        if (cleanWord.contains("whatsapp") || cleanWord.contains("whats")) {
+            val waIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://api.whatsapp.com")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+            return tryLaunchSpecialIntentByIntent(context, waIntent, "WhatsApp")
+        }
+        if (cleanWord.contains("camera") || cleanWord.contains("snap")) {
             return tryLaunchSpecialIntent(context, android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA, "Camera")
+        }
+        if (cleanWord.contains("chrome") || cleanWord.contains("browser")) {
+            val chromeIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+            return tryLaunchSpecialIntentByIntent(context, chromeIntent, "Chrome")
         }
         if (cleanWord.contains("clock") || cleanWord.contains("alarm") || cleanWord.contains("timer")) {
             return tryLaunchSpecialIntent(context, android.provider.AlarmClock.ACTION_SHOW_ALARMS, "Clock")
@@ -2216,6 +2271,10 @@ object AppLauncher {
         if (cleanWord.contains("gallery") || cleanWord.contains("photo")) {
             val galIntent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_APP_GALLERY) }
             return tryLaunchSpecialIntentByIntent(context, galIntent, "Photos")
+        }
+        if (cleanWord.contains("calc")) {
+            val calcIntent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_APP_CALCULATOR) }
+            return tryLaunchSpecialIntentByIntent(context, calcIntent, "Calculator")
         }
 
         // 5. IF NOT INSTALLED: Do NOT open web browser search! Open Google Play Store for this app!

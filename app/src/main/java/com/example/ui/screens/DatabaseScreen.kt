@@ -100,9 +100,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.material.icons.filled.CloudQueue
+import androidx.compose.material.icons.filled.FolderSpecial
+import androidx.compose.material.icons.filled.Storage
 import com.example.services.DatabaseService
 import com.example.services.DriveDocument
 import com.example.services.DriveFolder
+import com.example.services.LocalFileStorageManager
+import com.example.services.SystemFileItem
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -119,6 +125,7 @@ enum class VedriveViewMode {
 enum class VedriveTab {
     FOLDERS,
     RECENT,
+    SYSTEM_FILES,
     VEDMT
 }
 
@@ -487,7 +494,7 @@ private fun VedriveRootView(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Primary Tabs Row (Folders, Recent, VEDM-T)
+                // Primary Tabs Row (Folders, Recent, System Files, VEDM-T)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -496,14 +503,18 @@ private fun VedriveRootView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(20.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState())
                     ) {
                         TabHeaderItem("Folders", selectedTab == VedriveTab.FOLDERS) {
                             onSelectTab(VedriveTab.FOLDERS)
                         }
                         TabHeaderItem("Recent", selectedTab == VedriveTab.RECENT) {
                             onSelectTab(VedriveTab.RECENT)
+                        }
+                        TabHeaderItem("System Files", selectedTab == VedriveTab.SYSTEM_FILES) {
+                            onSelectTab(VedriveTab.SYSTEM_FILES)
                         }
                         TabHeaderItem("VEDM-T", selectedTab == VedriveTab.VEDMT) {
                             onSelectTab(VedriveTab.VEDMT)
@@ -546,7 +557,18 @@ private fun VedriveRootView(
                             RecentTabContent(
                                 dbService = dbService,
                                 searchQuery = searchQuery,
-                                onSelectRecentFile = onSelectRecentFile,
+                                onSelectRecentFile = { file ->
+                                    val doc = dbService.getAllDriveDocuments().find { it.title == file.title }
+                                    if (doc != null) onSelectFile(doc) else onSelectRecentFile(file)
+                                },
+                                onOpenItemMenu = onOpenItemMenu
+                            )
+                        }
+
+                        VedriveTab.SYSTEM_FILES -> {
+                            SystemFilesTabContent(
+                                dbService = dbService,
+                                searchQuery = searchQuery,
                                 onOpenItemMenu = onOpenItemMenu
                             )
                         }
@@ -709,6 +731,7 @@ private fun TabHeaderItem(
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (title == "Folders") Icon(Icons.Default.Folder, contentDescription = null, tint = if (isSelected) Color(0xFFA855F7) else Color(0xFF6B6893), modifier = Modifier.size(15.dp))
             if (title == "Recent") Icon(Icons.Default.Description, contentDescription = null, tint = if (isSelected) Color(0xFFA855F7) else Color(0xFF6B6893), modifier = Modifier.size(15.dp))
+            if (title == "System Files") Icon(Icons.Default.FolderSpecial, contentDescription = null, tint = if (isSelected) Color(0xFFA855F7) else Color(0xFF6B6893), modifier = Modifier.size(15.dp))
             if (title == "VEDM-T") Icon(Icons.Default.Psychology, contentDescription = null, tint = if (isSelected) Color(0xFFA855F7) else Color(0xFF6B6893), modifier = Modifier.size(15.dp))
 
             Spacer(modifier = Modifier.width(6.dp))
@@ -752,16 +775,17 @@ private fun FoldersTabContent(
     // Root Folders including VEChat History & Custom User Folders
     val rootFolders = remember(chatsCount, customDbFolders) {
         val list = mutableListOf(
-            Triple("VEChat History", "$chatsCount sessions (Synced to Drive)", "Auto Backup"),
-            Triple("Study Material", "842 items", "2 May 2025"),
-            Triple("Books", "156 items", "1 May 2025"),
-            Triple("Notes", "532 items", "30 Apr 2025"),
-            Triple("PYQs", "432 items", "29 Apr 2025"),
-            Triple("Mock Tests", "215 items", "28 Apr 2025"),
-            Triple("Projects", "120 items", "27 Apr 2025")
+            Triple("VEChat History", "$chatsCount sessions (Synced to Drive)", "Auto Backup")
         )
-        customDbFolders.forEach { f ->
-            list.add(Triple(f.name, "Custom Folder", "Just Now"))
+        if (customDbFolders.isEmpty()) {
+            list.add(Triple("Documents", "0 items", "VEDrive"))
+            list.add(Triple("Downloads", "0 items", "VEDrive"))
+        } else {
+            customDbFolders.forEach { f ->
+                val docCount = dbService.getDocumentsInFolder(f.id).size
+                val dateStr = SimpleDateFormat("dd MMM yyyy", Locale.US).format(Date(f.createdAt))
+                list.add(Triple(f.name, "$docCount items", dateStr))
+            }
         }
         list
     }
@@ -937,35 +961,51 @@ private fun RecentTabContent(
     onSelectRecentFile: (RecentFileItem) -> Unit,
     onOpenItemMenu: (Any) -> Unit
 ) {
-    val recents = remember {
-        listOf(
-            // Today
-            RecentFileItem("Electrostatics Formula Sheet.txt", "2.4 MB", "10:30 AM", "TXT", "Today"),
-            RecentFileItem("Physics Notes.pdf", "12.6 MB", "09:15 AM", "PDF", "Today"),
-            RecentFileItem("Organic Chemistry Notes.pdf", "8.7 MB", "08:45 AM", "PDF", "Today"),
-            RecentFileItem("Maths Mock Test 12.pdf", "25.3 MB", "08:20 AM", "PDF", "Today"),
-            // Yesterday
-            RecentFileItem("Modern Physics Notes.txt", "3.1 MB", "Yesterday, 09:40 PM", "TXT", "Yesterday"),
-            RecentFileItem("JEE PYQ Chapter 5.pdf", "15.2 MB", "Yesterday, 07:30 PM", "PDF", "Yesterday"),
-            RecentFileItem("Wave Optics Mind Map.png", "1.8 MB", "Yesterday, 06:10 PM", "IMG", "Yesterday"),
-            // This Week
-            RecentFileItem("Thermodynamics Summary.txt", "2.2 MB", "2 May 2025", "TXT", "This Week"),
-            RecentFileItem("Hydrocarbons Notes.pdf", "9.4 MB", "2 May 2025", "PDF", "This Week")
-        )
+    val realDocs = remember(dbService.getAllDriveDocuments().size) { dbService.getAllDriveDocuments() }
+
+    val recents = remember(realDocs, searchQuery) {
+        val list = realDocs.filter {
+            searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.content.contains(searchQuery, ignoreCase = true)
+        }.map { doc ->
+            val dateStr = SimpleDateFormat("dd MMM, hh:mm a", Locale.US).format(Date(doc.createdAt))
+            val sizeKb = String.format(Locale.US, "%.1f KB", doc.fileSize / 1024.0)
+            RecentFileItem(
+                title = doc.title,
+                size = sizeKb,
+                dateOrTime = dateStr,
+                fileType = doc.fileType,
+                category = "All Files",
+                path = "VEDrive / Root"
+            )
+        }
+        list
     }
 
-    val grouped = recents.groupBy { it.category }
-
-    LazyColumn(
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        grouped.forEach { (category, files) ->
+    if (recents.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.CloudQueue, contentDescription = null, tint = Color(0xFF6B6893), modifier = Modifier.size(52.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("No files in VEDrive yet", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(6.dp))
+                Text("Tap '+' below to create text/notes/code files, or browse System Files tab to import local files.", color = Color(0xFFA09EC0), fontSize = 13.sp, textAlign = TextAlign.Center)
+            }
+        }
+    } else {
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             item {
-                Text(category, color = Color.White, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
+                Text("VEDrive Files (${recents.size})", color = Color.White, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
             }
 
-            items(files) { file ->
+            items(recents) { file ->
                 RecentFileRowItem(
                     file = file,
                     onClick = { onSelectRecentFile(file) },
@@ -1015,6 +1055,314 @@ private fun RecentFileRowItem(
 
             IconButton(onClick = onMenuClick, modifier = Modifier.size(24.dp)) {
                 Icon(Icons.Default.MoreVert, contentDescription = "Menu", tint = Color(0xFF6B6893), modifier = Modifier.size(16.dp))
+            }
+        }
+    }
+}
+
+// ================= SYSTEM FILES TAB CONTENT =================
+@Composable
+private fun SystemFilesTabContent(
+    dbService: DatabaseService,
+    searchQuery: String,
+    onOpenItemMenu: (Any) -> Unit
+) {
+    val context = LocalContext.current
+    var activeSystemPath by remember { mutableStateOf<String?>(null) }
+    var refreshTrigger by remember { mutableStateOf(0) }
+
+    val storageInfo = remember(activeSystemPath, refreshTrigger) {
+        LocalFileStorageManager.getSystemStorageFoldersAndFiles(context, activeSystemPath)
+    }
+
+    var showCreateSystemFileDialog by remember { mutableStateOf(false) }
+
+    val filteredItems = remember(storageInfo.items, searchQuery) {
+        storageInfo.items.filter {
+            searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true)
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Directory Header Bar
+        Surface(
+            color = Color(0xFF1B1A38),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    if (storageInfo.parentPath != null) {
+                        IconButton(
+                            onClick = { activeSystemPath = storageInfo.parentPath },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                    } else {
+                        Icon(Icons.Default.Storage, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+
+                    Text(
+                        text = if (activeSystemPath == null) "System Files Root" else File(storageInfo.currentPath).name,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = { showCreateSystemFileDialog = true },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Create System File", tint = Color(0xFFA855F7), modifier = Modifier.size(20.dp))
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        if (filteredItems.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Directory is empty", color = Color(0xFFA09EC0), fontSize = 14.sp)
+            }
+        } else {
+            LazyColumn(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(filteredItems) { item ->
+                    SystemFileRowCard(
+                        item = item,
+                        onClick = {
+                            if (item.isDirectory) {
+                                activeSystemPath = item.path
+                            } else {
+                                try {
+                                    val content = File(item.path).readText(Charsets.UTF_8)
+                                    dbService.createDriveDocument(
+                                        folderId = 0L,
+                                        title = item.name,
+                                        content = content,
+                                        fileType = item.fileExtension
+                                    )
+                                    Toast.makeText(context, "Imported '${item.name}' into VEDrive!", Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Cannot read binary file directly.", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        onMenuClick = { onOpenItemMenu(item) }
+                    )
+                }
+            }
+        }
+    }
+
+    if (showCreateSystemFileDialog) {
+        CreateSystemFileModalDialog(
+            currentPath = storageInfo.currentPath,
+            onDismiss = { showCreateSystemFileDialog = false },
+            onCreate = { fileName, fileContent ->
+                val success = LocalFileStorageManager.createSystemStorageFile(storageInfo.currentPath, fileName, fileContent)
+                if (success) {
+                    Toast.makeText(context, "Created system file '$fileName'", Toast.LENGTH_SHORT).show()
+                    refreshTrigger++
+                } else {
+                    Toast.makeText(context, "Failed to create file", Toast.LENGTH_SHORT).show()
+                }
+                showCreateSystemFileDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun SystemFileRowCard(
+    item: SystemFileItem,
+    onClick: () -> Unit,
+    onMenuClick: () -> Unit
+) {
+    Surface(
+        color = Color(0xFF14132B),
+        shape = RoundedCornerShape(14.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF28264A)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (item.isDirectory) Color(0xFF1E3A8A) else Color(0xFF3B0764)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        if (item.isDirectory) Icons.Default.Folder else Icons.Default.Description,
+                        contentDescription = null,
+                        tint = if (item.isDirectory) Color(0xFF60A5FA) else Color(0xFFC084FC),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = item.name,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "${item.sizeString} • ${item.lastModifiedString}",
+                        color = Color(0xFFA09EC0),
+                        fontSize = 11.5.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (!item.isDirectory) {
+                    Surface(
+                        color = Color(0xFF28264A),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = item.fileExtension.take(4),
+                            color = Color(0xFFA855F7),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+
+                IconButton(
+                    onClick = onMenuClick,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "Menu", tint = Color(0xFF6B6893), modifier = Modifier.size(16.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CreateSystemFileModalDialog(
+    currentPath: String,
+    onDismiss: () -> Unit,
+    onCreate: (String, String) -> Unit
+) {
+    var fileName by remember { mutableStateOf("notes.txt") }
+    var fileContent by remember { mutableStateOf("") }
+
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color(0xFF14132B),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981)),
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text("New System File", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("Path: $currentPath", color = Color(0xFFA09EC0), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = fileName,
+                    onValueChange = { fileName = it },
+                    label = { Text("File Name (e.g. notes.txt)") },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF10B981),
+                        unfocusedBorderColor = Color(0xFF28264A),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedLabelColor = Color(0xFF10B981),
+                        unfocusedLabelColor = Color(0xFFA09EC0)
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedTextField(
+                    value = fileContent,
+                    onValueChange = { fileContent = it },
+                    label = { Text("File Content") },
+                    modifier = Modifier.height(120.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF10B981),
+                        unfocusedBorderColor = Color(0xFF28264A),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedLabelColor = Color(0xFF10B981),
+                        unfocusedLabelColor = Color(0xFFA09EC0)
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Text(
+                        "Cancel",
+                        color = Color(0xFFA09EC0),
+                        modifier = Modifier
+                            .clickable { onDismiss() }
+                            .padding(8.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF10B981))
+                            .clickable { if (fileName.isNotBlank()) onCreate(fileName, fileContent) }
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text("Create", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
     }
@@ -1874,6 +2222,7 @@ private fun RenameModalDialog(
                 is DriveFolder -> item.name
                 is DriveDocument -> item.title
                 is RecentFileItem -> item.title
+                is SystemFileItem -> item.name
                 else -> item.toString()
             }
         )
@@ -1953,6 +2302,7 @@ private fun ItemActionBottomSheet(
                         is DriveFolder -> item.name
                         is DriveDocument -> item.title
                         is RecentFileItem -> item.title
+                        is SystemFileItem -> item.name
                         else -> item.toString()
                     },
                     color = Color.White,

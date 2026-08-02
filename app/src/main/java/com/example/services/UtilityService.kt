@@ -212,7 +212,22 @@ object UtilityService {
     fun parseAndExecuteLocalCommand(context: Context, dbService: DatabaseService, text: String): UtilityResult {
         val lower = text.trim().lowercase(Locale.US)
 
-        // 0. Check User-Defined Room Text Commands
+        // 0. App Launch & Open Commands (English, Hindi, Hinglish, Direct App Keywords)
+        val isExplicitLaunch = lower.startsWith("open ") || lower.startsWith("launch ") || lower.startsWith("start ") || lower.startsWith("run ") ||
+                lower.contains("kholo") || lower.contains("open karo") || lower.contains("chalo") ||
+                lower.endsWith(" open") || lower.endsWith(" kholo") ||
+                lower in setOf("youtube", "whatsapp", "settings", "camera", "chrome", "gallery", "calculator", "phone", "maps", "gmail", "instagram", "facebook", "telegram", "playstore", "spotify", "clock", "notes", "contacts", "drive", "file manager")
+
+        if (isExplicitLaunch && !lower.contains("file") && !lower.contains("note") && !lower.contains("drive document")) {
+            val appWord = text.replace(Regex("""(?i)\b(open|launch|start|run|kholo|karo|app|application|please|show|go to)\b"""), "").trim()
+            val cleanAppQuery = if (appWord.isNotBlank()) appWord else lower
+            val launchMsg = AppLauncher.launchAppByCustomWord(context, dbService, cleanAppQuery)
+            if (launchMsg.isNotBlank()) {
+                return UtilityResult(true, launchMsg, "APP_LAUNCH")
+            }
+        }
+
+        // Check User-Defined Room Text Commands
         try {
             val customRoomCmd = kotlinx.coroutines.runBlocking {
                 dbService.aiContextRepository.findCustomCommand(lower)

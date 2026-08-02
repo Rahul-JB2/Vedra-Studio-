@@ -1332,6 +1332,184 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
         return -1L
     }
 
+    // --- VEDM-T KNOWLEDGE BASE & OFFLINE MEMORY ENGINE ---
+    fun getOrCreateVedmTFolderId(): Long {
+        val cursor = readableDatabase.rawQuery("SELECT id FROM $TABLE_DRIVE_FOLDERS WHERE LOWER(name)=? LIMIT 1", arrayOf("vedm-t"))
+        cursor.use {
+            if (it.moveToFirst()) return it.getLong(0)
+        }
+        val cv = ContentValues().apply {
+            put("name", "VEDM-T")
+            put("color_hex", "#A78BFA")
+            put("parent_id", 0L)
+            put("created_at", System.currentTimeMillis())
+        }
+        return writableDatabase.insert(TABLE_DRIVE_FOLDERS, null, cv)
+    }
+
+    fun initVedmTFiles(context: Context) {
+        val folderId = getOrCreateVedmTFolderId()
+        val existingDocs = getDocumentsInFolder(folderId)
+        if (existingDocs.isEmpty()) {
+            val defaultFiles = listOf(
+                Triple(
+                    "VEDRA_System_Guide.txt",
+                    """
+                    # VEDRA System Operations & Voice Commands Guide
+                    
+                    1. System Controls:
+                    - Torch / Flashlight: Say "torch chalu karo", "turn on flashlight", or "torch off" to toggle device flashlight.
+                    - App Launcher: Say "open whatsapp", "launch calculator", "open settings", or "launch youtube".
+                    - Volume Control: Say "increase volume", "mute volume", or "unmute".
+                    - Screen Brightness: Say "set brightness high" or "decrease brightness".
+                    
+                    2. VEDrive Storage & File Manager:
+                    - Use VEDrive tab to store, view, edit, and organize real local files and study documents.
+                    - Tab VEDM-T stores your custom offline memory and knowledge documents.
+                    
+                    3. Offline Operations:
+                    - VEDRA operates 100% offline using local command engines and studied VEDM-T knowledge files.
+                    """.trimIndent(),
+                    "TXT"
+                ),
+                Triple(
+                    "Personal_Assistant_Rules.txt",
+                    """
+                    # VEDRA Custom Personal Assistant Rules & Guidelines
+                    
+                    1. Personality & Response Style:
+                    - Always be direct, highly helpful, clear, and professional.
+                    - Prioritize direct actions and accurate facts over conversational filler.
+                    
+                    2. Offline & Memory Rules:
+                    - Whenever a user asks a study or facts question, search through VEDM-T documents first.
+                    - Tailor responses based on user-provided rules and saved notes in memory.
+                    """.trimIndent(),
+                    "TXT"
+                ),
+                Triple(
+                    "Physics_Formulas_Handbook.txt",
+                    """
+                    # Physics Quick Reference Handbook & Formulas
+                    
+                    1. Classical Mechanics:
+                    - Newton's Second Law: F = m * a
+                    - Mass-Energy Equivalence: E = m * c^2
+                    - Kinetic Energy: KE = 0.5 * m * v^2
+                    - Gravitational Potential Energy: PE = m * g * h
+                    - Work Done: W = F * d * cos(theta)
+                    
+                    2. Electricity & Magnetism:
+                    - Ohm's Law: V = I * R
+                    - Electric Power: P = V * I = I^2 * R
+                    - Coulomb's Law: F = k * (|q1 * q2|) / r^2
+                    - Magnetic Force: F = q * (v x B)
+                    
+                    3. Waves & Modern Physics:
+                    - Wave Velocity: v = f * lambda
+                    - Photon Energy: E = h * f
+                    """.trimIndent(),
+                    "TXT"
+                ),
+                Triple(
+                    "Study_Notes_Summary.txt",
+                    """
+                    # Study Notes & Academic Summary
+                    
+                    1. Organic Chemistry Key Concepts:
+                    - Functional group priority order: Carboxylic acid > Anhydride > Ester > Acid chloride > Amide > Nitrile > Aldehyde > Ketone > Alcohol > Amine.
+                    - Sn1 reactions prefer tertiary carbocations and polar protic solvents.
+                    - Sn2 reactions prefer primary carbons and strong nucleophiles.
+                    
+                    2. Mathematics & Calculus:
+                    - Derivative of sin(x) = cos(x)
+                    - Derivative of cos(x) = -sin(x)
+                    - Derivative of e^x = e^x
+                    - Derivative of ln(x) = 1/x
+                    - Integral of 1/x dx = ln|x| + C
+                    
+                    3. Exam Preparation Tips:
+                    - Solve previous year papers in timed 3-hour blocks.
+                    - Maintain a mistake notebook for recurring error patterns.
+                    """.trimIndent(),
+                    "TXT"
+                ),
+                Triple(
+                    "Quick_Commands_CheatSheet.txt",
+                    """
+                    # Quick VEDRA Voice & Text Command Cheat Sheet
+                    
+                    - "torch on" / "torch off" -> Toggle device flashlight
+                    - "open [app_name]" -> Launch any installed Android app
+                    - "search [query]" -> Search offline database & VEDM-T knowledge files
+                    - "clear history" -> Wipe conversation logs
+                    - "what is in VEDM-T" -> Summarize offline knowledge store
+                    """.trimIndent(),
+                    "TXT"
+                )
+            )
+
+            for ((title, content, type) in defaultFiles) {
+                createDriveDocument(folderId, title, content, type)
+            }
+        }
+    }
+
+    fun getVedmTDocuments(): List<DriveDocument> {
+        val folderId = getOrCreateVedmTFolderId()
+        return getDocumentsInFolder(folderId)
+    }
+
+    fun searchVedmTKnowledge(query: String, context: Context? = null): String? {
+        val clean = query.lowercase().trim()
+        if (clean.isBlank()) return null
+
+        val docs = getVedmTDocuments()
+        if (docs.isEmpty()) return null
+
+        val queryTokens = clean.split(" ", "-", "_", "?", "!", ".", ",", ":", ";").filter { it.length > 2 }
+        if (queryTokens.isEmpty()) return null
+
+        var bestDoc: DriveDocument? = null
+        var highestScore = 0
+        val matchedSnippets = mutableListOf<String>()
+
+        for (doc in docs) {
+            val titleLower = doc.title.lowercase()
+            val contentLower = doc.content.lowercase()
+            var score = 0
+
+            for (token in queryTokens) {
+                if (titleLower.contains(token)) score += 40
+                if (contentLower.contains(token)) score += 15
+            }
+
+            if (score > highestScore && score >= 15) {
+                highestScore = score
+                bestDoc = doc
+
+                val lines = doc.content.lines().filter { it.isNotBlank() }
+                val relevantLines = lines.filter { line ->
+                    queryTokens.any { token -> line.lowercase().contains(token) }
+                }.take(6)
+
+                matchedSnippets.clear()
+                if (relevantLines.isNotEmpty()) {
+                    matchedSnippets.addAll(relevantLines)
+                } else {
+                    matchedSnippets.add(doc.content.take(300))
+                }
+            }
+        }
+
+        if (bestDoc != null && matchedSnippets.isNotEmpty()) {
+            val snippetText = matchedSnippets.joinToString("\n• ").let { if (it.isNotBlank()) "• $it" else it }
+            return "📄 [Studied from VEDM-T Document: ${bestDoc.title}]\n$snippetText\n\n💡 Customized offline response studied from your VEDM-T document."
+        }
+
+        return null
+    }
+
     // ON-DEVICE SEMANTIC SEARCH & EMBEDDING SIMILARITY ENGINE
     fun searchOfflineContent(query: String): String? {
         val clean = query.trim().lowercase()
@@ -1760,7 +1938,34 @@ class DatabaseService(context: Context) : SQLiteOpenHelper(context, DATABASE_NAM
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        return writableDatabase.delete(TABLE_CHAT_HISTORY, null, null) > 0
+        val res = writableDatabase.delete(TABLE_CHAT_HISTORY, null, null) > 0
+        settingsVersion.intValue += 1
+        return res
+    }
+
+    fun deleteChatHistoryItem(id: Long): Boolean {
+        return try {
+            val count = writableDatabase.delete(TABLE_CHAT_HISTORY, "id = ?", arrayOf(id.toString()))
+            settingsVersion.intValue += 1
+            count > 0
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    fun renameChatHistoryItem(id: Long, newTitle: String): Boolean {
+        return try {
+            val values = android.content.ContentValues().apply {
+                put("session_title", newTitle)
+            }
+            val count = writableDatabase.update(TABLE_CHAT_HISTORY, values, "id = ?", arrayOf(id.toString()))
+            settingsVersion.intValue += 1
+            count > 0
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
     }
 
     fun findLearnedResponse(userQuery: String): String? {

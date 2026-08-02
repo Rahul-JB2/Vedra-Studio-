@@ -23,9 +23,20 @@ object DirectActionService {
 
         // 1. Flashlight & Torch Interceptor (English, Hindi, Hinglish)
         if (lower.contains("flashlight") || lower.contains("flash light") || lower.contains("torch")) {
-            val isOff = lower.contains("off") || lower.contains("band") || lower.contains("close") ||
-                    lower.contains("stop") || lower.contains("disable") || lower.contains("bujha")
-            val msg = UtilityService.toggleFlashlight(context, !isOff)
+            val hasOff = lower.contains("off") || lower.contains("band") || lower.contains("close") ||
+                    lower.contains("stop") || lower.contains("disable") || lower.contains("bujha") ||
+                    lower.contains("of ") || lower.endsWith(" of")
+            val hasOn = lower.contains("on") || lower.contains("chalu") || lower.contains("jalao") ||
+                    lower.contains("start") || lower.contains("enable") || lower.contains("open") ||
+                    lower.contains("kholo")
+
+            val turnOn: Boolean? = when {
+                hasOff && !hasOn -> false
+                hasOn && !hasOff -> true
+                else -> null
+            }
+
+            val msg = UtilityService.toggleFlashlight(context, turnOn)
             return UtilityResult(true, msg, "FLASHLIGHT")
         }
 

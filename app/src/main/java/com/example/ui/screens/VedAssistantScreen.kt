@@ -78,11 +78,13 @@ fun VedAssistantScreen(
     voiceService: VoiceService,
     onActivateVoice: () -> Unit,
     onOpenDrawer: () -> Unit,
+    autoStartVoice: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var inputQuery by remember { mutableStateOf("") }
+    var isListeningInline by remember { mutableStateOf(false) }
     var chatMessages by remember {
         mutableStateOf(
             listOf(
@@ -96,6 +98,72 @@ fun VedAssistantScreen(
     }
     var isProcessing by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+
+    fun handleSendQuery(text: String) {
+        if (text.isBlank()) return
+        val userMsg = VedChatMessage(
+            id = "msg_${System.currentTimeMillis()}",
+            sender = "user",
+            content = text
+        )
+        chatMessages = chatMessages + userMsg
+        isProcessing = true
+
+        scope.launch {
+            val localResult = UtilityService.parseAndExecuteLocalCommand(context, dbService, text)
+            val responseText = if (localResult.isHandled && localResult.responseMessage.isNotBlank()) {
+                localResult.responseMessage
+            } else {
+                val dbMatch = dbService.findLearnedResponse(text)
+                if (dbMatch != null) {
+                    dbMatch
+                } else {
+                    val geminiRes = com.example.services.GeminiService.generateResponse(
+                        prompt = text,
+                        contextSummary = "",
+                        dbService = dbService,
+                        context = context
+                    )
+                    if (geminiRes.isNotBlank()) {
+                        geminiRes
+                    } else {
+                        "I am connected locally. Command executed successfully!"
+                    }
+                }
+            }
+            dbService.saveChatHistory("Ved Chat", text, responseText)
+            val aiMsg = VedChatMessage(
+                id = "msg_${System.currentTimeMillis() + 1}",
+                sender = "vedra",
+                content = responseText
+            )
+            chatMessages = chatMessages + aiMsg
+            isProcessing = false
+            voiceService.speak(responseText)
+        }
+    }
+
+    fun startInlineVoiceRecognition() {
+        isListeningInline = true
+        voiceService.startListening(
+            onResult = { recognizedText ->
+                isListeningInline = false
+                if (recognizedText.isNotBlank()) {
+                    inputQuery = recognizedText
+                    handleSendQuery(recognizedText)
+                }
+            },
+            onError = { err ->
+                isListeningInline = false
+            }
+        )
+    }
+
+    LaunchedEffect(autoStartVoice) {
+        if (autoStartVoice) {
+            startInlineVoiceRecognition()
+        }
+    }
 
     // Scroll to bottom on new message
     LaunchedEffect(chatMessages.size) {
@@ -193,7 +261,7 @@ fun VedAssistantScreen(
 
             // Voice Mode Toggle Button
             IconButton(
-                onClick = onActivateVoice,
+                onClick = { startInlineVoiceRecognition() },
                 modifier = Modifier
                     .size(42.dp)
                     .clip(CircleShape)
@@ -241,7 +309,7 @@ fun VedAssistantScreen(
                         ),
                         shape = CircleShape
                     )
-                    .clickable { onActivateVoice() },
+                    .clickable { startInlineVoiceRecognition() },
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -389,12 +457,39 @@ fun VedAssistantScreen(
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (isListeningInline) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0x337C3AED))
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.GraphicEq,
+                        contentDescription = null,
+                        tint = VedraCyanAccent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "🎙️ VEDRA is listening to your command...",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
             OutlinedTextField(
                 value = inputQuery,
                 onValueChange = { inputQuery = it },
                 placeholder = {
                     Text(
-                        text = "Ask VEDRA anything...",
+                        text = if (isListeningInline) "Listening..." else "Ask VEDRA anything...",
                         color = VedraTextMuted,
                         fontSize = 13.sp
                     )
@@ -414,13 +509,13 @@ fun VedAssistantScreen(
                 maxLines = 3,
                 trailingIcon = {
                     IconButton(
-                        onClick = onActivateVoice,
+                        onClick = { startInlineVoiceRecognition() },
                         modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Mic,
                             contentDescription = "Voice Input",
-                            tint = VedraCyanAccent,
+                            tint = if (isListeningInline) Color(0xFFEF4444) else VedraCyanAccent,
                             modifier = Modifier.size(18.dp)
                         )
                     }

@@ -372,7 +372,7 @@ fun MainAppLayout(
                             voiceService = voiceService,
                             onActivateVoice = {
                                 hasUserInteracted = true
-                                isVoiceModeActive = true
+                                activeTab = 2
                             },
                             onNavigateTab = { tab ->
                                 hasUserInteracted = true
@@ -389,7 +389,12 @@ fun MainAppLayout(
                     }
                     1 -> SafeTabBoundary("VEHub") {
                         StudyHubScreen(
-                            dbService = dbService
+                            dbService = dbService,
+                            onOpenDrawer = { isDrawerOpen = true },
+                            onNavigateTab = { tab ->
+                                hasUserInteracted = true
+                                activeTab = tab
+                            }
                         )
                     }
                     2 -> SafeTabBoundary("Ved") {
@@ -398,11 +403,11 @@ fun MainAppLayout(
                             voiceService = voiceService,
                             onActivateVoice = {
                                 hasUserInteracted = true
-                                isVoiceModeActive = true
                             },
                             onOpenDrawer = {
                                 isDrawerOpen = true
-                            }
+                            },
+                            autoStartVoice = true
                         )
                     }
                     3 -> SafeTabBoundary("VEDrive") {
@@ -422,28 +427,17 @@ fun MainAppLayout(
                 }
             }
 
-            // Global VoiceMode Overlay
-            if (isVoiceModeActive) {
-                VoiceModeOverlay(
-                    voiceService = voiceService,
-                    onClose = {
-                        hasUserInteracted = true
-                        isVoiceModeActive = false
-                    }
-                )
-            } else {
-                com.example.ui.components.FloatingAssistantWidget(
-                    voiceService = voiceService,
-                    dbService = dbService,
-                    onActivateVoiceMode = {
-                        hasUserInteracted = true
-                        isVoiceModeActive = true
-                    },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(bottom = 24.dp, end = 16.dp)
-                )
-            }
+            com.example.ui.components.FloatingAssistantWidget(
+                voiceService = voiceService,
+                dbService = dbService,
+                onActivateVoiceMode = {
+                    hasUserInteracted = true
+                    activeTab = 2
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = 24.dp, end = 16.dp)
+            )
 
             // Side Drawer (Top-Left 3 horizontal lines menu & swipe gesture)
             SideDrawer(

@@ -138,6 +138,17 @@ object GeminiService {
             sb.append(contextSummary)
             sb.append("\n[END USER CONTEXT]\n")
         }
+
+        val vedmTDocs = dbService?.getVedmTDocuments() ?: emptyList()
+        if (vedmTDocs.isNotEmpty()) {
+            val vedmTContext = vedmTDocs.joinToString("\n---\n") { doc ->
+                "Document: ${doc.title}\nContent:\n${doc.content.take(600)}"
+            }
+            sb.append("\n\n[VEDM-T KNOWLEDGE BASE & OFFLINE DOCUMENTS STUDIED BY VEDRA]\n")
+            sb.append(vedmTContext)
+            sb.append("\n[END VEDM-T KNOWLEDGE BASE]\n")
+        }
+
         return sb.toString()
     }
 
@@ -336,7 +347,13 @@ object GeminiService {
         contextSummary: String = "",
         dbService: DatabaseService? = null
     ): String {
-        // 1. Check if VEDRA has learned an answer from past stored conversations
+        // 1. Search VEDM-T offline knowledge store for matching documents
+        val vedmResult = dbService?.searchVedmTKnowledge(prompt)
+        if (vedmResult != null) {
+            return vedmResult
+        }
+
+        // 2. Check if VEDRA has learned an answer from past stored conversations
         val learned = dbService?.findLearnedResponse(prompt)
         if (learned != null) {
             return learned

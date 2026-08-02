@@ -1217,23 +1217,12 @@ fun QuickActionGlassItem(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            if (appBitmap != null) {
-                Image(
-                    bitmap = appBitmap,
-                    contentDescription = label,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(CircleShape)
-                )
-            } else {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = label,
-                    tint = color,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = if (isPinned) Color.White else color,
+                modifier = Modifier.size(28.dp)
+            )
 
             if (isPinned) {
                 Box(

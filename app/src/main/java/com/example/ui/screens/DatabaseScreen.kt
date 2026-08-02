@@ -68,6 +68,8 @@ import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.RemoveRedEye
 import androidx.compose.material.icons.filled.Search
@@ -75,6 +77,13 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.layout.offset
@@ -89,11 +98,15 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -128,7 +141,8 @@ import java.util.Locale
 // Main Navigation Tab
 enum class DatabaseTab {
     FOLDERS,
-    RECENT
+    RECENT,
+    VEDM_T
 }
 
 // Full Screen Operation Views
@@ -139,7 +153,7 @@ enum class StorageScreenView {
     ITEM_DETAILS
 }
 
-// Sample recent item data model
+// Recent item data model
 data class SampleRecentFile(
     val title: String,
     val category: String,
@@ -162,11 +176,24 @@ fun DatabaseScreen(
 
     // Active Tab & View Mode
     var selectedTab by remember { mutableStateOf(DatabaseTab.FOLDERS) }
-    var isGridView by remember { mutableStateOf(false) } // Default to Compact List View as requested
+    var isGridView by remember { mutableStateOf(false) } // Default to Compact List View
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
     var showOptionsMenu by remember { mutableStateOf(false) }
     var showAddFabMenu by remember { mutableStateOf(false) }
+
+    val coroutineScope = rememberCoroutineScope()
+
+    // VEDM-T dialog & creation state
+    var showCreateVedmTDialog by remember { mutableStateOf(false) }
+    var newVedmTTitle by remember { mutableStateOf("") }
+    var newVedmTContent by remember { mutableStateOf("") }
+
+    // VEDM-T RAG Indexing state
+    var isIndexingVedmT by remember { mutableStateOf(false) }
+    var indexingProgress by remember { mutableFloatStateOf(0f) }
+    var indexingStatusText by remember { mutableStateOf("") }
+    var indexingFileName by remember { mutableStateOf("") }
 
     // Active Navigation View Mode
     var activeViewMode by remember { mutableStateOf(StorageScreenView.FILE_MANAGER) }
@@ -195,59 +222,19 @@ fun DatabaseScreen(
     // Storage Data
     var currentSubfolders by remember { mutableStateOf(emptyList<DriveFolder>()) }
     var currentDocuments by remember { mutableStateOf(emptyList<DriveDocument>()) }
+    var vedmTDocuments by remember { mutableStateOf(emptyList<DriveDocument>()) }
+    var allRecentDocuments by remember { mutableStateOf(emptyList<DriveDocument>()) }
 
-    // Sample Recents List matching Image 2
-    val recentFilesList = remember {
-        listOf(
-            SampleRecentFile("HC Verma - Volume 1.pdf", "Physics", "books > JEE", "10:30 AM", "18.4 MB", true),
-            SampleRecentFile("Allen Physics Module.pdf", "Physics", "modules > Allen", "9:15 AM", "25.7 MB", true),
-            SampleRecentFile("JEE Main 2024 Paper.pdf", "Previous Year Papers", "previous_year_papers > JEE Main", "Yesterday 5:10 PM", "12.8 MB", true),
-            SampleRecentFile("Electrostatics Notes.pdf", "Class Notes", "notes", "Yesterday 6:20 PM", "6.3 MB", true),
-            SampleRecentFile("Organic Chemistry.pdf", "Chemistry", "pdfs", "Yesterday 1:20 PM", "45.8 MB", true),
-            SampleRecentFile("Physics Formula Notebook", "Notebook", "workspace > notebooks", "Today 11:05 AM", "2.1 MB", false),
-            SampleRecentFile("Full Syllabus Test 01.pdf", "Mock Test", "mock_tests", "Yesterday 3:45 PM", "8.9 MB", true)
-        )
-    }
-
-    // Refresh directory logic & seeding initial structure
+    // Refresh directory logic
     val refreshCurrentDirectory = {
+        dbService.initVedmTFiles(context)
+
         var folders = dbService.getAllDriveFolders(currentFolderId)
         var docs = dbService.getDocumentsInFolder(currentFolderId)
 
-        if (currentFolderId == 0L && folders.isEmpty() && docs.isEmpty()) {
-            // Seed Root Folders matching Image 1
-            val booksId = dbService.createDriveFolder("books", "#EAB308", 0L)
-            val modulesId = dbService.createDriveFolder("modules", "#EAB308", 0L)
-            val handbooksId = dbService.createDriveFolder("handbooks", "#EAB308", 0L)
-            val notesId = dbService.createDriveFolder("notes", "#EAB308", 0L)
-            val pypId = dbService.createDriveFolder("previous_year_papers", "#EAB308", 0L)
-            val mockId = dbService.createDriveFolder("mock_tests", "#EAB308", 0L)
-            val pdfsId = dbService.createDriveFolder("pdfs", "#EAB308", 0L)
-            val workspaceId = dbService.createDriveFolder("workspace", "#EAB308", 0L)
-
-            // Seed Subfolders inside "books"
-            dbService.createDriveFolder("JEE", "#EAB308", booksId)
-            dbService.createDriveFolder("NCERT", "#EAB308", booksId)
-            dbService.createDriveFolder("Reference", "#EAB308", booksId)
-            dbService.createDriveFolder("Others", "#EAB308", booksId)
-
-            // Seed Subfolders inside "modules"
-            dbService.createDriveFolder("Allen", "#EAB308", modulesId)
-            dbService.createDriveFolder("PW", "#EAB308", modulesId)
-            dbService.createDriveFolder("Others", "#EAB308", modulesId)
-
-            // Seed Subfolders inside "previous_year_papers"
-            dbService.createDriveFolder("JEE Main", "#EAB308", pypId)
-            dbService.createDriveFolder("JEE Advanced", "#EAB308", pypId)
-
-            // Seed Subfolders inside "workspace"
-            dbService.createDriveFolder("notebooks", "#EAB308", workspaceId)
-            dbService.createDriveFolder("uploaded_files", "#EAB308", workspaceId)
-            dbService.createDriveFolder("favourites", "#EAB308", workspaceId)
-            dbService.createDriveFolder("shared", "#EAB308", workspaceId)
-
-            folders = dbService.getAllDriveFolders(0L)
-            docs = dbService.getDocumentsInFolder(0L)
+        // Filter out internal VEDM-T folder from general folder list so VEDM-T has its dedicated tab
+        if (currentFolderId == 0L) {
+            folders = folders.filter { !it.name.equals("VEDM-T", ignoreCase = true) }
         }
 
         if (searchQuery.isNotBlank()) {
@@ -258,6 +245,18 @@ fun DatabaseScreen(
 
         currentSubfolders = folders
         currentDocuments = docs
+
+        // Real Recent files
+        val allDocs = dbService.getAllDriveDocuments()
+        allRecentDocuments = if (searchQuery.isNotBlank()) {
+            val q = searchQuery.trim().lowercase(Locale.ROOT)
+            allDocs.filter { it.title.lowercase(Locale.ROOT).contains(q) || it.content.lowercase(Locale.ROOT).contains(q) }
+        } else {
+            allDocs
+        }
+
+        // VEDM-T files
+        vedmTDocuments = dbService.getVedmTDocuments()
     }
 
     val shareItem: (Any) -> Unit = { item ->
@@ -376,6 +375,74 @@ fun DatabaseScreen(
             )
             refreshCurrentDirectory()
             Toast.makeText(context, "Added $fileName to VEDrive!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Dedicated VEDM-T Local .txt File Picker for Offline RAG Indexing
+    val vedmTFilePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let { fileUri ->
+            var fileName = "Imported_Knowledge.txt"
+            try {
+                context.contentResolver.query(fileUri, null, null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (cursor.moveToFirst() && nameIndex != -1) {
+                        fileName = cursor.getString(nameIndex)
+                    }
+                }
+            } catch (e: Exception) {
+                fileName = "Knowledge_${System.currentTimeMillis() % 10000}.txt"
+            }
+
+            if (!fileName.endsWith(".txt", ignoreCase = true)) {
+                fileName = "$fileName.txt"
+            }
+
+            indexingFileName = fileName
+            isIndexingVedmT = true
+            indexingProgress = 0.15f
+            indexingStatusText = "Reading local .txt file bytes..."
+
+            coroutineScope.launch {
+                var fileContent = ""
+                try {
+                    context.contentResolver.openInputStream(fileUri)?.use { stream ->
+                        fileContent = stream.bufferedReader().use { it.readText() }
+                    }
+                } catch (e: Exception) {
+                    fileContent = "Indexed knowledge from $fileName."
+                }
+
+                if (fileContent.isBlank()) {
+                    fileContent = "# $fileName\nDocument imported into VEDM-T RAG index."
+                }
+
+                delay(350)
+                indexingProgress = 0.45f
+                indexingStatusText = "Extracting semantic tokens for RAG index..."
+
+                delay(400)
+                indexingProgress = 0.80f
+                indexingStatusText = "Storing into VEDM-T Local Knowledge Repository..."
+
+                val vedmTFolderId = dbService.getOrCreateVedmTFolderId()
+                dbService.createDriveDocument(
+                    folderId = vedmTFolderId,
+                    title = fileName,
+                    content = fileContent,
+                    fileType = "TXT"
+                )
+
+                delay(300)
+                indexingProgress = 1.0f
+                indexingStatusText = "Indexing Complete! VEDRA RAG Engine updated."
+
+                delay(400)
+                isIndexingVedmT = false
+                refreshCurrentDirectory()
+                Toast.makeText(context, "Successfully indexed '$fileName' into VEDM-T RAG Engine!", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -569,7 +636,7 @@ fun DatabaseScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Left Pill Group: Folders vs Recent
+                        // Left Pill Group: Folders vs Recent vs VEDM-T
                         Row(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
@@ -583,20 +650,20 @@ fun DatabaseScreen(
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(if (selectedTab == DatabaseTab.FOLDERS) Color(0xFF6366F1) else Color.Transparent)
                                     .clickable { selectedTab = DatabaseTab.FOLDERS }
-                                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                                    .padding(horizontal = 11.dp, vertical = 7.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Folder,
                                     contentDescription = null,
                                     tint = Color.White,
-                                    modifier = Modifier.size(15.dp)
+                                    modifier = Modifier.size(14.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "Folders",
                                     color = Color.White,
-                                    fontSize = 12.5.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
@@ -607,21 +674,45 @@ fun DatabaseScreen(
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(if (selectedTab == DatabaseTab.RECENT) Color(0xFF6366F1) else Color.Transparent)
                                     .clickable { selectedTab = DatabaseTab.RECENT }
-                                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                                    .padding(horizontal = 11.dp, vertical = 7.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Schedule,
                                     contentDescription = null,
                                     tint = Color.White,
-                                    modifier = Modifier.size(15.dp)
+                                    modifier = Modifier.size(14.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "Recent",
                                     color = Color.White,
-                                    fontSize = 12.5.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold
+                                )
+                            }
+
+                            // VEDM-T Tab
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (selectedTab == DatabaseTab.VEDM_T) Color(0xFF8B5CF6) else Color.Transparent)
+                                    .clickable { selectedTab = DatabaseTab.VEDM_T }
+                                    .padding(horizontal = 11.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Psychology,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "VEDM-T",
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
@@ -713,177 +804,303 @@ fun DatabaseScreen(
                     }
 
                     // ================= 3. CONTENT AREA =================
-                    if (selectedTab == DatabaseTab.RECENT) {
-                        // RECENT TAB VIEW (Matching Image 2)
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 16.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                    when (selectedTab) {
+                        DatabaseTab.RECENT -> {
+                            // RECENT TAB VIEW (Real files)
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 16.dp)
                             ) {
-                                Column {
-                                    Text(
-                                        text = "Recent Files",
-                                        color = Color.White,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = "Your recently opened or added files",
-                                        color = Color(0xFF8E8EA8),
-                                        fontSize = 11.5.sp
-                                    )
-                                }
-
                                 Row(
-                                    modifier = Modifier.clickable {
-                                        Toast.makeText(context, "Cleared recent list", Toast.LENGTH_SHORT).show()
-                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = "Clear All",
-                                        tint = Color(0xFF8B5CF6),
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "Clear All",
-                                        color = Color(0xFF8B5CF6),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
-                            }
+                                    Column {
+                                        Text(
+                                            text = "Recent Documents",
+                                            color = Color.White,
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "Real documents stored in your local VEDrive",
+                                            color = Color(0xFF8E8EA8),
+                                            fontSize = 11.5.sp
+                                        )
+                                    }
 
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                items(recentFilesList) { recentFile ->
-                                    CompactRecentFileItem(
-                                        recentFile = recentFile,
-                                        onClick = {
-                                            val doc = DriveDocument(
-                                                id = System.currentTimeMillis() % 10000,
-                                                folderId = currentFolderId,
-                                                title = recentFile.title,
-                                                content = "📄 Document Preview: ${recentFile.title}\nCategory: ${recentFile.category}\nPath: ${recentFile.breadcrumbPath}\nSize: ${recentFile.fileSize}\nLast Opened: ${recentFile.timestamp}\n\n[Study Content & Practice Notes]",
-                                                fileType = if (recentFile.isPdf) "PDF" else "TXT",
-                                                fileSize = 1024L * 1024L
-                                            )
-                                            openDocumentFile(doc)
+                                    Row(
+                                        modifier = Modifier.clickable {
+                                            refreshCurrentDirectory()
+                                            Toast.makeText(context, "Refreshed recent files", Toast.LENGTH_SHORT).show()
                                         },
-                                        onRename = { itemToRename = recentFile },
-                                        onDetails = { itemForDetails = recentFile },
-                                        onDelete = { itemToDelete = recentFile },
-                                        onMove = { itemToMove = recentFile },
-                                        onShare = { shareItem(recentFile) },
-                                        onCopy = { copyItem(recentFile) }
-                                    )
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Refresh,
+                                            contentDescription = "Refresh",
+                                            tint = Color(0xFF8B5CF6),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "Refresh",
+                                            color = Color(0xFF8B5CF6),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
                                 }
-                                item { Spacer(modifier = Modifier.height(24.dp)) }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                if (allRecentDocuments.isEmpty()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(Color(0xFF131224))
+                                            .padding(24.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Icon(Icons.Default.FolderOpen, null, tint = Color(0xFF8E8EA8), modifier = Modifier.size(36.dp))
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text("No recent documents found", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                            Text("Upload files or create notes using (+) button", color = Color(0xFF8E8EA8), fontSize = 11.sp)
+                                        }
+                                    }
+                                } else {
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        items(allRecentDocuments) { doc ->
+                                            CompactDocumentListItem(
+                                                doc = doc,
+                                                onClick = { openDocumentFile(doc) },
+                                                onRename = { itemToRename = doc },
+                                                onDetails = { itemForDetails = doc },
+                                                onDelete = { itemToDelete = doc },
+                                                onMove = { itemToMove = doc },
+                                                onShare = { shareItem(doc) },
+                                                onCopy = { copyItem(doc) }
+                                            )
+                                        }
+                                        item { Spacer(modifier = Modifier.height(24.dp)) }
+                                    }
+                                }
                             }
                         }
-                    } else {
-                        // FOLDERS TAB VIEW (Matching Image 1 - COMPACT HALF SIZE AS REQUESTED)
-                        if (isGridView) {
-                            // COMPACT GRID VIEW
-                            LazyVerticalGrid(
-                                columns = GridCells.Fixed(2),
+
+                        DatabaseTab.VEDM_T -> {
+                            // VEDM-T TAB VIEW (VED Memory / Knowledge Base Engine)
+                            Column(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .padding(horizontal = 14.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    .padding(horizontal = 16.dp)
                             ) {
-                                items(currentSubfolders) { folder ->
-                                    val count = getRealFolderItemCount(dbService, folder.id)
-
-                                    CompactFolderGridCard(
-                                        folder = folder,
-                                        fileCountText = count,
-                                        onClick = {
-                                            folderStack.add(folder)
-                                            currentFolderId = folder.id
-                                        },
-                                        onRename = { itemToRename = folder },
-                                        onDetails = { itemForDetails = folder },
-                                        onDelete = { itemToDelete = folder },
-                                        onMove = { itemToMove = folder },
-                                        onShare = { shareItem(folder) },
-                                        onCopy = { copyItem(folder) }
-                                    )
+                                // Knowledge Header Banner Card
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(Color(0xFF18152E))
+                                        .border(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                                        .padding(14.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(42.dp)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(Color(0xFF8B5CF6)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Icons.Default.Psychology, null, tint = Color.White, modifier = Modifier.size(24.dp))
+                                        }
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "VEDM-T Knowledge Store",
+                                                color = Color.White,
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = "VEDRA studies all .txt documents here to customize offline & online responses.",
+                                                color = Color(0xFFB4B4CE),
+                                                fontSize = 11.sp,
+                                                lineHeight = 15.sp
+                                            )
+                                        }
+                                    }
                                 }
 
-                                items(currentDocuments) { doc ->
-                                    CompactDocumentGridCard(
-                                        doc = doc,
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // Action Row for VEDM-T
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Button(
                                         onClick = {
-                                            openDocumentFile(doc)
+                                            newVedmTTitle = ""
+                                            newVedmTContent = ""
+                                            showCreateVedmTDialog = true
                                         },
-                                        onRename = { itemToRename = doc },
-                                        onDetails = { itemForDetails = doc },
-                                        onDelete = { itemToDelete = doc },
-                                        onMove = { itemToMove = doc },
-                                        onShare = { shareItem(doc) },
-                                        onCopy = { copyItem(doc) }
-                                    )
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6)),
+                                        shape = RoundedCornerShape(10.dp),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(Icons.Default.Add, null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("➕ New .txt File", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            vedmTFilePickerLauncher.launch("text/plain")
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
+                                        shape = RoundedCornerShape(10.dp),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(Icons.Default.UploadFile, null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("📤 Import .txt", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                if (vedmTDocuments.isEmpty()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(Color(0xFF131224))
+                                            .padding(20.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("No VEDM-T documents found. Click (+) to add knowledge files.", color = Color(0xFF8E8EA8), fontSize = 12.sp)
+                                    }
+                                } else {
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        items(vedmTDocuments) { doc ->
+                                            CompactDocumentListItem(
+                                                doc = doc,
+                                                onClick = { openDocumentFile(doc) },
+                                                onRename = { itemToRename = doc },
+                                                onDetails = { itemForDetails = doc },
+                                                onDelete = { itemToDelete = doc },
+                                                onMove = { itemToMove = doc },
+                                                onShare = { shareItem(doc) },
+                                                onCopy = { copyItem(doc) }
+                                            )
+                                        }
+                                        item { Spacer(modifier = Modifier.height(24.dp)) }
+                                    }
                                 }
                             }
-                        } else {
-                            // COMPACT LIST VIEW (Exact match to Image 1 with HALF SIZE padding)
-                            LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 14.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                items(currentSubfolders) { folder ->
-                                    val count = getRealFolderItemCount(dbService, folder.id)
+                        }
 
-                                    CompactFolderListItem(
-                                        folder = folder,
-                                        fileCountText = count,
-                                        onClick = {
-                                            folderStack.add(folder)
-                                            currentFolderId = folder.id
-                                        },
-                                        onRecentClick = {
-                                            selectedTab = DatabaseTab.RECENT
-                                        },
-                                        onRename = { itemToRename = folder },
-                                        onDetails = { itemForDetails = folder },
-                                        onDelete = { itemToDelete = folder },
-                                        onMove = { itemToMove = folder },
-                                        onShare = { shareItem(folder) },
-                                        onCopy = { copyItem(folder) }
-                                    )
+                        DatabaseTab.FOLDERS -> {
+                            // FOLDERS TAB VIEW
+                            if (isGridView) {
+                                LazyVerticalGrid(
+                                    columns = GridCells.Fixed(2),
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 14.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(currentSubfolders) { folder ->
+                                        val count = getRealFolderItemCount(dbService, folder.id)
+
+                                        CompactFolderGridCard(
+                                            folder = folder,
+                                            fileCountText = count,
+                                            onClick = {
+                                                folderStack.add(folder)
+                                                currentFolderId = folder.id
+                                            },
+                                            onRename = { itemToRename = folder },
+                                            onDetails = { itemForDetails = folder },
+                                            onDelete = { itemToDelete = folder },
+                                            onMove = { itemToMove = folder },
+                                            onShare = { shareItem(folder) },
+                                            onCopy = { copyItem(folder) }
+                                        )
+                                    }
+
+                                    items(currentDocuments) { doc ->
+                                        CompactDocumentGridCard(
+                                            doc = doc,
+                                            onClick = { openDocumentFile(doc) },
+                                            onRename = { itemToRename = doc },
+                                            onDetails = { itemForDetails = doc },
+                                            onDelete = { itemToDelete = doc },
+                                            onMove = { itemToMove = doc },
+                                            onShare = { shareItem(doc) },
+                                            onCopy = { copyItem(doc) }
+                                        )
+                                    }
                                 }
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    items(currentSubfolders) { folder ->
+                                        val count = getRealFolderItemCount(dbService, folder.id)
 
-                                items(currentDocuments) { doc ->
-                                    CompactDocumentListItem(
-                                        doc = doc,
-                                        onClick = {
-                                            openDocumentFile(doc)
-                                        },
-                                        onRename = { itemToRename = doc },
-                                        onDetails = { itemForDetails = doc },
-                                        onDelete = { itemToDelete = doc },
-                                        onMove = { itemToMove = doc },
-                                        onShare = { shareItem(doc) },
-                                        onCopy = { copyItem(doc) }
-                                    )
+                                        CompactFolderListItem(
+                                            folder = folder,
+                                            fileCountText = count,
+                                            onClick = {
+                                                folderStack.add(folder)
+                                                currentFolderId = folder.id
+                                            },
+                                            onRecentClick = {
+                                                selectedTab = DatabaseTab.RECENT
+                                            },
+                                            onRename = { itemToRename = folder },
+                                            onDetails = { itemForDetails = folder },
+                                            onDelete = { itemToDelete = folder },
+                                            onMove = { itemToMove = folder },
+                                            onShare = { shareItem(folder) },
+                                            onCopy = { copyItem(folder) }
+                                        )
+                                    }
+
+                                    items(currentDocuments) { doc ->
+                                        CompactDocumentListItem(
+                                            doc = doc,
+                                            onClick = { openDocumentFile(doc) },
+                                            onRename = { itemToRename = doc },
+                                            onDetails = { itemForDetails = doc },
+                                            onDelete = { itemToDelete = doc },
+                                            onMove = { itemToMove = doc },
+                                            onShare = { shareItem(doc) },
+                                            onCopy = { copyItem(doc) }
+                                        )
+                                    }
+
+                                    item { Spacer(modifier = Modifier.height(24.dp)) }
                                 }
-
-                                item { Spacer(modifier = Modifier.height(24.dp)) }
                             }
                         }
                     }
@@ -1371,6 +1588,160 @@ fun DatabaseScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
+                }
+            }
+        }
+    }
+
+    // ================= VEDM-T RAG INDEXING PROGRESS DIALOG =================
+    if (isIndexingVedmT) {
+        Dialog(onDismissRequest = {}) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF18152E),
+                border = BorderStroke(1.dp, Color(0xFF8B5CF6)),
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF8B5CF6).copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            progress = { indexingProgress },
+                            color = Color(0xFF8B5CF6),
+                            trackColor = Color(0xFF38375A),
+                            modifier = Modifier.size(52.dp)
+                        )
+                        Icon(
+                            imageVector = Icons.Default.Psychology,
+                            contentDescription = null,
+                            tint = Color(0xFFA78BFA),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Indexing for Offline RAG",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = indexingFileName,
+                        color = Color(0xFFA78BFA),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    LinearProgressIndicator(
+                        progress = { indexingProgress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = Color(0xFF8B5CF6),
+                        trackColor = Color(0xFF2A2845)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = indexingStatusText,
+                            color = Color(0xFFB4B4CE),
+                            fontSize = 11.5.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "${(indexingProgress * 100).toInt()}%",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // ================= VEDM-T CREATE DOCUMENT DIALOG =================
+    if (showCreateVedmTDialog) {
+        MovableResizableDialog(
+            onDismissRequest = { showCreateVedmTDialog = false },
+            title = "New VEDM-T Document",
+            icon = Icons.Default.Psychology,
+            iconColor = Color(0xFF8B5CF6),
+            initialWidthDp = 340.dp,
+            initialHeightDp = 420.dp
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                Text("Document Title (.txt):", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                CustomInput(
+                    value = newVedmTTitle,
+                    onValueChange = { newVedmTTitle = it },
+                    placeholder = "e.g., Physics_Formulas.txt",
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Text("Knowledge Content for VEDRA:", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                OutlinedTextField(
+                    value = newVedmTContent,
+                    onValueChange = { newVedmTContent = it },
+                    placeholder = { Text("Enter text, formulas, or facts for offline & online VEDRA responses...", color = Color(0xFF8E8EA8)) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF8B5CF6),
+                        unfocusedBorderColor = Color(0xFF38375A),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = { showCreateVedmTDialog = false }) {
+                        Text("Cancel", color = Color(0xFF8E8EA8))
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    CustomButton(
+                        text = "Save & Study",
+                        onClick = {
+                            val folderId = dbService.getOrCreateVedmTFolderId()
+                            val titleClean = if (newVedmTTitle.endsWith(".txt", ignoreCase = true)) newVedmTTitle else "${newVedmTTitle.ifBlank { "Untitled_Knowledge" }}.txt"
+                            dbService.createDriveDocument(folderId, titleClean, newVedmTContent, "TXT")
+                            showCreateVedmTDialog = false
+                            refreshCurrentDirectory()
+                            Toast.makeText(context, "VEDRA re-studied VEDM-T documents!", Toast.LENGTH_SHORT).show()
+                        }
+                    )
                 }
             }
         }

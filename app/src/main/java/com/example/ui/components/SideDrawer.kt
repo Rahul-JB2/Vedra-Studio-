@@ -39,8 +39,23 @@ import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VpnKey
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalContext
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -85,7 +100,12 @@ fun SideDrawer(
         )
     }
 
-    val realChatHistory = remember(isOpen) {
+    var selectedHistoryOptionsItem by remember { mutableStateOf<ChatHistoryItem?>(null) }
+    var historyToRename by remember { mutableStateOf<ChatHistoryItem?>(null) }
+    var renameInputText by remember { mutableStateOf("") }
+    val context = LocalContext.current
+
+    val realChatHistory = remember(isOpen, dbService?.settingsVersion?.intValue) {
         dbService?.getAllChatHistory() ?: emptyList()
     }
 
@@ -345,15 +365,18 @@ fun SideDrawer(
 
                         // Chat History List Items
                         if (realChatHistory.isNotEmpty()) {
-                            items(realChatHistory.take(5)) { item ->
+                            items(realChatHistory.take(7)) { item ->
                                 ChatHistoryRow(
-                                    title = item.sessionTitle,
+                                    title = item.sessionTitle.ifBlank { item.userText },
                                     time = "Today",
                                     onClick = {
                                         activeKey = "ved"
                                         onSelectChatHistoryItem?.invoke(item)
                                         onSelectMenuItem("ved")
                                         onClose()
+                                    },
+                                    onLongClick = {
+                                        selectedHistoryOptionsItem = item
                                     }
                                 )
                             }
@@ -375,6 +398,15 @@ fun SideDrawer(
                                         )
                                         onSelectMenuItem("ved")
                                         onClose()
+                                    },
+                                    onLongClick = {
+                                        selectedHistoryOptionsItem = ChatHistoryItem(
+                                            id = System.currentTimeMillis(),
+                                            sessionTitle = item.title,
+                                            userText = item.title,
+                                            vedResponse = item.response,
+                                            timestamp = System.currentTimeMillis()
+                                        )
                                     }
                                 )
                             }
@@ -514,6 +546,156 @@ fun SideDrawer(
                 }
             }
         }
+
+        // Long Press Chat History Action Dialog
+        if (selectedHistoryOptionsItem != null) {
+            val historyItem = selectedHistoryOptionsItem!!
+            AlertDialog(
+                onDismissRequest = { selectedHistoryOptionsItem = null },
+                containerColor = Color(0xFF120E24),
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.ChatBubble, contentDescription = null, tint = Color(0xFFA78BFA), modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = historyItem.sessionTitle.ifBlank { "Chat Options" },
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Option 1: Edit Name / Rename
+                        Button(
+                            onClick = {
+                                historyToRename = historyItem
+                                renameInputText = historyItem.sessionTitle.ifBlank { historyItem.userText }
+                                selectedHistoryOptionsItem = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF231842))
+                        ) {
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Edit, contentDescription = null, tint = Color(0xFFA78BFA), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text("Edit Name / Rename Chat", color = Color.White, fontSize = 13.sp)
+                            }
+                        }
+
+                        // Option 2: Pin Chat / Favorite
+                        Button(
+                            onClick = {
+                                dbService?.setSetting("pinned_chat_${historyItem.id}", "true")
+                                Toast.makeText(context, "📌 Pinned Chat History!", Toast.LENGTH_SHORT).show()
+                                selectedHistoryOptionsItem = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF231842))
+                        ) {
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.PushPin, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text("Pin Chat to Top", color = Color.White, fontSize = 13.sp)
+                            }
+                        }
+
+                        // Option 3: Copy Text
+                        Button(
+                            onClick = {
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                val textToCopy = "Q: ${historyItem.userText}\n\nVEDRA: ${historyItem.vedResponse}"
+                                clipboard?.setPrimaryClip(ClipData.newPlainText("VEDRA Chat", textToCopy))
+                                Toast.makeText(context, "📋 Copied chat text to clipboard", Toast.LENGTH_SHORT).show()
+                                selectedHistoryOptionsItem = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF231842))
+                        ) {
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color(0xFF06B6D4), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text("Copy Chat Conversation", color = Color.White, fontSize = 13.sp)
+                            }
+                        }
+
+                        // Option 4: Delete Chat History
+                        Button(
+                            onClick = {
+                                dbService?.deleteChatHistoryItem(historyItem.id)
+                                Toast.makeText(context, "🗑️ Deleted chat history", Toast.LENGTH_SHORT).show()
+                                selectedHistoryOptionsItem = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF451A2B))
+                        ) {
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text("Delete Chat History", color = Color(0xFFFCA5A5), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { selectedHistoryOptionsItem = null }) {
+                        Text("Cancel", color = Color.Gray)
+                    }
+                }
+            )
+        }
+
+        // Rename Chat History Dialog
+        if (historyToRename != null) {
+            AlertDialog(
+                onDismissRequest = { historyToRename = null },
+                containerColor = Color(0xFF120E24),
+                title = {
+                    Text("Rename Chat Title", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Enter a new title for this conversation:", color = Color(0xFFCBD5E1), fontSize = 12.5.sp)
+                        OutlinedTextField(
+                            value = renameInputText,
+                            onValueChange = { renameInputText = it },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = Color(0xFF8B5CF6),
+                                unfocusedBorderColor = Color(0xFF2E1A52),
+                                focusedContainerColor = Color(0xFF181130),
+                                unfocusedContainerColor = Color(0xFF181130)
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (renameInputText.isNotBlank() && historyToRename != null) {
+                                dbService?.renameChatHistoryItem(historyToRename!!.id, renameInputText.trim())
+                                Toast.makeText(context, "✅ Renamed chat title!", Toast.LENGTH_SHORT).show()
+                                historyToRename = null
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+                    ) {
+                        Text("Save", color = Color.White)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { historyToRename = null }) {
+                        Text("Cancel", color = Color.Gray)
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -598,17 +780,22 @@ private fun DrawerMainItem(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ChatHistoryRow(
     title: String,
     time: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .clickable { onClick() }
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = { onLongClick?.invoke() }
+            )
             .padding(horizontal = 4.dp, vertical = 5.dp)
     ) {
         Row(

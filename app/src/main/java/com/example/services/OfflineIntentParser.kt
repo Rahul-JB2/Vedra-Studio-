@@ -39,7 +39,12 @@ object OfflineIntentParser {
             return localUtil
         }
 
-        // 3. Offline Local Search Engine
+        // 3. Offline VEDM-T Knowledge Store & Local Search Engine
+        val vedmResult = dbService.searchVedmTKnowledge(text, context)
+        if (vedmResult != null) {
+            return UtilityResult(true, vedmResult, "VEDM_T_KNOWLEDGE")
+        }
+
         val localSearchResult = dbService.searchOfflineContent(text)
         if (localSearchResult != null) {
             return UtilityResult(true, localSearchResult, "OFFLINE_SEARCH")
